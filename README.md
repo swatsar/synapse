@@ -1,199 +1,477 @@
-# 🧠 Synapse
-
-**Distributed Cognitive Platform for Autonomous Agents**
+# 🧠 Synapse - Distributed Cognitive Agent Platform
 
 [![PyPI version](https://badge.fury.io/py/synapse-agent.svg)](https://badge.fury.io/py/synapse-agent)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1085%20passed-brightgreen.svg)](https://github.com/synapse/synapse)
-[![Coverage](https://img.shields.io/badge/coverage-81%25-green.svg)](https://github.com/synapse/synapse)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Production Ready](https://img.shields.io/badge/status-production%20ready-brightgreen.svg)](https://github.com/synapse/synapse)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-1085%20passing-brightgreen.svg)](tests/)
+[![Coverage](https://img.shields.io/badge/Coverage-81%25-green.svg)](https://codecov.io)
+[![Production Ready](https://img.shields.io/badge/Production-98.5%25-brightgreen.svg)](docs/)
+
+**Production-Ready Distributed Cognitive Agent Platform с Capability-Based Security, Self-Evolution и Cross-Platform Support.**
 
 ---
 
-## 📖 Overview
+## 📜 Философия Проекта
 
-Synapse is a production-ready distributed cognitive platform for autonomous AI agents. 
-It combines the modularity of OpenClaw with the self-evolution capabilities of Agent Zero, 
-while adding enterprise-grade security, reliability, and protocol versioning.
+### Концепция
 
-**Key Features:**
-- 🔐 **Capability-Based Security Model** — Non-executable tokens with scoped permissions
-- 🔄 **Self-Evolution Engine** — Agent Zero patterns for autonomous skill generation
-- 🌐 **Multi-Provider LLM Abstraction** — 100+ providers via LiteLLM
-- 📊 **Full Observability** — Prometheus metrics + structured logging
-- 🛡️ **Human-in-the-Loop Approval** — Required for high-risk actions
-- 📦 **Universal Deployment** — Windows/macOS/Linux/Docker support
-- 🔒 **Isolation Enforcement** — Container/subprocess isolation per skill
-- ⏪ **Rollback & Recovery** — Checkpoint-based state recovery
+**Synapse** — это не просто AI-ассистент, а **цифровой организм**, способный к автономному развитию и обучению. Проект основан на идее, что истинный искусственный интеллект должен обладать способностью:
 
----
+- **🧬 Саморазвития** — создавать новые навыки и агенты для решения неизвестных задач
+- **🛡️ Самозащиты** — встроенная многоуровневая система безопасности
+- **🔄 Самовосстановления** — автоматический откат к стабильным состояниям
+- **🌐 Самораспределения** — работа на множестве узлов с синхронизацией
 
-## 🚀 Quick Start
+### Архитектурные Принципы
 
-### Installation
+| Принцип | Описание |
+|---------|----------|
+| **Capability-Based Security** | Каждый навык требует явного разрешения (токена) для доступа к ресурсам |
+| **Isolation Enforcement** | Непроверенный код выполняется в песочнице (контейнер) |
+| **Protocol Versioning** | Все компоненты имеют `protocol_version="1.0"` для совместимости |
+| **Deterministic Execution** | Воспроизводимые результаты через `execution_seed` |
+| **Audit Trail** | Полное логирование всех действий для прозрачности |
 
-```bash
-# From PyPI
-pip install synapse-agent
+### Цикл Мысли Агента
 
-# From source
-git clone https://github.com/synapse/synapse.git
-cd synapse
-pip install -e .
+```
+Восприятие → Воспоминание → Планирование → Действие → Наблюдение → Оценка → Обучение
 ```
 
-### Basic Usage
-
-```python
-from synapse import Agent
-
-agent = Agent(
-    llm_provider="openai",
-    model="gpt-4o",
-    api_key="your-api-key"
-)
-
-response = agent.run("Read the file /workspace/test.txt and summarize it")
-print(response)
-```
-
-### Docker Deployment
-
-```bash
-cd docker
-docker-compose up -d
-```
+Каждый агент следует этому когнитивному циклу, обеспечивая осмысленное поведение.
 
 ---
 
-## 📚 Documentation
+## 👤 Автор
 
-| Document | Description |
-|----------|-------------|
-| [Installation Guide](docs/INSTALLATION_GUIDE.md) | Full installation instructions |
-| [Quick Start](docs/QUICKSTART.md) | 5-minute quick start guide |
-| [API Reference](docs/API_REFERENCE.md) | Complete API documentation |
-| [Security Guide](docs/SECURITY_GUIDE.md) | Security best practices |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [Release Notes](docs/RELEASE_NOTES_v3.1.md) | Version 3.1.0 release notes |
+**Евгений Савченко**
+- Email: [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com)
+- GitHub: [@swatsar](https://github.com/swatsar)
 
 ---
 
-## 🏗️ Architecture
+## 🖥️ Интерфейсы
+
+### Web Dashboard
+
+Synapse включает полноценный веб-интерфейс для управления и мониторинга:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    PRESENTATION LAYER                       │
-│  UI (Web/GUI) │ Connectors (Telegram/Discord) │ REST API   │
+│  🧠 Synapse Dashboard                                        │
 ├─────────────────────────────────────────────────────────────┤
-│                    ORCHESTRATION LAYER                      │
-│  Orchestrator │ Agents (Planner/Critic/Developer/Guardian) │
+│  📊 Overview  │  🤖 Agents  │  📝 Skills  │  📈 Metrics     │
 ├─────────────────────────────────────────────────────────────┤
-│                    EXECUTION LAYER                          │
-│  Skills │ Isolation Policy │ Resource Manager │ Runtime    │
-├─────────────────────────────────────────────────────────────┤
-│                    INTELLIGENCE LAYER                       │
-│  LLM Router │ Failure Strategy │ Learning Engine           │
-├─────────────────────────────────────────────────────────────┤
-│                    MEMORY LAYER                             │
-│  Vector Store │ SQL Store │ Distributed Memory             │
-├─────────────────────────────────────────────────────────────┤
-│                    INFRASTRUCTURE LAYER                     │
-│  Security │ Checkpoint │ Rollback │ Time Sync │ Audit      │
+│                                                             │
+│  Active Agents: 3        Skills: 15        Uptime: 99.9%   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Agent Activity Log                                  │   │
+│  │  • Planner: Task decomposed into 3 steps            │   │
+│  │  • Developer: Generated new skill "data_processor"  │   │
+│  │  • Critic: Evaluation score 0.95                    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+**Функции Web UI:**
+- 📊 Dashboard с метриками в реальном времени
+- 🤖 Управление агентами (запуск, остановка, конфигурация)
+- 📝 Редактор навыков с подсветкой синтаксиса
+- 📈 Prometheus metrics и Grafana dashboards
+- 🔐 Управление capabilities и разрешениями
+- 📜 Audit log с фильтрацией
+
+### GUI Приложение
+
+Для настольного использования доступно GUI-приложение:
+
+| Платформа | Технология | Файл |
+|-----------|------------|------|
+| **Windows** | Electron/Tauri | `synapse-setup-win.exe` |
+| **macOS** | Electron/Tauri | `synapse-setup-mac.dmg` |
+| **Linux** | Electron/Tauri | `synapse-setup-linux.AppImage` |
+
+**Возможности GUI:**
+- Системный трей с быстрым доступом
+- Уведомления о событиях агента
+- Голосовое управление (опционально)
+- Интеграция с системными горячими клавишами
+
 ---
 
-## 🔐 Security
+## 📦 Установка
 
-Synapse implements a multi-layer security model:
+### Вариант 1: Docker (Рекомендуется)
 
-1. **Capability-Based Access Control** — Non-executable tokens with scoped permissions
-2. **Isolation Enforcement** — Container/subprocess isolation per skill based on risk level
-3. **Human Approval** — Required for high-risk actions (risk_level ≥ 3)
-4. **Full Audit Trail** — Immutable logging of all actions
-5. **AST Security Analysis** — Static analysis of generated code
-
----
-
-## 🧪 Testing
+**Для всех платформ (Windows, Linux, macOS):**
 
 ```bash
-# Run all tests
+# Клонирование репозитория
+git clone https://github.com/swatsar/synapse.git
+cd synapse
+
+# Запуск через Docker Compose
+docker-compose up -d
+
+# Проверка
+curl http://localhost:8000/health
+```
+
+**Доступные сервисы:**
+- Web UI: http://localhost:3000
+- API: http://localhost:8000
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3001
+
+### Вариант 2: Windows
+
+#### Требования:
+- Windows 10/11 (64-bit)
+- Python 3.11+
+- PowerShell 5.1+
+
+#### Установка:
+
+```powershell
+# Способ 1: Через PyPI
+pip install synapse-agent
+
+# Способ 2: Из исходников
+git clone https://github.com/swatsar/synapse.git
+cd synapse
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+
+# Запуск
+python -m synapse.main
+```
+
+#### GUI Установщик:
+```powershell
+# Скачать и запустить
+.\synapse-setup-win.exe
+```
+
+### Вариант 3: Linux
+
+#### Требования:
+- Ubuntu 20.04+ / Debian 11+ / Fedora 35+ / Arch Linux
+- Python 3.11+
+- systemd (для сервиса)
+
+#### Установка:
+
+```bash
+# Способ 1: Через PyPI
+pip install synapse-agent
+
+# Способ 2: Из исходников
+git clone https://github.com/swatsar/synapse.git
+cd synapse
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Установка как systemd сервиса
+sudo ./installer/linux/install-service.sh
+
+# Запуск
+python -m synapse.main
+```
+
+#### AppImage:
+```bash
+chmod +x synapse-setup-linux.AppImage
+./synapse-setup-linux.AppImage
+```
+
+### Вариант 4: macOS
+
+#### Требования:
+- macOS 12+ (Monterey или новее)
+- Python 3.11+
+- Homebrew (рекомендуется)
+
+#### Установка:
+
+```bash
+# Способ 1: Через PyPI
+pip install synapse-agent
+
+# Способ 2: Через Homebrew
+brew tap swatsar/synapse
+brew install synapse
+
+# Способ 3: Из исходников
+git clone https://github.com/swatsar/synapse.git
+cd synapse
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Запуск
+python -m synapse.main
+```
+
+#### DMG Установщик:
+```bash
+# Скачать и установить
+open synapse-setup-mac.dmg
+```
+
+---
+
+## 🔌 Коннекторы
+
+Synapse поддерживает множество каналов коммуникации:
+
+### Telegram
+
+```yaml
+# config/connectors.yaml
+telegram:
+  enabled: true
+  bot_token: "YOUR_BOT_TOKEN"
+  allowed_users:
+    - 123456789  # Ваш Telegram ID
+  rate_limit_per_minute: 30
+```
+
+**Возможности:**
+- 💬 Отправка команд агенту
+- 📎 Приём файлов и изображений
+- 🔔 Уведомления о событиях
+- ✅ Human-in-the-loop одобрения
+
+### Discord
+
+```yaml
+# config/connectors.yaml
+discord:
+  enabled: true
+  bot_token: "YOUR_DISCORD_BOT_TOKEN"
+  guild_id: "YOUR_GUILD_ID"
+  channels:
+    - name: "synapse-commands"
+      permissions: ["send_messages", "read_messages"]
+```
+
+**Возможности:**
+- 💬 Команды через слэш-команды (`/synapse`)
+- 📊 Embed-сообщения для результатов
+- 🔔 Webhook уведомления
+
+### REST API
+
+```bash
+# Примеры запросов
+
+# Создать задачу
+curl -X POST http://localhost:8000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"task": "Analyze sales data", "priority": "high"}'
+
+# Получить статус
+curl http://localhost:8000/api/tasks/{task_id}
+
+# Список агентов
+curl http://localhost:8000/api/agents
+```
+
+### CLI
+
+```bash
+# Интерактивный режим
+python -m synapse.main --interactive
+
+# Выполнить задачу
+python -m synapse.main --task "Analyze the log files"
+
+# Запустить навык
+python -m synapse.main --skill read_file --params '{"path": "/var/log/syslog"}'
+```
+
+---
+
+## 🚀 Быстрый старт
+
+```bash
+# 1. Установка
+pip install synapse-agent
+
+# 2. Создание конфигурации
+synapse init
+
+# 3. Настройка API ключей
+export OPENAI_API_KEY="your-key"
+export ANTHROPIC_API_KEY="your-key"
+
+# 4. Запуск
+synapse start
+
+# 5. Отправка задачи
+curl -X POST http://localhost:8000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"task": "Hello, Synapse!"}'
+```
+
+---
+
+## 🏗️ Архитектура
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        SYnapse Platform                          │
+├─────────────────────────────────────────────────────────────────┤
+│  📡 Connectors Layer                                             │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐               │
+│  │Telegram │ │ Discord │ │REST API │ │   CLI   │               │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘               │
+└───────┼──────────┼──────────┼──────────┼────────────────────────┘
+        │          │          │          │
+        └──────────┴──────────┴──────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────┐
+│  🧠 Cognitive Core                                              │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
+│  │ Orchestrator│ │  Planner   │ │   Critic   │ │ Developer  │   │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐                  │
+│  │  Guardian  │ │  Memory    │ │  Learning  │                  │
+│  └────────────┘ └────────────┘ └────────────┘                  │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────┐
+│  ⚙️ Execution Layer                                             │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
+│  │   Skills   │ │  Security  │ │ Checkpoint │ │  Rollback  │   │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────────┐
+│  🌐 Infrastructure                                              │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐   │
+│  │  LLM Layer │ │ Vector DB  │ │  PostgreSQL│ │  Redis     │   │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🤖 Агенты
+
+| Агент | Роль | Описание |
+|-------|------|----------|
+| **Orchestrator** | Координатор | Управляет когнитивным циклом и маршрутизацией |
+| **Planner** | Планировщик | Декомпозиция задач на шаги |
+| **Critic** | Критик | Оценка результатов и выявление проблем |
+| **Developer** | Разработчик | Генерация новых навыков и агентов |
+| **Guardian** | Страж | Проверка безопасности и одобрение действий |
+
+---
+
+## 🛡️ Безопасность
+
+### Capability-Based Security
+
+```python
+# Каждый навык требует явного разрешения
+skill_manifest = {
+    "name": "read_file",
+    "required_capabilities": ["fs:read:/workspace/**"],
+    "risk_level": 2,
+    "isolation_type": "subprocess"
+}
+```
+
+### Isolation Policy
+
+| Trust Level | Risk Level | Isolation |
+|-------------|------------|-----------|
+| Trusted | 1-2 | Subprocess |
+| Verified | 3+ | Container |
+| Unverified | Any | Container (strict) |
+
+### Human-in-the-Loop
+
+Для действий с `risk_level >= 3` требуется одобрение:
+
+```
+🔔 Требуется одобрение:
+
+Действие: execute_command
+Навык: system_manager
+Риск: 4 (Высокий)
+
+Команда: rm -rf /tmp/old_logs
+
+[Одобрить] [Отклонить]
+```
+
+---
+
+## 📊 Метрики
+
+```bash
+# Prometheus metrics
+curl http://localhost:9090/metrics
+
+# Примеры метрик:
+synapse_skill_success_rate{skill="read_file"} 0.98
+synapse_llm_token_usage_total{model="gpt-4o"} 15234
+synapse_agent_latency_seconds{agent="planner"} 0.234
+```
+
+---
+
+## 📚 Документация
+
+| Документ | Описание |
+|----------|----------|
+| [Installation Guide](docs/INSTALLATION_GUIDE.md) | Подробная установка |
+| [Quick Start](docs/QUICKSTART.md) | Быстрый старт |
+| [API Reference](docs/API_REFERENCE.md) | REST API документация |
+| [Security Guide](docs/SECURITY_GUIDE.md) | Настройка безопасности |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Решение проблем |
+
+---
+
+## 🧪 Тестирование
+
+```bash
+# Запуск всех тестов
 pytest tests/ -v
 
-# Run security tests
+# С coverage
+pytest tests/ --cov=synapse --cov-report=html
+
+# Только security тесты
 pytest tests/ -m security -v
-
-# Run with coverage
-pytest tests/ -v --cov=synapse --cov-report=html
-```
-
-**Test Results:**
-- Total Tests: 1,085
-- Passed: 1,085 (100%)
-- Coverage: 81%
-
----
-
-## 📦 Release
-
-Current Version: **3.1.0**
-
-```bash
-# Build package
-python -m build
-
-# Verify package
-twine check dist/*
-
-# Upload to PyPI
-twine upload dist/*
-
-# Create Docker image
-docker build -t synapse/platform:3.1.0 .
 ```
 
 ---
 
-## 🤝 Contributing
+## 🤝 Участие в разработке
 
-We welcome contributions! Please see our [Contributing Guide](.github/CONTRIBUTING.md) for details.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+См. [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 
 ---
 
-## 📄 License
+## 📄 Лицензия
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-Synapse builds upon excellent work from:
-- [OpenClaw](https://github.com/openclaw/openclaw) — Connector patterns
-- [Agent Zero](https://github.com/agent0ai/agent-zero) — Self-evolution patterns
-- [Anthropic](https://docs.anthropic.com/) — Tool Use patterns
-- [LangChain](https://github.com/langchain-ai/langchain) — LLM abstraction
-- [LangGraph](https://github.com/langchain-ai/langgraph) — State graphs
-- [browser-use](https://github.com/browser-use/browser-use) — Browser automation
+MIT License - см. [LICENSE](LICENSE)
 
 ---
 
-## 📞 Support
+## 📞 Контакты
 
-- **Documentation:** [docs/](docs/)
-- **Issues:** [GitHub Issues](https://github.com/synapse/synapse/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/synapse/synapse/discussions)
+- **Автор:** Евгений Савченко
+- **Email:** [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com)
+- **GitHub:** [https://github.com/swatsar/synapse](https://github.com/swatsar/synapse)
 
 ---
 
-**Protocol Version:** 1.0 | **Spec Version:** 3.1 | **Status:** Production Ready ✅
+**Synapse v3.1.0** - Production-Ready Distributed Cognitive Agent Platform
