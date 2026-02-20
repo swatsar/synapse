@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Synapse</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #eee; min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid #333; margin-bottom: 30px; }
+        h1 { font-size: 2em; color: #00d4ff; }
+        .nav { display: flex; gap: 15px; }
+        .nav a { color: #00d4ff; text-decoration: none; padding: 8px 16px; border-radius: 6px; }
+        .nav a:hover { background: rgba(0,212,255,0.1); }
+        .nav a.active { background: #00d4ff; color: #000; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; background: rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer; }
+        .tab.active { background: #00d4ff; color: #000; }
+        .card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+        .card h2 { font-size: 1.2em; margin-bottom: 15px; color: #00d4ff; }
+        .btn { background: #00d4ff; color: #000; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 5px; }
+        .btn:hover { background: #00a8cc; }
+        .btn-danger { background: #ff4444; color: #fff; }
+        .btn-success { background: #00ff88; color: #000; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #888; }
+        .form-input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #333; background: rgba(255,255,255,0.05); color: #fff; }
+        .form-input:focus { outline: none; border-color: #00d4ff; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #333; }
+        .setting-label { color: #888; }
+        .setting-value { font-weight: bold; }
+        .toggle { position: relative; width: 50px; height: 26px; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; border-radius: 26px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; }
+        .toggle input:checked + .toggle-slider { background-color: #00d4ff; }
+        .toggle input:checked + .toggle-slider:before { transform: translateX(24px); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>⚙️ Settings</h1>
+            </div>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/providers.html">Providers</a>
+                <a href="/agents.html">Agents</a>
+                <a href="/settings.html" class="active">Settings</a>
+            </nav>
+        </header>
+        
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('system')">System</div>
+            <div class="tab" onclick="showTab('security')">Security</div>
+            <div class="tab" onclick="showTab('connectors')">Connectors</div>
+            <div class="tab" onclick="showTab('backup')">Backup</div>
+        </div>
+        
+        <!-- System Settings -->
+        <div class="tab-content active" id="tab-system">
+            <div class="card">
+                <h2>System Settings</h2>
+                <div class="form-group">
+                    <label>Log Level</label>
+                    <select class="form-input" id="log-level">
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARNING">WARNING</option>
+                        <option value="ERROR">ERROR</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Max Agents</label>
+                    <input type="number" class="form-input" id="max-agents" value="10">
+                </div>
+                <button class="btn btn-success" onclick="saveSystemSettings()">Save</button>
+            </div>
+        </div>
+        
+        <!-- Security Settings -->
+        <div class="tab-content" id="tab-security">
+            <div class="card">
+                <h2>Security Settings</h2>
+                <div class="form-group">
+                    <label>Require Approval for Risk Level >=</label>
+                    <input type="number" class="form-input" id="approval-risk" value="3" min="1" max="5">
+                </div>
+                <div class="form-group">
+                    <label>Rate Limit (requests/minute)</label>
+                    <input type="number" class="form-input" id="rate-limit" value="60">
+                </div>
+                <button class="btn btn-success" onclick="saveSecuritySettings()">Save</button>
+            </div>
+        </div>
+        
+        <!-- Connectors Settings -->
+        <div class="tab-content" id="tab-connectors">
+            <div class="card">
+                <h2>Telegram Bot</h2>
+                <div class="form-group">
+                    <label>Enabled</label>
+                    <label class="toggle">
+                        <input type="checkbox" id="telegram-enabled">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Bot Token</label>
+                    <input type="password" class="form-input" id="telegram-token" placeholder="123456:ABC-DEF...">
+                </div>
+                <button class="btn btn-success" onclick="saveTelegramSettings()">Save</button>
+            </div>
+        </div>
+        
+        <!-- Backup Settings -->
+        <div class="tab-content" id="tab-backup">
+            <div class="card">
+                <h2>Backup & Restore</h2>
+                <button class="btn" onclick="createBackup()">📦 Create Backup</button>
+                <div id="backups-list" style="margin-top: 20px;">Loading...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/v1';
+        
+        function showTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`tab-${name}`).classList.add('active');
+        }
+        
+        async function loadSettings() {
+            try {
+                const sysRes = await fetch(`${API_BASE}/settings/system`);
+                const sysData = await sysRes.json();
+                document.getElementById('log-level').value = sysData.settings.log_level || 'INFO';
+                document.getElementById('max-agents').value = sysData.settings.max_agents || 10;
+                
+                const secRes = await fetch(`${API_BASE}/settings/security`);
+                const secData = await secRes.json();
+                document.getElementById('approval-risk').value = secData.settings.require_approval_for_risk || 3;
+                document.getElementById('rate-limit').value = secData.settings.rate_limit_per_minute || 60;
+                
+                const connRes = await fetch(`${API_BASE}/settings/connectors`);
+                const connData = await connRes.json();
+                document.getElementById('telegram-enabled').checked = connData.settings.telegram?.enabled || false;
+                
+                loadBackups();
+            } catch (e) {
+                console.error('Error loading settings:', e);
+            }
+        }
+        
+        async function saveSystemSettings() {
+            const logLevel = document.getElementById('log-level').value;
+            const maxAgents = parseInt(document.getElementById('max-agents').value);
+            try {
+                await fetch(`${API_BASE}/settings/system`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({log_level: logLevel, max_agents: maxAgents})
+                });
+                alert('Settings saved!');
+            } catch (e) {
+                alert('Error saving settings');
+            }
+        }
+        
+        async function saveSecuritySettings() {
+            const approvalRisk = parseInt(document.getElementById('approval-risk').value);
+            const rateLimit = parseInt(document.getElementById('rate-limit').value);
+            try {
+                await fetch(`${API_BASE}/settings/security`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({require_approval_for_risk: approvalRisk, rate_limit_per_minute: rateLimit})
+                });
+                alert('Settings saved!');
+            } catch (e) {
+                alert('Error saving settings');
+            }
+        }
+        
+        async function saveTelegramSettings() {
+            const enabled = document.getElementById('telegram-enabled').checked;
+            const token = document.getElementById('telegram-token').value;
+            try {
+                await fetch(`${API_BASE}/settings/connectors/telegram`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({enabled, token})
+                });
+                alert('Settings saved!');
+            } catch (e) {
+                alert('Error saving settings');
+            }
+        }
+        
+        async function createBackup() {
+            try {
+                const res = await fetch(`${API_BASE}/settings/backup`, {method: 'POST'});
+                const data = await res.json();
+                alert(`Backup created: ${data.backup_id}`);
+                loadBackups();
+            } catch (e) {
+                alert('Error creating backup');
+            }
+        }
+        
+        async function loadBackups() {
+            try {
+                const res = await fetch(`${API_BASE}/settings/backups`);
+                const data = await res.json();
+                const list = document.getElementById('backups-list');
+                if (data.backups.length === 0) {
+                    list.innerHTML = '<p style="color: #888;">No backups yet</p>';
+                    return;
+                }
+                list.innerHTML = data.backups.map(b => `
+                    <div class="setting-row">
+                        <div>
+                            <span class="setting-value">${b.backup_id || b.id}</span>
+                            <br><span class="setting-label">${b.created_at}</span>
+                        </div>
+                        <button class="btn" onclick="restoreBackup('${b.backup_id || b.id}')">Restore</button>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('backups-list').innerHTML = '<p style="color: #ff4444;">Error loading backups</p>';
+            }
+        }
+        
+        async function restoreBackup(id) {
+            if (!confirm('Restore from this backup?')) return;
+            try {
+                await fetch(`${API_BASE}/settings/restore/${id}`, {method: 'POST'});
+                alert('Backup restored!');
+            } catch (e) {
+                alert('Error restoring backup');
+            }
+        }
+        
+        loadSettings();
+    </script>
+</body>
+</html>

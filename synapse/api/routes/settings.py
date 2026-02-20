@@ -5,7 +5,7 @@ Protocol Version: 1.0
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Optional, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 PROTOCOL_VERSION: str = "1.0"
@@ -61,6 +61,10 @@ class TelegramSettingsUpdate(BaseModel):
 class EnvVarCreate(BaseModel):
     key: str
     value: str
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 # === System Settings ===
@@ -149,10 +153,11 @@ async def delete_env_var(key: str):
 @router.post("/backup")
 async def create_backup():
     """Create a backup."""
-    backup_id = f"backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+    backup_id = f"backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
     backup = {
         "backup_id": backup_id,
-        "created_at": datetime.utcnow().isoformat(),
+        "id": backup_id,  # Both for compatibility
+        "created_at": _utc_now(),
         "protocol_version": PROTOCOL_VERSION
     }
     backups.append(backup)
@@ -168,7 +173,7 @@ async def list_backups():
 @router.post("/restore/{backup_id}")
 async def restore_backup(backup_id: str):
     """Restore from backup."""
-    backup = next((b for b in backups if b["id"] == backup_id), None)
+    backup = next((b for b in backups if b.get("id") == backup_id or b.get("backup_id") == backup_id), None)
     if not backup:
         raise HTTPException(status_code=404, detail="Backup not found")
     return {"status": "restored", "backup_id": backup_id, "protocol_version": PROTOCOL_VERSION}

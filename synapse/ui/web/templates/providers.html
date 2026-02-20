@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Providers - Synapse</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #eee; min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid #333; margin-bottom: 30px; }
+        h1 { font-size: 2em; color: #00d4ff; }
+        .nav { display: flex; gap: 15px; }
+        .nav a { color: #00d4ff; text-decoration: none; padding: 8px 16px; border-radius: 6px; }
+        .nav a:hover { background: rgba(0,212,255,0.1); }
+        .nav a.active { background: #00d4ff; color: #000; }
+        .card { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }
+        .card h2 { font-size: 1.2em; margin-bottom: 15px; color: #00d4ff; }
+        .btn { background: #00d4ff; color: #000; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 5px; }
+        .btn:hover { background: #00a8cc; }
+        .btn-danger { background: #ff4444; color: #fff; }
+        .btn-success { background: #00ff88; color: #000; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #888; }
+        .form-input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #333; background: rgba(255,255,255,0.05); color: #fff; }
+        .provider-item { background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .provider-info h3 { color: #00d4ff; margin-bottom: 5px; }
+        .provider-info p { color: #888; font-size: 0.9em; }
+        .priority-badge { background: #00d4ff; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; }
+        .modal.active { display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: #1a1a2e; padding: 30px; border-radius: 12px; width: 500px; max-width: 90%; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>🔌 LLM Providers</h1>
+            </div>
+            <nav class="nav">
+                <a href="/">Dashboard</a>
+                <a href="/providers.html" class="active">Providers</a>
+                <a href="/agents.html">Agents</a>
+                <a href="/settings.html">Settings</a>
+            </nav>
+            <button class="btn" onclick="openModal()">+ Add Provider</button>
+        </header>
+        
+        <div class="card">
+            <h2>Configured Providers</h2>
+            <div id="providers-list">Loading...</div>
+        </div>
+    </div>
+    
+    <!-- Add Provider Modal -->
+    <div class="modal" id="add-modal">
+        <div class="modal-content">
+            <h2 style="color: #00d4ff; margin-bottom: 20px;">Add New Provider</h2>
+            <form id="add-provider-form">
+                <div class="form-group">
+                    <label>Provider Name</label>
+                    <select class="form-input" id="provider-name" required>
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="mistral">Mistral</option>
+                        <option value="ollama">Ollama (Local)</option>
+                        <option value="huggingface">Hugging Face</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" class="form-input" id="api-key" placeholder="sk-...">
+                </div>
+                <div class="form-group">
+                    <label>Models (comma-separated)</label>
+                    <input type="text" class="form-input" id="models" placeholder="gpt-4o, gpt-4-turbo">
+                </div>
+                <div class="form-group">
+                    <label>Priority (1=highest)</label>
+                    <input type="number" class="form-input" id="priority" value="3" min="1" max="10">
+                </div>
+                <button type="submit" class="btn btn-success">Add Provider</button>
+                <button type="button" class="btn btn-danger" onclick="closeModal()">Cancel</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api/v1';
+        
+        async function loadProviders() {
+            try {
+                const res = await fetch(`${API_BASE}/providers`);
+                const data = await res.json();
+                const list = document.getElementById('providers-list');
+                if (data.providers.length === 0) {
+                    list.innerHTML = '<p style="color: #888;">No providers configured. Click "Add Provider" to add one.</p>';
+                    return;
+                }
+                list.innerHTML = data.providers.map(p => `
+                    <div class="provider-item">
+                        <div class="provider-info">
+                            <h3>${p.name || p.id}</h3>
+                            <p>Models: ${(p.models || []).join(', ') || 'None'}</p>
+                        </div>
+                        <div>
+                            <span class="priority-badge">Priority: ${p.priority || 3}</span>
+                            <button class="btn" onclick="testProvider('${p.id}')">Test</button>
+                            <button class="btn btn-danger" onclick="deleteProvider('${p.id}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('providers-list').innerHTML = '<p style="color: #ff4444;">Error loading providers</p>';
+            }
+        }
+        
+        function openModal() { document.getElementById('add-modal').classList.add('active'); }
+        function closeModal() { document.getElementById('add-modal').classList.remove('active'); }
+        
+        document.getElementById('add-provider-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('provider-name').value;
+            const apiKey = document.getElementById('api-key').value;
+            const models = document.getElementById('models').value.split(',').map(m => m.trim()).filter(m => m);
+            const priority = parseInt(document.getElementById('priority').value);
+            
+            try {
+                const res = await fetch(`${API_BASE}/providers`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, api_key: apiKey, models, priority})
+                });
+                if (res.ok) {
+                    closeModal();
+                    loadProviders();
+                } else {
+                    alert('Failed to add provider');
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        });
+        
+        async function testProvider(id) {
+            try {
+                const res = await fetch(`${API_BASE}/providers/${id}/test`, {method: 'POST'});
+                const data = await res.json();
+                alert(data.success ? `✓ Connection successful (${data.latency_ms}ms)` : `✗ Failed: ${data.error}`);
+            } catch (e) {
+                alert('Error testing provider');
+            }
+        }
+        
+        async function deleteProvider(id) {
+            if (!confirm('Delete this provider?')) return;
+            try {
+                await fetch(`${API_BASE}/providers/${id}`, {method: 'DELETE'});
+                loadProviders();
+            } catch (e) {
+                alert('Error deleting provider');
+            }
+        }
+        
+        loadProviders();
+    </script>
+</body>
+</html>

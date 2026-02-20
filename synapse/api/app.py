@@ -460,3 +460,35 @@ DASHBOARD_HTML = """
 </body>
 </html>
 """
+
+
+# === Static HTML Pages ===
+
+@app.get("/providers.html", response_class=HTMLResponse)
+async def providers_page():
+    """Serve providers page."""
+    from pathlib import Path
+    html_path = Path(__file__).parent.parent / "ui" / "web" / "templates" / "providers.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Providers page not found</h1>", status_code=404)
+
+
+@app.get("/agents.html", response_class=HTMLResponse)
+async def agents_page():
+    """Serve agents page."""
+    from pathlib import Path
+    html_path = Path(__file__).parent.parent / "ui" / "web" / "templates" / "agents.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Agents page not found</h1>", status_code=404)
+
+
+@app.get("/settings.html", response_class=HTMLResponse)
+async def settings_page():
+    """Serve settings page."""
+    from pathlib import Path
+    html_path = Path(__file__).parent.parent / "ui" / "web" / "templates" / "settings.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text())
+    return HTMLResponse(content="<h1>Settings page not found</h1>", status_code=404)
