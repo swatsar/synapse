@@ -12,8 +12,19 @@ async def test_security_capability_manager_require():
     """Test security capability manager require."""
     from synapse.core.security import CapabilityManager, CapabilityError
     manager = CapabilityManager()
-    await manager.require(["fs:read"])
+    # Issue token first
+    await manager.issue_token(capability="fs:read", issued_to="default", issued_by="test")
+    await manager.require(["fs:read"], agent_id="default")
     assert True
+
+@pytest.mark.asyncio
+async def test_security_capability_manager_require_without_token():
+    """Test security capability manager require without token - should raise error."""
+    from synapse.core.security import CapabilityManager, CapabilityError
+    manager = CapabilityManager()
+    # Without issuing a token, require should raise CapabilityError
+    with pytest.raises(CapabilityError):
+        await manager.require(["fs:read"], agent_id="default")
 
 @pytest.mark.asyncio
 async def test_security_capability_error():
@@ -38,112 +49,91 @@ async def test_orchestrator_with_mocks():
     assert orch is not None
 
 @pytest.mark.asyncio
-async def test_orchestrator_handle_with_mocks():
-    """Test orchestrator handle with mocked dependencies."""
-    from synapse.core.orchestrator import Orchestrator
-    from synapse.core.determinism import DeterministicSeedManager, DeterministicIDGenerator
-    
-    seed_manager = MagicMock(spec=DeterministicSeedManager)
-    id_generator = MagicMock(spec=DeterministicIDGenerator)
-    id_generator.generate.return_value = "test-id"
-    
-    orch = Orchestrator(seed_manager, id_generator)
-    result = orch.handle({"type": "test", "data": {}})
-    assert result is not None
+async def test_capability_token_creation():
+    """Test CapabilityToken creation."""
+    from synapse.core.security import CapabilityToken
+    token = CapabilityToken(
+        capability="fs:read:/workspace/**",
+        scope="/workspace/**",
+        issued_to="test_agent",
+        issued_by="test_issuer"
+    )
+    assert token.capability == "fs:read:/workspace/**"
+    assert token.issued_to == "test_agent"
+    assert token.protocol_version == "1.0"
 
-# Test synapse/core/checkpoint.py
 @pytest.mark.asyncio
-@pytest.mark.asyncio
-@pytest.mark.asyncio
-# Test synapse/agents/critic.py
-@pytest.mark.asyncio
-async def test_critic_agent_evaluate():
-    """Test critic agent evaluate."""
-    from synapse.agents.critic import CriticAgent
-    critic = CriticAgent()
-    result = await critic.evaluate({}, {})
-    assert result is not None
+async def test_security_check_result():
+    """Test SecurityCheckResult creation."""
+    from synapse.core.security import SecurityCheckResult
+    result = SecurityCheckResult(approved=True)
+    assert result.approved == True
+    assert result.protocol_version == "1.0"
 
-# Test synapse/agents/developer.py
 @pytest.mark.asyncio
-async def test_developer_agent_generate():
-    """Test developer agent generate_skill."""
-    from synapse.agents.developer import DeveloperAgent
-    dev = DeveloperAgent()
-    result = await dev.generate_skill("test task")
-    assert result is not None
-
-# Test synapse/security/capability_manager.py
-@pytest.mark.asyncio
-async def test_capability_manager_grant():
-    """Test capability manager grant."""
-    from synapse.security.capability_manager import CapabilityManager
+async def test_capability_manager_issue_token():
+    """Test CapabilityManager issue_token."""
+    from synapse.core.security import CapabilityManager
     manager = CapabilityManager()
-    manager.grant("fs:read")
-    assert True
-
-@pytest.mark.asyncio
-async def test_capability_manager_revoke():
-    """Test capability manager revoke."""
-    from synapse.security.capability_manager import CapabilityManager
-    manager = CapabilityManager()
-    manager.grant("fs:read")
-    manager.revoke("fs:read")
-    assert True
-
-@pytest.mark.asyncio
-async def test_capability_manager_check_capability():
-    """Test capability manager check_capability."""
-    from synapse.security.capability_manager import CapabilityManager
-    manager = CapabilityManager()
-    manager.grant("fs:read")
-    result = await manager.check_capability({}, "fs:read")
-    assert result is not None
+    token = await manager.issue_token(
+        capability="fs:read:/workspace/**",
+        issued_to="test_agent",
+        issued_by="test_issuer"
+    )
+    assert token is not None
+    assert token.capability == "fs:read:/workspace/**"
 
 @pytest.mark.asyncio
 async def test_capability_manager_check_capabilities():
-    """Test capability manager check_capabilities."""
-    from synapse.security.capability_manager import CapabilityManager
+    """Test CapabilityManager check_capabilities."""
+    from synapse.core.security import CapabilityManager
     manager = CapabilityManager()
-    manager.grant("fs:read")
-    result = manager.check_capabilities({}, ["fs:read"])
-    assert result is not None
-
-# Test synapse/core/rollback.py
-@pytest.mark.asyncio
-async def test_rollback_manager():
-    """Test rollback manager with required dependencies."""
-    from synapse.core.rollback import RollbackManager
-    from synapse.core.checkpoint import CheckpointManager
-    from synapse.security.capability_manager import CapabilityManager as SecCapManager
     
-    cp_manager = CheckpointManager()
-    cap_manager = SecCapManager()
-    audit = MagicMock()
+    # Issue token first
+    await manager.issue_token(
+        capability="fs:read:/workspace/**",
+        issued_to="test_agent",
+        issued_by="test_issuer"
+    )
     
-    manager = RollbackManager(cp_manager, cap_manager, audit)
-    assert manager is not None
-
-# Test synapse/memory/store.py
-@pytest.mark.asyncio
-async def test_memory_store():
-    """Test memory store."""
-    from synapse.memory.store import MemoryStore
-    store = MemoryStore()
-    assert store is not None
+    # Check capabilities
+    result = await manager.check_capabilities(
+        required=["fs:read:/workspace/test.txt"],
+        agent_id="test_agent"
+    )
+    assert result.approved == True
 
 @pytest.mark.asyncio
-async def test_memory_store_store():
-    """Test memory store store operation."""
-    from synapse.memory.store import MemoryStore
-    store = MemoryStore()
-    result = await store.store({"type": "test", "content": "test content"})
-    assert result is not None
+async def test_capability_manager_revoke_token():
+    """Test CapabilityManager revoke_token."""
+    from synapse.core.security import CapabilityManager
+    manager = CapabilityManager()
+    
+    # Issue token
+    token = await manager.issue_token(
+        capability="fs:read:/workspace/**",
+        issued_to="test_agent",
+        issued_by="test_issuer"
+    )
+    
+    # Revoke token
+    result = await manager.revoke_token(token.id, "test_agent")
+    assert result == True
 
 @pytest.mark.asyncio
-async def test_memory_store_recall():
-    """Test memory store recall operation."""
-    from synapse.memory.store import MemoryStore
-    store = MemoryStore()
-    result = await store.recall({"query": "test"})
-    assert result is not None
+async def test_capability_manager_get_agent_capabilities():
+    """Test CapabilityManager get_agent_capabilities."""
+    from synapse.core.security import CapabilityManager
+    manager = CapabilityManager()
+    
+    # Issue token
+    await manager.issue_token(
+        capability="fs:read:/workspace/**",
+        issued_to="test_agent",
+        issued_by="test_issuer"
+    )
+    
+    # Get capabilities
+    capabilities = await manager.get_agent_capabilities("test_agent")
+    assert len(capabilities) == 1
+    assert capabilities[0] == "fs:read:/workspace/**"

@@ -1,3 +1,6 @@
+PROTOCOL_VERSION: str = "1.0"
+SPEC_VERSION: str = "3.1"
+
 #!/usr/bin/env python3
 """Synapse Agent Platform - Main Entry Point.
 

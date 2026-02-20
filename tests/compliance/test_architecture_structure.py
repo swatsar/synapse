@@ -370,7 +370,7 @@ class TestArchitectureStructure:
             "core", "security", "llm", "memory", "network", "observability",
             "policy", "agents", "skills", "environment", "reliability",
             "distributed", "runtime", "telemetry", "connectors", "ui", "api",
-            "control_plane", "learning", "deployment",
+            "control_plane", "learning", "deployment", "integrations", "integrations",
             # Supporting directories (allowed)
             "config", "database", "docs", "tests", ".github"
         }

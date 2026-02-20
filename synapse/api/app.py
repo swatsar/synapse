@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import asyncio
 
@@ -68,7 +68,7 @@ async def health_check():
         "status": "healthy",
         "version": "3.1.0",
         "protocol_version": PROTOCOL_VERSION,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -95,7 +95,7 @@ async def create_task(request: TaskRequest):
         "task": request.task,
         "payload": request.payload,
         "status": "completed",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     }
     tasks.append(task)
@@ -133,7 +133,7 @@ async def create_approval(request: ApprovalRequest):
         "risk_level": request.risk_level,
         "details": request.details,
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     }
     approvals.append(approval)
@@ -146,7 +146,7 @@ async def approve_request(approval_id: str):
     for approval in approvals:
         if approval["id"] == approval_id:
             approval["status"] = "approved"
-            approval["approved_at"] = datetime.utcnow().isoformat()
+            approval["approved_at"] = datetime.now(timezone.utc).isoformat()
             return approval
     raise HTTPException(status_code=404, detail="Approval not found")
 
@@ -157,7 +157,7 @@ async def reject_request(approval_id: str):
     for approval in approvals:
         if approval["id"] == approval_id:
             approval["status"] = "rejected"
-            approval["rejected_at"] = datetime.utcnow().isoformat()
+            approval["rejected_at"] = datetime.now(timezone.utc).isoformat()
             return approval
     raise HTTPException(status_code=404, detail="Approval not found")
 
@@ -173,7 +173,7 @@ async def get_logs(limit: int = 100):
 @app.post("/api/v1/logs")
 async def add_log(log: Dict[str, Any]):
     """Add a log entry."""
-    log["timestamp"] = datetime.utcnow().isoformat()
+    log["timestamp"] = datetime.now(timezone.utc).isoformat()
     log["protocol_version"] = PROTOCOL_VERSION
     logs.append(log)
     return log
@@ -492,3 +492,99 @@ async def settings_page():
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text())
     return HTMLResponse(content="<h1>Settings page not found</h1>", status_code=404)
+
+
+# === Factory Function for Testing ===
+
+def create_app(orchestrator=None, checkpoint_manager=None, rollback_manager=None):
+    """
+    Factory function to create a FastAPI app with injected dependencies.
+    
+    Used for testing and programmatic app creation.
+    
+    Args:
+        orchestrator: Optional orchestrator instance
+        checkpoint_manager: Optional checkpoint manager instance
+        rollback_manager: Optional rollback manager instance
+    
+    Returns:
+        FastAPI application instance
+    """
+    from fastapi import FastAPI
+    from synapse.core.models import PROTOCOL_VERSION
+    
+    # Create new app instance
+    app = FastAPI(
+        title="Synapse API",
+        version="3.1.0",
+        description="Synapse Agent Platform API"
+    )
+    
+    # Store injected dependencies in app state
+    app.state.orchestrator = orchestrator
+    app.state.checkpoint_manager = checkpoint_manager
+    app.state.rollback_manager = rollback_manager
+    app.state.protocol_version = PROTOCOL_VERSION
+    
+    # Add health endpoint
+    @app.get("/health")
+    async def health():
+        return {
+            "status": "healthy",
+            "version": "3.1.0",
+            "protocol_version": PROTOCOL_VERSION
+        }
+    
+    # Add metrics endpoint
+    @app.get("/metrics")
+    async def metrics():
+        return {
+            "metrics": {},
+            "protocol_version": PROTOCOL_VERSION
+        }
+    
+    # Add task endpoint
+    @app.post("/task")
+    async def execute_task(request: dict):
+        if orchestrator:
+            result = await orchestrator.handle(request)
+            return {"status": "completed", "result": result, "protocol_version": PROTOCOL_VERSION}
+        return {"status": "no_orchestrator", "protocol_version": PROTOCOL_VERSION}
+    
+    # Add agents endpoint
+    @app.get("/agents")
+    async def list_agents():
+        return {
+            "agents": [],
+            "protocol_version": PROTOCOL_VERSION
+        }
+    
+    # Add checkpoint endpoint
+    @app.post("/checkpoint")
+    async def create_checkpoint(request: dict):
+        if checkpoint_manager:
+            cp_id = checkpoint_manager.create_checkpoint(
+                agent_id=request.get("agent_id", "default"),
+                session_id=request.get("session_id", "default")
+            )
+            return {"checkpoint_id": cp_id.id if hasattr(cp_id, 'id') else str(cp_id), "protocol_version": PROTOCOL_VERSION}
+        return {"status": "no_checkpoint_manager", "protocol_version": PROTOCOL_VERSION}
+    
+    # Add rollback endpoint
+    @app.post("/rollback")
+    async def execute_rollback(request: dict):
+        if rollback_manager:
+            rollback_manager.rollback_to(request.get("checkpoint_id"))
+            return {"status": "rolled_back", "protocol_version": PROTOCOL_VERSION}
+        return {"status": "no_rollback_manager", "protocol_version": PROTOCOL_VERSION}
+    
+    # Add cluster status endpoint
+    @app.get("/cluster/status")
+    async def cluster_status():
+        return {
+            "status": "operational",
+            "nodes": 1,
+            "protocol_version": PROTOCOL_VERSION
+        }
+    
+    return app

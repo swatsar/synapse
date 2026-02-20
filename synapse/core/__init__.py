@@ -1,4 +1,7 @@
 PROTOCOL_VERSION: str = "1.0"
+SPEC_VERSION: str = "3.1"
+
+PROTOCOL_VERSION: str = "1.0"
 """Core package public API.
 
 The original ``__init__`` re‑exported :class:`Orchestrator`.  This caused a

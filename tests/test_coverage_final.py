@@ -22,9 +22,17 @@ class TestMain:
         assert synapse.main.PROTOCOL_VERSION == "1.0"
     
     def test_main_function(self):
-        """Test main function executes."""
+        """Test main function executes with mocked args."""
         import synapse.main
-        synapse.main.main()  # Should not raise
+        # Mock sys.argv to provide required arguments
+        with patch('sys.argv', ['synapse', '--mode', 'local']):
+            # Mock asyncio.run to prevent actual execution
+            with patch('asyncio.run') as mock_run:
+                # Mock print_banner to avoid output
+                with patch('synapse.main.print_banner'):
+                    synapse.main.main()
+                    # Verify asyncio.run was called
+                    assert mock_run.called
 
 
 # Test synapse/agents/runtime/agent.py (36% -> target 80%)

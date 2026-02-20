@@ -1,4 +1,7 @@
 PROTOCOL_VERSION: str = "1.0"
+SPEC_VERSION: str = "3.1"
+
+PROTOCOL_VERSION: str = "1.0"
 """Runtime agents package.
 
 The original codebase used a class named ``RuntimeAgent``.  The current

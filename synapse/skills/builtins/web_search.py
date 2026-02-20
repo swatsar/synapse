@@ -1,3 +1,6 @@
+PROTOCOL_VERSION: str = "1.0"
+SPEC_VERSION: str = "3.1"
+
 # Dummy web search skill – returns a static response containing the queried URL
 from synapse.core.models import ExecutionContext
 

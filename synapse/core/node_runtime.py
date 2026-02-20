@@ -1,4 +1,7 @@
 PROTOCOL_VERSION: str = "1.0"
+SPEC_VERSION: str = "3.1"
+
+PROTOCOL_VERSION: str = "1.0"
 """NodeRuntime – simple in‑process node for testing (sync)."""
 class NodeRuntime:
     def __init__(self, node_id: str):

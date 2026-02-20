@@ -23,6 +23,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # PyInstaller
 *.manifest
@@ -58,24 +59,86 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.env.local
+.env.*.local
 
-# IDE
+# IDEs
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+.settings/
 
-# OS files
+# macOS
 .DS_Store
-.DS_Store?
+.AppleDouble
+.LSOverride
 ._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Project specific
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+*.old
+logs/
+tmp/
+temp/
+
+# Release artefacts (не должны быть в git)
+dist/*.tar.gz
+dist/*.whl
+dist/SHA256SUMS
+
+# Temporary documentation (рабочие файлы)
+docs/WIP_*.md
+docs/DRAFT_*.md
+docs/TEMP_*.md
+docs/SCRATCH_*.md
+docs/WORKING_*.md
+
+# Secrets
+*.key
+*.pem
+*.secret
+secrets/
+
+# Docker
+docker-compose.override.yml
+
+# Test fixtures (если чувствительные)
+tests/fixtures/secrets/
+tests/fixtures/*.key
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# mypy
+.mypy_cache/
+
+# ruff
+.ruff_cache/
 
 # Agent Zero project files
 .a0proj/
@@ -90,35 +153,17 @@ FIX_SPRINT*.md
 AUDIT_*.md
 SPRINT_*.md
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-logs/
-
 # Local config
 config/local.yaml
 config/local/*.yaml
 
-# Secrets
-secrets/
-*.pem
-*.key
+# Benchmarks output
+benchmarks/results/
 
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
+# Profiling
+*.prof
+*.lprof
 
-# Jupyter notebooks
-.ipynb_checkpoints/
-
-# mypy
-.mypy_cache/
-
-# ruff
-.ruff_cache/
+# Package lock files (optional - uncomment if needed)
+# poetry.lock
+# pdm.lock

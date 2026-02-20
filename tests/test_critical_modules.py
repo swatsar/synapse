@@ -27,14 +27,14 @@ class TestLLMFailureStrategy:
         strategy = LLMFailureStrategy(models=models)
         assert strategy is not None
     
-    def test_failure_strategy_get_model(self):
+    async def test_failure_strategy_get_model(self):
         """Test getting available model."""
         from synapse.llm.failure_strategy import LLMFailureStrategy, ModelConfig, LLMPriority
         models = [
             ModelConfig(provider="openai", model="gpt-4", priority=LLMPriority.PRIMARY),
         ]
         strategy = LLMFailureStrategy(models=models)
-        model = strategy.get_available_model()
+        model = await strategy.get_available_model()
         assert model is not None
     
     def test_model_config_protocol_version(self):

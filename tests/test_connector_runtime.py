@@ -1,7 +1,7 @@
 """Tests for Real Connector Runtime."""
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ async def test_connector_event_ingestion(mock_orchestrator):
         "source": "telegram",
         "user_id": "user123",
         "message": "Hello",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     result = await runtime.process_event(event)

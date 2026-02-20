@@ -1,3 +1,6 @@
+PROTOCOL_VERSION: str = "1.0"
+SPEC_VERSION: str = "3.1"
+
 import aiofiles
 """File operations skill.
 PROTOCOL_VERSION: str = "1.0"

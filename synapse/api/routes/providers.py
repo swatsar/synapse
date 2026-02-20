@@ -5,7 +5,7 @@ Protocol Version: 1.0
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -60,7 +60,7 @@ class ProviderService:
             "models": data.models,
             "priority": data.priority,
             "base_url": data.base_url,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "protocol_version": PROTOCOL_VERSION
         }
         self.providers[provider_id] = provider
@@ -72,7 +72,7 @@ class ProviderService:
         provider = self.providers[provider_id]
         update_data = data.model_dump(exclude_unset=True)
         provider.update(update_data)
-        provider["updated_at"] = datetime.utcnow().isoformat()
+        provider["updated_at"] = datetime.now(timezone.utc).isoformat()
         return provider
     
     def delete_provider(self, provider_id: str) -> bool:

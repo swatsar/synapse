@@ -14,7 +14,7 @@ Cognitive Cycle:
 from .determinism import DeterministicSeedManager, DeterministicIDGenerator
 from synapse.observability.logger import audit
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 PROTOCOL_VERSION: str = "1.0"
@@ -48,7 +48,7 @@ class CognitiveCycleResult:
         self.learning = learning
         self.error = error
         self.protocol_version = PROTOCOL_VERSION
-        self.timestamp = datetime.utcnow().isoformat()
+        self.timestamp = datetime.now(timezone.utc).isoformat()
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -217,7 +217,7 @@ class Orchestrator:
             "content": event.get("content", ""),
             "source": event.get("source", "unknown"),
             "user_id": event.get("user_id"),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "metadata": event.get("metadata", {}),
             "protocol_version": self.protocol_version
         }

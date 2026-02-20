@@ -25,7 +25,7 @@ import os
 import pathlib
 from typing import Callable, Dict, Optional, List
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from synapse.core.models import SkillManifest, ResourceLimits
@@ -69,8 +69,8 @@ class SkillRecord:
         self.manifest = manifest
         self.handler = handler
         self.status = status
-        self.created_at = datetime.utcnow().isoformat()
-        self.updated_at = datetime.utcnow().isoformat()
+        self.created_at = datetime.now(timezone.utc).isoformat()
+        self.updated_at = datetime.now(timezone.utc).isoformat()
         self.status_history: List[Dict] = [{
             "status": status.value,
             "timestamp": self.created_at,
@@ -215,7 +215,7 @@ class SkillRegistry:
         # Update status
         old_status = record.status
         record.status = to_status
-        record.updated_at = datetime.utcnow().isoformat()
+        record.updated_at = datetime.now(timezone.utc).isoformat()
         record.status_history.append({
             "status": to_status.value,
             "timestamp": record.updated_at,

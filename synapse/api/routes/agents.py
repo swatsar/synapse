@@ -5,7 +5,7 @@ Protocol Version: 1.0
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -18,7 +18,7 @@ agents_db: Dict[str, Dict] = {
         "name": "Planner Agent",
         "status": "idle",
         "type": "planner",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     },
     "critic": {
@@ -26,7 +26,7 @@ agents_db: Dict[str, Dict] = {
         "name": "Critic Agent",
         "status": "idle",
         "type": "critic",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     },
     "developer": {
@@ -34,7 +34,7 @@ agents_db: Dict[str, Dict] = {
         "name": "Developer Agent",
         "status": "idle",
         "type": "developer",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     },
     "guardian": {
@@ -42,7 +42,7 @@ agents_db: Dict[str, Dict] = {
         "name": "Guardian Agent",
         "status": "idle",
         "type": "guardian",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     }
 }
@@ -94,7 +94,7 @@ async def start_agent(agent_id: str):
     if agent_id not in agents_db:
         raise HTTPException(status_code=404, detail="Agent not found")
     agents_db[agent_id]["status"] = "running"
-    agents_db[agent_id]["started_at"] = datetime.utcnow().isoformat()
+    agents_db[agent_id]["started_at"] = datetime.now(timezone.utc).isoformat()
     return agents_db[agent_id]
 
 
@@ -104,7 +104,7 @@ async def stop_agent(agent_id: str):
     if agent_id not in agents_db:
         raise HTTPException(status_code=404, detail="Agent not found")
     agents_db[agent_id]["status"] = "stopped"
-    agents_db[agent_id]["stopped_at"] = datetime.utcnow().isoformat()
+    agents_db[agent_id]["stopped_at"] = datetime.now(timezone.utc).isoformat()
     return agents_db[agent_id]
 
 

@@ -1,4 +1,7 @@
 PROTOCOL_VERSION: str = "1.0"
+SPEC_VERSION: str = "3.1"
+
+PROTOCOL_VERSION: str = "1.0"
 """Telemetry engine – placeholder that uses AuditLogger for events.
 """
 from ..audit import AuditLogger

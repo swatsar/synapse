@@ -1,0 +1,28 @@
+# CODEOWNERS - Define code ownership for pull requests
+
+# Default owners for everything
+* @synapse/core-team
+
+# Core modules
+/synapse/core/ @synapse/core-team
+/synapse/security/ @synapse/security-team
+/synapse/agents/ @synapse/ai-team
+
+# Infrastructure
+/synapse/llm/ @synapse/ai-team
+/synapse/memory/ @synapse/data-team
+/synapse/network/ @synapse/infra-team
+
+# Skills and connectors
+/synapse/skills/ @synapse/skills-team
+/synapse/connectors/ @synapse/integrations-team
+
+# Tests
+tests/ @synapse/qa-team
+
+# Documentation
+docs/ @synapse/docs-team
+
+# Docker and deployment
+docker/ @synapse/infra-team
+.github/ @synapse/devops-team

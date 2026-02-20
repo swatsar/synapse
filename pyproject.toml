@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["ai", "agent", "automation", "llm", "autonomous", "cognitive"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -68,6 +68,13 @@ Documentation = "https://synapse.readthedocs.io"
 Repository = "https://github.com/synapse/synapse"
 Issues = "https://github.com/synapse/synapse/issues"
 
+[tool.setuptools]
+packages = ["synapse"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+synapse = ["py.typed", "*.yaml", "*.json"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [
@@ -86,7 +93,9 @@ markers = [
     "system: System-level tests",
     "workload: Workload tests",
     "compliance: Compliance tests",
-    "benchmark: Benchmark tests"
+    "benchmark: Benchmark tests",
+    "api: API tests",
+    "tdd: TDD tests"
 ]
 addopts = "-v --tb=short"
 testpaths = ["tests"]
@@ -113,4 +122,3 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
 ]
-
