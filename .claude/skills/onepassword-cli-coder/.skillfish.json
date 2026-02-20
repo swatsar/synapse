@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "onepassword-cli-coder",
+  "owner": "majesticlabs-dev",
+  "repo": "majestic-marketplace",
+  "path": "plugins/majestic-devops/skills/onepassword-cli-coder",
+  "branch": "master",
+  "sha": "52175f6bda5b7acb1850faf8cc108aa5427b611f",
+  "source": "manual"
+}

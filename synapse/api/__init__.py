@@ -1,5 +1,7 @@
-"""HTTP API Layer."""
-from .app import create_app
+"""Synapse API Module.
 
-__all__ = ["create_app"]
-PROTOCOL_VERSION: str = "1.0"
+Protocol Version: 1.0
+"""
+from synapse.api.app import app
+
+__all__ = ["app"]

@@ -7,20 +7,22 @@ services:
     image: synapse/core:3.1.0
     container_name: synapse-core
     ports:
-    - 8000:8000
-    - 9090:9090
+    - 8000:8000   # API
+    - 8080:8080   # Web UI Dashboard
+    - 9090:9090   # Prometheus metrics
     volumes:
     - synapse_config:/app/config
     - synapse_data:/app/data
     - synapse_skills:/app/skills
     environment:
     - MODE=production
-    - DATABASE_URL=postgresql://synapse:${DB_PASSWORD}@db:5432/synapse
+    - DATABASE_URL=postgresql://synapse:${DB_PASSWORD:-synapse}@db:5432/synapse
     - VECTOR_DB_URL=http://qdrant:6333
     - REDIS_URL=redis://redis:6379
     - PROTOCOL_VERSION=1.0
     - SPEC_VERSION=3.1
     - LOG_LEVEL=INFO
+    - WEB_UI_ENABLED=true
     depends_on:
       db:
         condition: service_healthy
@@ -49,6 +51,7 @@ services:
     restart: unless-stopped
     networks:
     - synapse-network
+
   db:
     image: postgres:15
     container_name: synapse-db
@@ -57,7 +60,7 @@ services:
     environment:
     - POSTGRES_DB=synapse
     - POSTGRES_USER=synapse
-    - POSTGRES_PASSWORD=${DB_PASSWORD}
+    - POSTGRES_PASSWORD=${DB_PASSWORD:-synapse}
     healthcheck:
       test:
       - CMD-SHELL
@@ -68,6 +71,7 @@ services:
     networks:
     - synapse-network
     restart: unless-stopped
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: synapse-qdrant
@@ -87,6 +91,7 @@ services:
     networks:
     - synapse-network
     restart: unless-stopped
+
   redis:
     image: redis:7
     container_name: synapse-redis
@@ -103,6 +108,7 @@ services:
     networks:
     - synapse-network
     restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:latest
     container_name: synapse-prometheus
@@ -110,27 +116,28 @@ services:
     - ./prometheus.yml:/etc/prometheus/prometheus.yml
     - prometheus_data:/prometheus
     ports:
-    - 9090:9090
+    - 9091:9090
     depends_on:
     - synapse-core
     networks:
     - synapse-network
     restart: unless-stopped
+
   grafana:
     image: grafana/grafana:latest
     container_name: synapse-grafana
     volumes:
     - grafana_data:/var/lib/grafana
-    - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
     ports:
     - 3000:3000
     environment:
-    - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     depends_on:
     - prometheus
     networks:
     - synapse-network
     restart: unless-stopped
+
 volumes:
   synapse_config: {}
   synapse_data: {}
@@ -140,6 +147,7 @@ volumes:
   redis_data: {}
   prometheus_data: {}
   grafana_data: {}
+
 networks:
   synapse-network:
     driver: bridge

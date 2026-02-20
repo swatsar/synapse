@@ -4,7 +4,7 @@
 
 FROM python:3.11-slim
 
-# Labels for protocol version
+# Labels
 LABEL org.synapse.protocol_version="1.0"
 LABEL org.synapse.spec_version="3.1"
 LABEL org.synapse.version="3.1.0"
@@ -17,7 +17,9 @@ RUN groupadd -r synapse && useradd -r -g synapse synapse
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends     curl     && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (layer caching)
 COPY requirements.txt .
@@ -36,14 +38,17 @@ ENV SPEC_VERSION=3.1
 ENV MODE=docker
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3     CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Switch to non-root user
 USER synapse
 
 # Expose ports
-EXPOSE 8000 9090
+# 8000 - API
+# 8080 - Web UI
+EXPOSE 8000 8080 9090
 
-# Entry point
+# Entry point - starts both API and Web UI
 ENTRYPOINT ["python", "-m", "synapse.main"]
-CMD ["--mode", "docker"]
+CMD ["--mode", "docker", "--web-ui"]
