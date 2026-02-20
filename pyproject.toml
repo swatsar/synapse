@@ -1,0 +1,116 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synapse-agent"
+version = "3.1.0"
+description = "Universal Autonomous Agent Platform - Distributed Cognitive Platform for Autonomous Agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Synapse Contributors"}
+]
+keywords = ["ai", "agent", "automation", "llm", "autonomous", "cognitive"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "pydantic>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "litellm>=1.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "aiosqlite>=0.19.0",
+    "httpx>=0.24.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+    "chromadb>=0.4.0",
+    "asyncpg>=0.29.0",
+    "redis>=5.0.0",
+    "aiogram>=3.0.0",
+    "playwright>=1.40.0",
+    "prometheus-client>=0.19.0",
+    "structlog>=24.0.0",
+]
+
+[project.optional-dependencies]
+gui = ["tauri>=1.5", "pywebview>=4.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",
+    "coverage>=7.0.0",
+    "freezegun>=1.2.0",
+    "moto>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+]
+full = ["synapse-agent[gui,dev]"]
+
+[project.scripts]
+synapse = "synapse.main:main"
+synapse-gui = "synapse.ui.configurator:main"
+
+[project.urls]
+Homepage = "https://github.com/synapse/synapse"
+Documentation = "https://synapse.readthedocs.io"
+Repository = "https://github.com/synapse/synapse"
+Issues = "https://github.com/synapse/synapse/issues"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "phase1: Core Skeleton",
+    "phase2: Execution & Security",
+    "phase3: Perception & Memory",
+    "phase4: Self-Evolution",
+    "phase5: Reliability & Observability",
+    "phase6: Deployment & UI",
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "security: Security tests",
+    "performance: Performance tests",
+    "slow: Slow running tests",
+    "chaos: Chaos engineering tests",
+    "system: System-level tests",
+    "workload: Workload tests",
+    "compliance: Compliance tests",
+    "benchmark: Benchmark tests"
+]
+addopts = "-v --tb=short"
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+
+[tool.coverage.run]
+source = ["synapse"]
+omit = [
+    "synapse/tests/*",
+    "tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
