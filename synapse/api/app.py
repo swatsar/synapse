@@ -29,6 +29,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include API routes
+from synapse.api.routes import api_router
+app.include_router(api_router, prefix="/api/v1")
+
 # In-memory storage for demo
 agents: Dict[str, Dict] = {}
 approvals: List[Dict] = []
@@ -78,22 +82,6 @@ async def get_status():
         "tasks_completed": len([t for t in tasks if t["status"] == "completed"]),
         "protocol_version": PROTOCOL_VERSION
     }
-
-
-# === Agents ===
-
-@app.get("/api/v1/agents")
-async def list_agents():
-    """List all agents."""
-    return {"agents": list(agents.values()), "protocol_version": PROTOCOL_VERSION}
-
-
-@app.get("/api/v1/agents/{agent_id}")
-async def get_agent(agent_id: str):
-    """Get agent by ID."""
-    if agent_id not in agents:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    return agents[agent_id]
 
 
 # === Tasks ===
@@ -245,6 +233,10 @@ DASHBOARD_HTML = """
         }
         h1 { font-size: 2em; color: #00d4ff; }
         .version { color: #888; font-size: 0.9em; }
+        .nav { display: flex; gap: 15px; }
+        .nav a { color: #00d4ff; text-decoration: none; padding: 8px 16px; border-radius: 6px; }
+        .nav a:hover { background: rgba(0,212,255,0.1); }
+        .nav a.active { background: #00d4ff; color: #000; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
         .card {
             background: rgba(255,255,255,0.05);
@@ -305,6 +297,12 @@ DASHBOARD_HTML = """
                 <h1>🧠 Synapse Dashboard</h1>
                 <span class="version">Protocol v1.0 | Spec v3.1</span>
             </div>
+            <nav class="nav">
+                <a href="/" class="active">Dashboard</a>
+                <a href="/providers.html">Providers</a>
+                <a href="/agents.html">Agents</a>
+                <a href="/settings.html">Settings</a>
+            </nav>
             <button class="btn refresh-btn" onclick="location.reload()">🔄 Refresh</button>
         </header>
         
