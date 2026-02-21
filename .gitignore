@@ -43,13 +43,46 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
-*.py,cover
 .hypothesis/
 .pytest_cache/
 
 # Translations
 *.mo
 *.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
 
 # Environments
 .env
@@ -59,8 +92,30 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-.env.local
-.env.*.local
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
 
 # IDEs
 .idea/
@@ -68,102 +123,67 @@ venv.bak/
 *.swp
 *.swo
 *~
-.project
-.pydevproject
-.settings/
 
-# macOS
+# OS files
 .DS_Store
-.AppleDouble
-.LSOverride
+.DS_Store?
 ._*
-
-# Windows
-Thumbs.db
+.Spotlight-V100
+.Trashes
 ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
+Thumbs.db
 
-# Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
+# Project specific
 
-# Temporary files
-*.tmp
-*.temp
-*.log
-*.bak
-*.old
-logs/
-tmp/
-temp/
+# Snapshots
+.snapshots/
 
-# Release artefacts (не должны быть в git)
-dist/*.tar.gz
-dist/*.whl
-dist/SHA256SUMS
-
-# Temporary documentation (рабочие файлы)
-docs/WIP_*.md
-docs/DRAFT_*.md
-docs/TEMP_*.md
-docs/SCRATCH_*.md
-docs/WORKING_*.md
-
-# Secrets
-*.key
-*.pem
-*.secret
-secrets/
-
-# Docker
-docker-compose.override.yml
-
-# Test fixtures (если чувствительные)
-tests/fixtures/secrets/
-tests/fixtures/*.key
+# Agent Zero project files
+.a0proj/
 
 # Database files
 *.db
 *.sqlite
 *.sqlite3
 
-# Jupyter notebooks
-.ipynb_checkpoints/
+# Test output files
+full_test_*.txt
+test_*.txt
+*_test_output.txt
+*_test_log.txt
+*_results.txt
+phase*_test_*.txt
+phase*_coverage.txt
 
-# mypy
-.mypy_cache/
+# Coverage reports
+.coverage
+coverage.xml
+htmlcov/
 
-# ruff
-.ruff_cache/
+# Build artifacts
+*.whl
+*.tar.gz
 
-# Agent Zero project files
-.a0proj/
+# Claude skills
+.claude/
 
-# Snapshots (temporary state files)
-.snapshots/
-
-# Reports (generated during development)
-*_REPORT*.md
-*_report*.md
-FIX_SPRINT*.md
-AUDIT_*.md
-SPRINT_*.md
-
-# Local config
-config/local.yaml
-config/local/*.yaml
-
-# Benchmarks output
+# Benchmark results
 benchmarks/results/
 
-# Profiling
-*.prof
-*.lprof
+# Temporary files
+*.tmp
+*.temp
+*.bak
 
-# Package lock files (optional - uncomment if needed)
-# poetry.lock
-# pdm.lock
+# Log files
+*.log
+logs/
+
+# Secrets (never commit)
+secrets.env
+*.pem
+*.key
+
+# Local config
+local.yaml
+local_*.yaml

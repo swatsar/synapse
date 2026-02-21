@@ -2,7 +2,7 @@
 Capability-Based Security Manager для Synapse.
 Spec v3.1 compliant с полной реализацией токенов и проверок.
 """
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any, Callable
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime, timezone, timedelta
 import hashlib
@@ -222,3 +222,281 @@ class CapabilityManager:
         if not result.approved:
             raise CapabilityError(f"Missing required capabilities: {result.blocked_capabilities}")
         return True
+
+
+# ============================================================================
+# Phase 1: Capability Security Layer v1 Components
+# ============================================================================
+
+class CapabilityContract(BaseModel):
+    """
+    Контракт возможности с расширенными возможностями.
+    Phase 1: Capability Security Layer v1
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    capability: str  # "fs:read:/workspace/**"
+    scope: str  # Область действия
+    constraints: Dict[str, Any] = Field(default_factory=dict)
+    expires_at: Optional[str] = None
+    issued_to: str  # agent_id
+    issued_by: str  # issuer_id
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    protocol_version: str = PROTOCOL_VERSION
+    
+    model_config = ConfigDict(frozen=True)
+    
+    def is_expired(self) -> bool:
+        """Проверка истечения срока действия."""
+        if not self.expires_at:
+            return False
+        
+        expires = datetime.fromisoformat(self.expires_at)
+        return datetime.now(timezone.utc) > expires
+
+
+class EnforcementResult(BaseModel):
+    """Результат enforcement."""
+    approved: bool
+    enforced: bool = False
+    reason: Optional[str] = None
+    capability: Optional[str] = None
+    protocol_version: str = PROTOCOL_VERSION
+
+
+class PermissionEnforcer:
+    """
+    Исполнитель разрешений.
+    Phase 1: Capability Security Layer v1
+    """
+    
+    def __init__(self, audit_logger=None):
+        self.audit = audit_logger
+        self.protocol_version = PROTOCOL_VERSION
+    
+    async def enforce(
+        self,
+        action: str,
+        agent_id: str,
+        capability_manager: 'CapabilityManager',
+        audit: 'AuditMechanism' = None
+    ) -> EnforcementResult:
+        """
+        Принудительная проверка разрешения.
+        """
+        # Проверка capabilities
+        result = await capability_manager.check_capabilities(
+            required=[action],
+            agent_id=agent_id
+        )
+        
+        # Emit audit event
+        if audit or self.audit:
+            audit_obj = audit or self.audit
+            await audit_obj.emit_event(
+                event_type="capability_checked",
+                details={
+                    "action": action,
+                    "agent_id": agent_id,
+                    "approved": result.approved
+                }
+            )
+        
+        if result.approved:
+            return EnforcementResult(
+                approved=True,
+                enforced=True,
+                capability=action
+            )
+        else:
+            return EnforcementResult(
+                approved=False,
+                enforced=False,
+                reason=result.reason
+            )
+
+
+class AuditEvent(BaseModel):
+    """
+    Событие аудита.
+    Phase 1: Capability Security Layer v1
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    event_type: str
+    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    agent_id: Optional[str] = None
+    capability: Optional[str] = None
+    action: Optional[str] = None
+    result: str = "logged"  # "approved", "denied", "executed", "logged"
+    details: Dict[str, Any] = Field(default_factory=dict)
+    protocol_version: str = PROTOCOL_VERSION
+
+
+class AuditMechanism:
+    """
+    Механизм аудита.
+    Phase 1: Capability Security Layer v1
+    """
+    
+    def __init__(self):
+        self._events: List[AuditEvent] = []
+        self.protocol_version = PROTOCOL_VERSION
+    
+    async def emit_event(
+        self,
+        event_type: str,
+        details: Dict[str, Any]
+    ) -> str:
+        """
+        Публикация события аудита.
+        """
+        event = AuditEvent(
+            event_type=event_type,
+            agent_id=details.get("agent_id"),
+            capability=details.get("capability"),
+            action=details.get("action"),
+            result=details.get("result", "logged"),
+            details=details
+        )
+        
+        self._events.append(event)
+        return event.id
+    
+    async def get_events(
+        self,
+        event_type: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        limit: int = 100
+    ) -> List[AuditEvent]:
+        """
+        Получение событий аудита.
+        """
+        events = self._events
+        
+        if event_type:
+            events = [e for e in events if e.event_type == event_type]
+        
+        if agent_id:
+            events = [e for e in events if e.agent_id == agent_id]
+        
+        return events[-limit:]
+    
+    async def log_action(
+        self,
+        action: str,
+        result: Dict[str, Any],
+        context: Dict[str, Any] = None
+    ):
+        """
+        Compatibility method for CapabilityManager.
+        Wraps emit_event with log_action interface.
+        """
+        await self.emit_event(
+            event_type=action,
+            details={
+                **result,
+                **(context or {})
+            }
+        )
+    
+    async def clear_events(self):
+        """Очистка событий (для тестов)."""
+        self._events.clear()
+
+
+class GuardResult(BaseModel):
+    """Результат guard."""
+    allowed: bool
+    result: Optional[Any] = None
+    error: Optional[str] = None
+    protocol_version: str = PROTOCOL_VERSION
+
+
+class RuntimeGuard:
+    """
+    Middleware для защиты выполнения.
+    Phase 1: Capability Security Layer v1
+    """
+    
+    def __init__(self, audit_logger=None):
+        self.audit = audit_logger
+        self.protocol_version = PROTOCOL_VERSION
+    
+    async def guard(
+        self,
+        action: Callable,
+        capabilities: List[str],
+        agent_id: str,
+        capability_manager: 'CapabilityManager',
+        audit: 'AuditMechanism' = None
+    ) -> GuardResult:
+        """
+        Защита выполнения действия.
+        """
+        # Проверка capabilities
+        result = await capability_manager.check_capabilities(
+            required=capabilities,
+            agent_id=agent_id
+        )
+        
+        # Emit audit event
+        audit_obj = audit or self.audit
+        if audit_obj:
+            await audit_obj.emit_event(
+                event_type="capability_checked" if result.approved else "capability_denied",
+                details={
+                    "capabilities": capabilities,
+                    "agent_id": agent_id,
+                    "approved": result.approved
+                }
+            )
+        
+        if not result.approved:
+            return GuardResult(
+                allowed=False,
+                error=result.reason
+            )
+        
+        # Execute action
+        try:
+            action_result = await action()
+            
+            # Emit execution event
+            if audit_obj:
+                await audit_obj.emit_event(
+                    event_type="capability_executed",
+                    details={
+                        "capabilities": capabilities,
+                        "agent_id": agent_id,
+                        "result": "success"
+                    }
+                )
+            
+            return GuardResult(
+                allowed=True,
+                result=action_result
+            )
+            
+        except Exception as e:
+            return GuardResult(
+                allowed=False,
+                error=str(e)
+            )
+
+    # Add log_action method for compatibility with CapabilityManager
+    async def log_action(
+        self,
+        action: str,
+        result: Dict[str, Any],
+        context: Dict[str, Any] = None
+    ):
+        """
+        Compatibility method for CapabilityManager.
+        Wraps emit_event with log_action interface.
+        """
+        await self.emit_event(
+            event_type=action,
+            details={
+                **result,
+                **(context or {})
+            }
+        )
