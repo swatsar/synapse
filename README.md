@@ -11,6 +11,32 @@
 
 ---
 
+---
+
+## 🗺️ Roadmap
+
+Project Synapse has a comprehensive **12-18 month roadmap** to transform it into a production-ready cognitive orchestration platform.
+
+### 📅 Development Phases
+
+| Phase | Timeline | Focus |
+|-------|----------|-------|
+| **Phase 1: Platform Hardening** | 0–3 months | Capability Contract, Deterministic Execution, Security Runtime |
+| **Phase 2: Developer Platform** | 3–6 months | SDK, Domain Packs, Local Distribution |
+| **Phase 3: Cognitive Experience** | 6–12 months | WebUI Orchestrator Chat, Visual Workflows |
+| **Phase 4: Distributed Platform** | 12–18 months | Multi-node Cluster, Enterprise Readiness |
+
+### 🎯 Key Deliverables
+
+- ✅ **Capability Contract v1** - Formal capability-based security model
+- 🔨 **Deterministic Workflow Execution** - Reproducible execution with seeds
+- 🔨 **WebUI Control Plane** - Full web-based management interface
+- 🔨 **Orchestrator Chat Interface** - Natural language workflow creation
+- 🔨 **Distributed Signal Fabric** - Scalable message routing cluster
+
+**📖 Full Roadmap:** See [ROADMAP.md](ROADMAP.md) for complete details, technical specifications, and success metrics.
+
+
 ## 📜 Философия Проекта
 
 ### Концепция
