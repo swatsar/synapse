@@ -1,4 +1,4 @@
-# Contributing to Synapse
+# 🤝 Contributing to Synapse
 
 Thank you for your interest in contributing to Synapse! This document provides guidelines and instructions for contributing.
 
@@ -12,10 +12,11 @@ Thank you for your interest in contributing to Synapse! This document provides g
 - [Coding Standards](#coding-standards)
 - [Testing Guidelines](#testing-guidelines)
 - [Documentation](#documentation)
+- [Contact](#contact)
 
 ## Code of Conduct
 
-This project adheres to a Code of Conduct. By participating, you are expected to uphold this code. Please report unacceptable behavior to conduct@synapse.dev.
+This project adheres to a Code of Conduct. By participating, you are expected to uphold this code. Please report unacceptable behavior to the project maintainer.
 
 ## Getting Started
 
@@ -54,139 +55,127 @@ pip install -e .
 pytest tests/ -v
 
 # Run with coverage
-pytest tests/ -v --cov=synapse
+pytest tests/ -v --cov=synapse --cov-report=html
 
-# Run specific test markers
-pytest tests/ -m security -v
+# Run specific test categories
+pytest tests/ -v -m "security"
+pytest tests/ -v -m "integration"
 ```
 
 ## How to Contribute
 
 ### Reporting Bugs
 
-1. Check if the bug has already been reported
-2. Use the [Bug Report Template](.github/ISSUE_TEMPLATE/bug_report.md)
-3. Include detailed reproduction steps
+1. Check if the bug has already been reported in [Issues](https://github.com/swatsar/synapse/issues)
+2. If not, create a new issue using the Bug Report template
+3. Include as much detail as possible:
+   - Steps to reproduce
+   - Expected behavior
+   - Actual behavior
+   - Environment details
 
 ### Suggesting Features
 
 1. Check if the feature has already been suggested
-2. Use the [Feature Request Template](.github/ISSUE_TEMPLATE/feature_request.md)
-3. Describe the use case and expected behavior
+2. Create a new issue using the Feature Request template
+3. Describe the feature and its benefits
 
-### Submitting Code
+### Submitting Changes
 
-1. Create a feature branch
-2. Make your changes
-3. Add/update tests
-4. Update documentation
-5. Submit a pull request
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Add tests for your changes
+5. Ensure all tests pass (`pytest tests/ -v`)
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
 
 ## Pull Request Process
 
-1. **Ensure all tests pass:** `pytest tests/ -v`
-2. **Maintain code coverage:** Coverage should not decrease
-3. **Follow coding standards:** See below
-4. **Update documentation:** If applicable
-5. **Request review:** From relevant code owners
-
-### PR Checklist
-
-- [ ] Code follows style guidelines
-- [ ] Self-review completed
-- [ ] Comments added for complex logic
-- [ ] Documentation updated
-- [ ] Tests added/updated
-- [ ] All tests pass
-- [ ] No new warnings
+1. Ensure your PR follows the coding standards
+2. Update documentation if needed
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Request review from maintainers
 
 ## Coding Standards
 
 ### Python Style
 
-- Follow PEP 8
+- Follow PEP 8 guidelines
 - Use type hints for all functions
+- Write docstrings for all classes and methods
 - Maximum line length: 100 characters
-- Use docstrings for all public functions/classes
 
-### Example
+### Code Quality
 
 ```python
-from typing import Optional
-
-def process_data(data: str, timeout: Optional[int] = None) -> bool:
-    """
-    Process the input data.
+# Good example
+def calculate_total(items: list[dict]) -> float:
+    """Calculate total price of items.
     
     Args:
-        data: Input data to process
-        timeout: Optional timeout in seconds
+        items: List of item dictionaries with 'price' key
     
     Returns:
-        True if successful, False otherwise
+        Total price as float
     """
-    # Implementation
-    return True
+    return sum(item.get('price', 0) for item in items)
 ```
 
-### Protocol Versioning
+### Security
 
-All modules must include:
-
-```python
-PROTOCOL_VERSION: str = "1.0"
-```
-
-All models must include:
-
-```python
-protocol_version: str = "1.0"
-```
+- Never commit secrets or API keys
+- Always validate user input
+- Use parameterized queries for database operations
+- Follow the principle of least privilege
 
 ## Testing Guidelines
 
+### Test Categories
+
+| Category | Marker | Description |
+|----------|--------|-------------|
+| Unit | `@pytest.mark.unit` | Single component tests |
+| Integration | `@pytest.mark.integration` | Multi-component tests |
+| Security | `@pytest.mark.security` | Security-focused tests |
+| Performance | `@pytest.mark.performance` | Performance benchmarks |
+
 ### Test Requirements
 
-- Unit tests for all new functions
-- Integration tests for workflows
-- Security tests for security-related code
-- Coverage > 80% for core modules
-
-### Test Markers
-
-```python
-@pytest.mark.unit
-def test_unit(): pass
-
-@pytest.mark.integration
-def test_integration(): pass
-
-@pytest.mark.security
-def test_security(): pass
-```
+- All new code must have tests
+- Minimum 80% code coverage for core modules
+- Minimum 90% coverage for security modules
+- All tests must pass before merging
 
 ## Documentation
 
 ### Code Documentation
 
-- Use docstrings for all public APIs
-- Include examples in docstrings
-- Update README.md if needed
+- Use docstrings for all public functions and classes
+- Include type hints
+- Provide usage examples
 
-### User Documentation
+### Project Documentation
 
-- Update relevant docs in `docs/`
-- Use clear, simple language
-- Include code examples
+- Update README.md for user-facing changes
+- Update API_REFERENCE.md for API changes
+- Update SECURITY_GUIDE.md for security changes
 
-## License
+## Contact
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+### Project Maintainer
 
-## Questions?
+**Евгений Савченко**
+- 📧 Email: [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com)
+- 📍 Location: Россия, Саратов
+- 🐙 GitHub: [@swatsar](https://github.com/swatsar)
 
-- Open an issue for questions
-- Join our discussions on GitHub
-- Email: dev@synapse.dev
+### Reporting Security Issues
 
-Thank you for contributing! 🎉
+For security-related issues, please email directly to [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com) instead of using the public issue tracker.
+
+---
+
+Thank you for contributing to Synapse! 🚀

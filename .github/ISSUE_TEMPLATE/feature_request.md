@@ -3,7 +3,7 @@ name: Feature Request
 about: Suggest a new feature for Synapse
 title: '[FEATURE] '
 labels: enhancement
-assignees: ''
+assignees: swatsar
 ---
 
 ## 💡 Feature Description

@@ -1,85 +1,105 @@
-# Security Policy
+# 🔐 Security Policy
 
 ## Supported Versions
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 3.1.x   | :white_check_mark: |
-| 3.0.x   | :x:                |
-| < 3.0   | :x:                |
+| 3.1.x   | ✅ Active support  |
+| 3.0.x   | ✅ Security fixes  |
+| < 3.0   | ❌ End of life     |
 
 ## Reporting a Vulnerability
 
-We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
+We take security seriously. If you discover a security vulnerability, please follow these steps:
 
-### How to Report
+### 🔒 Private Disclosure
 
-**Please do NOT report security vulnerabilities through public GitHub issues.**
+**DO NOT** create a public GitHub issue for security vulnerabilities.
 
-Instead, please report them via:
+Instead, please report security issues directly to:
 
-1. **Email:** security@synapse.dev
-2. **GitHub Security Advisory:** [Create a security advisory](https://github.com/synapse/synapse/security/advisories/new)
+**📧 Email:** [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com)
 
-### What to Include
+### 📋 What to Include
 
-Please include the following information:
+Please include the following information in your report:
 
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Affected versions
-- Possible fixes (if known)
+1. **Description** of the vulnerability
+2. **Steps to reproduce** the issue
+3. **Potential impact** and severity
+4. **Affected versions**
+5. **Suggested fix** (if available)
 
-### Response Timeline
+### ⏱️ Response Timeline
 
-- **Initial Response:** Within 48 hours
-- **Triage:** Within 7 days
-- **Fix Development:** Depends on severity
-- **Disclosure:** After fix is released
+| Stage | Timeline |
+|-------|----------|
+| Initial Response | Within 24 hours |
+| Vulnerability Confirmation | Within 72 hours |
+| Fix Development | 7-14 days |
+| Patch Release | Within 30 days |
+
+### 🏆 Recognition
+
+We appreciate security researchers who responsibly disclose vulnerabilities. With your permission, we will:
+
+- Acknowledge your contribution in release notes
+- Add you to our security acknowledgments list
 
 ## Security Features
 
-Synapse implements multiple security layers:
+### Built-in Security
 
-1. **Capability-Based Access Control**
-   - Non-executable tokens with scoped permissions
-   - Fine-grained access control
+Synapse includes comprehensive security features:
 
-2. **Isolation Enforcement**
-   - Container isolation for untrusted code
-   - Subprocess isolation for verified skills
+| Feature | Description |
+|---------|-------------|
+| **Capability-Based Access** | Every action requires explicit capability token |
+| **Zero-Trust Execution** | No implicit trust, verify everything |
+| **Isolation Enforcement** | Untrusted code runs in containers |
+| **Immutable Audit Log** | All actions logged, cannot be modified |
+| **Deterministic Replay** | Every execution reproducible |
 
-3. **Human-in-the-Loop Approval**
-   - Required for high-risk actions (risk_level ≥ 3)
-   - Configurable approval policies
-
-4. **Audit Trail**
-   - Immutable logging of all actions
-   - PostgreSQL-backed audit storage
-
-5. **AST Security Analysis**
-   - Static analysis of generated code
-   - Dangerous pattern detection
-
-## Security Best Practices
+### Security Best Practices
 
 When using Synapse:
 
-1. Never commit secrets to the repository
-2. Use environment variables for sensitive configuration
-3. Review generated code before approval
-4. Keep dependencies updated
-5. Run security scans regularly
+1. **Never run as root** - Agents should never have root privileges
+2. **Use least privilege** - Grant only necessary capabilities
+3. **Review generated code** - Always review before approving new skills
+4. **Monitor audit logs** - Regularly check for suspicious activity
+5. **Keep updated** - Always use the latest version
 
-## Security Updates
+## Security Configuration
 
-Security updates are released as patch versions and announced via:
+### Environment Variables
 
-- GitHub Security Advisories
-- Release notes
-- Security mailing list
+```bash
+# Security settings
+SYNAPSE_SECURITY_LEVEL=high
+SYNAPSE_AUDIT_ENABLED=true
+SYNAPSE_SANDBOX_ENABLED=true
+```
+
+### Capability Configuration
+
+```yaml
+security:
+  require_approval_for_risk: 3
+  trusted_users:
+    - admin@example.com
+  rate_limit_per_minute: 60
+  require_command_signing: true
+```
 
 ## Contact
 
-For security-related questions, contact: security@synapse.dev
+**Project Maintainer:** Евгений Савченко
+
+- 📧 Email: [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com)
+- 📍 Location: Россия, Саратов
+- 🐙 GitHub: [@swatsar](https://github.com/swatsar)
+
+---
+
+**Last Updated:** 2026-02-21
