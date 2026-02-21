@@ -1,3 +1,4 @@
+PROTOCOL_VERSION: str = "1.0"
 """
 Task Planner for creating workflows from tasks
 """

@@ -1,3 +1,4 @@
+PROTOCOL_VERSION: str = "1.0"
 """
 Workflow Engine for dependency resolution and execution
 """

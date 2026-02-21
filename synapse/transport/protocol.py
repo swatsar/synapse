@@ -1,3 +1,4 @@
+PROTOCOL_VERSION: str = "1.0"
 """
 Protocol definitions for orchestrator-node communication
 """
