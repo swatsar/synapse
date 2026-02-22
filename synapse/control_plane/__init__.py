@@ -1,8 +1,32 @@
-PROTOCOL_VERSION: str = "1.0"
-SPEC_VERSION: str = "3.1"
+"""
+Control Plane for Multi-Tenant Runtime
+Tenant-aware scheduling, quota management, and state partitioning
 
-PROTOCOL_VERSION: str = "1.0"
-"""Control Plane for human-in-the-loop operations."""
-from .control import HumanApprovalPipeline, ApprovalRequest, ApprovalResponse
+PROTOCOL_VERSION = "1.0"
+"""
 
-__all__ = ["HumanApprovalPipeline", "ApprovalRequest", "ApprovalResponse"]
+from synapse.control_plane.tenant_scheduler import (
+    TenantScheduler,
+    TenantContext,
+    SchedulingRequest,
+    SchedulingDecision
+)
+from synapse.control_plane.tenant_quota_registry import (
+    TenantQuotaRegistry,
+    QuotaUsage
+)
+from synapse.control_plane.tenant_state_partition import (
+    TenantStatePartition,
+    StateEntry
+)
+
+__all__ = [
+    "TenantScheduler",
+    "TenantContext",
+    "SchedulingRequest",
+    "SchedulingDecision",
+    "TenantQuotaRegistry",
+    "QuotaUsage",
+    "TenantStatePartition",
+    "StateEntry"
+]
