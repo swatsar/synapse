@@ -66,7 +66,7 @@ class SelfImprovementEngine:
     def _generate_id(self, seed: int, target: str, improvement_type: str) -> str:
         """Generate deterministic improvement ID."""
         data = f"{seed}:{target}:{improvement_type}"
-        return f"imp-{hashlib.md5(data.encode()).hexdigest()}"
+        return f"imp-{hashlib.md5(data.encode(), usedforsecurity=False).hexdigest()}"  # nosec B324
     
     async def improve(self, plan: ImprovementPlan) -> ImprovementResult:
         """Execute self-improvement plan."""

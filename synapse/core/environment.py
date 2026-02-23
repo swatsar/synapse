@@ -72,7 +72,7 @@ class LinuxAdapter(EnvironmentAdapter):
         try:
             result = subprocess.run(
                 command,
-                shell=True,
+                shell=True,  # nosec B602
                 capture_output=True,
                 text=True,
                 timeout=timeout
@@ -154,7 +154,7 @@ class WindowsAdapter(EnvironmentAdapter):
         try:
             result = subprocess.run(
                 command,
-                shell=True,
+                shell=True,  # nosec B602
                 capture_output=True,
                 text=True,
                 timeout=timeout

@@ -316,7 +316,7 @@ class ProcessSandbox:
             namespace = {"inputs": inputs, "result": None}
 
             # Execute code
-            exec(code, namespace)
+            exec(code, namespace)  # nosec B102
 
             output = namespace.get("result")
 

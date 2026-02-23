@@ -42,3 +42,5 @@ structlog>=24.0.0
 
 # Time Handling
 python-dateutil>=2.8.0
+pytest-cov>=4.0.0
+coverage>=7.0.0

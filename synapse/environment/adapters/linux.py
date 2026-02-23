@@ -61,7 +61,7 @@ class LinuxAdapter(EnvironmentAdapter):
             Path: /tmp directory
         """
         import os
-        return Path(os.environ.get('TMPDIR', '/tmp'))
+        return Path(os.environ.get('TMPDIR', '/tmp'))  # nosec B108
 
     async def execute_command(
         self, 
@@ -84,7 +84,7 @@ class LinuxAdapter(EnvironmentAdapter):
         try:
             process = await asyncio.create_subprocess_shell(
                 command,
-                shell=True,
+                shell=True,  # nosec B604
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,

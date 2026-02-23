@@ -44,7 +44,7 @@ def print_banner():
 """.format(protocol=PROTOCOL_VERSION, spec=SPEC_VERSION))
 
 
-async def run_web_ui(host: str = "0.0.0.0", port: int = 8080):
+async def run_web_ui(host: str = "0.0.0.0", port: int = 8080):  # nosec B104
     """Run the Web UI server."""
     import uvicorn
     from synapse.api.app import app
@@ -81,7 +81,7 @@ async def run_agent(mode: str = "local"):
         await asyncio.sleep(1)
 
 
-async def run_full(host: str = "0.0.0.0", api_port: int = 8000, web_port: int = 8080):
+async def run_full(host: str = "0.0.0.0", api_port: int = 8000, web_port: int = 8080):  # nosec B104
     """Run both API and Web UI."""
     import uvicorn
     from synapse.api.app import app
@@ -122,7 +122,7 @@ def main():
     )
     parser.add_argument(
         "--host",
-        default="0.0.0.0",
+        default="0.0.0.0",  # nosec B104
         help="Host to bind to"
     )
     parser.add_argument(

@@ -56,7 +56,7 @@ class AdaptivePolicyManager:
     def _generate_id(self, seed: int, policy_name: str) -> str:
         """Generate deterministic update ID."""
         data = f"{seed}:{policy_name}"
-        return f"pol-{hashlib.md5(data.encode()).hexdigest()}"
+        return f"pol-{hashlib.md5(data.encode(), usedforsecurity=False).hexdigest()}"  # nosec B324
     
     async def apply_update(self, update: PolicyUpdate) -> PolicyUpdateResult:
         """Apply a policy update."""

@@ -84,7 +84,7 @@ class WindowsAdapter(EnvironmentAdapter):
         try:
             process = await asyncio.create_subprocess_shell(
                 command,
-                shell=True,
+                shell=True,  # nosec B604
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,

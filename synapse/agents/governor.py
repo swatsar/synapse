@@ -64,7 +64,7 @@ class GovernorAgent:
     def _generate_id(self, seed: int, action_type: str, target: str) -> str:
         """Generate deterministic action ID."""
         data = f"{seed}:{action_type}:{target}"
-        return f"act-{hashlib.md5(data.encode()).hexdigest()}"
+        return f"act-{hashlib.md5(data.encode(), usedforsecurity=False).hexdigest()}"  # nosec B324
     
     async def analyze(self) -> GovernanceDecision:
         """Analyze system metrics and make governance decision."""

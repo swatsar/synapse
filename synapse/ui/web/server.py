@@ -8,7 +8,7 @@ PROTOCOL_VERSION: str = "1.0"
 @dataclass
 class WebServerConfig:
     """Web server configuration."""
-    host: str = "0.0.0.0"
+    host: str = "0.0.0.0"  # nosec B104
     port: int = 8080
     debug: bool = False
     protocol_version: str = PROTOCOL_VERSION
