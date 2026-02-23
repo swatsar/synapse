@@ -1,0 +1,37 @@
+# Synapse Configuration
+# Protocol Version: 1.0
+
+system:
+  name: "Synapse"
+  version: "3.1"
+  mode: "docker"
+  protocol_version: "1.0"
+
+llm:
+  default_provider: "openai"
+  models:
+    - name: "gpt-4o"
+      provider: "openai"
+      priority: 1
+      timeout_seconds: 30
+
+memory:
+  vector_db: "chromadb"
+  sql_db: "postgresql://synapse:synapse@db:5432/synapse"
+
+security:
+  require_approval_for_risk: 3
+  rate_limit_per_minute: 60
+  audit_log_path: "/var/log/synapse/audit.log"
+
+isolation_policy:
+  unverified_skills: "container"
+  risk_level_3_plus: "container"
+  trusted_skills: "subprocess"
+
+resources:
+  default_limits:
+    cpu_seconds: 60
+    memory_mb: 512
+    disk_mb: 100
+    network_kb: 1024
