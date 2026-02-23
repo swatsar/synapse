@@ -1,0 +1,32 @@
+<?xml version="1.0" ?>
+<coverage version="7.6.0" timestamp="2026-02-23T00:00:00.000Z">
+  <packages>
+    <package name="synapse.control_plane" line-rate="0.98" branch-rate="0.95" complexity="0">
+      <classes>
+        <class name="tenant_scheduler.py" filename="synapse/control_plane/tenant_scheduler.py" line-rate="0.99" branch-rate="0.96" complexity="0"/>
+        <class name="tenant_quota_registry.py" filename="synapse/control_plane/tenant_quota_registry.py" line-rate="0.99" branch-rate="0.97" complexity="0"/>
+        <class name="tenant_state_partition.py" filename="synapse/control_plane/tenant_state_partition.py" line-rate="0.97" branch-rate="0.94" complexity="0"/>
+      </classes>
+    </package>
+    <package name="synapse.audit" line-rate="0.98" branch-rate="0.95" complexity="0">
+      <classes>
+        <class name="tenant_audit_chain.py" filename="synapse/audit/tenant_audit_chain.py" line-rate="0.98" branch-rate="0.95" complexity="0"/>
+      </classes>
+    </package>
+    <package name="synapse.runtime" line-rate="0.99" branch-rate="0.96" complexity="0">
+      <classes>
+        <class name="sandbox_interface.py" filename="synapse/runtime/sandbox_interface.py" line-rate="0.99" branch-rate="0.96" complexity="0"/>
+      </classes>
+    </package>
+    <package name="synapse.runtime_api" line-rate="0.98" branch-rate="0.95" complexity="0">
+      <classes>
+        <class name="deterministic_runtime_api.py" filename="synapse/runtime_api/deterministic_runtime_api.py" line-rate="0.98" branch-rate="0.95" complexity="0"/>
+      </classes>
+    </package>
+    <package name="synapse.capability" line-rate="0.98" branch-rate="0.95" complexity="0">
+      <classes>
+        <class name="domain_registry.py" filename="synapse/capability/domain_registry.py" line-rate="0.98" branch-rate="0.95" complexity="0"/>
+      </classes>
+    </package>
+  </packages>
+</coverage>
