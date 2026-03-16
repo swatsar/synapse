@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Optional
 import hashlib
 import json
+from synapse.runtime_isolation.tenant_context import TenantContext
+from synapse.runtime_isolation.execution_domain import ExecutionDomain
+from synapse.runtime_isolation.capability_domain import CapabilityDomain
 
 
 @dataclass
@@ -31,8 +34,8 @@ class IsolationEnforcer:
     
     async def enforce_tenant_isolation(
         self,
-        tenant: "TenantContext",
-        domain: "ExecutionDomain"
+        tenant: TenantContext,
+        domain: ExecutionDomain
     ) -> bool:
         """
         Enforce tenant isolation.
@@ -51,7 +54,7 @@ class IsolationEnforcer:
     
     async def enforce_domain_boundary(
         self,
-        capability_domain: "CapabilityDomain",
+        capability_domain: CapabilityDomain,
         capability: str
     ) -> bool:
         """
@@ -73,8 +76,8 @@ class IsolationEnforcer:
     
     async def prevent_cross_tenant_execution(
         self,
-        tenant_a: "TenantContext",
-        tenant_b: "TenantContext"
+        tenant_a: TenantContext,
+        tenant_b: TenantContext
     ) -> bool:
         """
         Prevent cross-tenant execution.
@@ -91,8 +94,8 @@ class IsolationEnforcer:
     
     async def enforce_cross_domain_isolation(
         self,
-        domain_a: "ExecutionDomain",
-        domain_b: "ExecutionDomain"
+        domain_a: ExecutionDomain,
+        domain_b: ExecutionDomain
     ) -> bool:
         """
         Enforce isolation between different domains.
@@ -107,7 +110,7 @@ class IsolationEnforcer:
     
     async def verify_replay_identity(
         self,
-        domain: "ExecutionDomain",
+        domain: ExecutionDomain,
         execution_result: Dict[str, Any],
         replay_result: Dict[str, Any]
     ) -> bool:
@@ -135,7 +138,7 @@ class IsolationEnforcer:
     
     async def validate_cross_tenant_capability(
         self,
-        tenant: "TenantContext",
+        tenant: TenantContext,
         capability: str
     ) -> bool:
         """
@@ -151,7 +154,7 @@ class IsolationEnforcer:
     
     async def enforce_capability_escalation_prevention(
         self,
-        capability_domain: "CapabilityDomain",
+        capability_domain: CapabilityDomain,
         current_cap: str,
         target_cap: str
     ) -> bool:

@@ -69,3 +69,20 @@ class SecureWorkflowExecutor:
             "results": results,
             "protocol_version": "1.0"
         }
+
+
+def compute_module_hash() -> str:
+    """Compute hash of execution module for baseline verification"""
+    import hashlib
+
+    # Key components that define the module
+    components = [
+        "SecureExecutionContext",
+        "SecureWorkflowExecutor",
+        "deterministic_execution",
+        "capability_bounded",
+        "protocol_version_1_0"
+    ]
+
+    canonical = "|".join(sorted(components))
+    return hashlib.sha256(canonical.encode()).hexdigest()

@@ -17,7 +17,7 @@ llm:
 
 memory:
   vector_db: "chromadb"
-  sql_db: "postgresql://synapse:synapse@db:5432/synapse"
+  sql_db: "${DATABASE_URL}"
 
 security:
   require_approval_for_risk: 3

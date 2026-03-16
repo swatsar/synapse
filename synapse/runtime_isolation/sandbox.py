@@ -15,6 +15,9 @@ import hashlib
 import json
 import time
 from datetime import datetime
+from synapse.runtime_isolation.tenant_context import TenantContext
+from synapse.runtime_isolation.execution_domain import ExecutionDomain
+from synapse.runtime_isolation.capability_domain import CapabilityDomain
 
 
 @dataclass
@@ -43,7 +46,7 @@ class DeterministicSandbox:
         self,
         workflow: Callable[[Dict], Dict],
         context: Dict[str, Any],
-        domain: "ExecutionDomain"
+        domain: ExecutionDomain
     ) -> Dict[str, Any]:
         """
         Execute workflow in sandbox with domain isolation.
@@ -100,7 +103,7 @@ class DeterministicSandbox:
         self,
         workflow: Callable[[Dict], Dict],
         context: Dict[str, Any],
-        domain: "ExecutionDomain"
+        domain: ExecutionDomain
     ) -> Dict[str, Any]:
         """
         Replay execution with identical context.
@@ -110,7 +113,7 @@ class DeterministicSandbox:
         # Replay is identical to execute for deterministic sandbox
         return await self.execute(workflow, context, domain)
     
-    async def enforce_domain(self, context: Dict, domain: "ExecutionDomain") -> None:
+    async def enforce_domain(self, context: Dict, domain: ExecutionDomain) -> None:
         """Enforce domain isolation"""
         if not domain:
             raise ValueError("Execution domain is required")
@@ -119,7 +122,7 @@ class DeterministicSandbox:
         if not domain.domain_id or not domain.tenant_id:
             raise ValueError("Invalid execution domain")
     
-    async def enforce_capabilities(self, context: Dict, domain: "ExecutionDomain") -> None:
+    async def enforce_capabilities(self, context: Dict, domain: ExecutionDomain) -> None:
         """Enforce capability requirements"""
         required_caps = context.get("required_capabilities", [])
         
@@ -132,7 +135,7 @@ class DeterministicSandbox:
     async def execute_with_capability_check(
         self,
         required_capability: str,
-        domain: "ExecutionDomain"
+        domain: ExecutionDomain
     ) -> bool:
         """Check if domain has capability, raise if not"""
         if not domain.has_capability(required_capability):
@@ -160,7 +163,7 @@ class DeterministicSandbox:
     
     async def execute_for_tenant(
         self,
-        tenant: "TenantContext",
+        tenant: TenantContext,
         workflow: Callable[[Dict], Dict],
         context: Dict[str, Any]
     ) -> Dict[str, Any]:

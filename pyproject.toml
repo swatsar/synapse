@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = [
+    "setuptools>=61.0",
+    "wheel",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,11 +11,17 @@ version = "3.1.0"
 description = "Universal Autonomous Agent Platform - Distributed Cognitive Platform for Autonomous Agents"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
 authors = [
-    {name = "Евгений Савченко", email = "evgeniisav@gmail.com"}
+    { name = "Евгений Савченко", email = "evgeniisav@gmail.com" },
 ]
-keywords = ["ai", "agent", "automation", "llm", "autonomous", "cognitive"]
+keywords = [
+    "ai",
+    "agent",
+    "automation",
+    "llm",
+    "autonomous",
+    "cognitive",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -43,8 +52,13 @@ dependencies = [
     "structlog>=24.0.0",
 ]
 
+[project.license]
+text = "MIT"
+
 [project.optional-dependencies]
-gui = ["tauri>=1.5", "pywebview>=4.0"]
+gui = [
+    "pywebview>=4.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -56,11 +70,12 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
 ]
-full = ["synapse-agent[gui,dev]"]
+full = [
+    "synapse-agent[gui,dev]",
+]
 
 [project.scripts]
 synapse = "synapse.main:main"
-synapse-gui = "synapse.ui.configurator:main"
 
 [project.urls]
 Homepage = "https://github.com/synapse/synapse"
@@ -68,12 +83,20 @@ Documentation = "https://synapse.readthedocs.io"
 Repository = "https://github.com/synapse/synapse"
 Issues = "https://github.com/synapse/synapse/issues"
 
-[tool.setuptools]
-packages = ["synapse"]
-include-package-data = true
-
 [tool.setuptools.package-data]
-synapse = ["py.typed", "*.yaml", "*.json"]
+synapse = [
+    "py.typed",
+    "*.yaml",
+    "*.json",
+]
+
+[tool.setuptools.packages.find]
+where = [
+    ".",
+]
+include = [
+    "synapse*",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -95,17 +118,24 @@ markers = [
     "compliance: Compliance tests",
     "benchmark: Benchmark tests",
     "api: API tests",
-    "tdd: TDD tests"
+    "tdd: TDD tests",
 ]
 addopts = "-v --tb=short"
-testpaths = ["tests"]
+testpaths = [
+    "tests",
+]
 
 [tool.black]
 line-length = 100
-target-version = ["py311", "py312"]
+target-version = [
+    "py311",
+    "py312",
+]
 
 [tool.coverage.run]
-source = ["synapse"]
+source = [
+    "synapse",
+]
 omit = [
     "synapse/tests/*",
     "tests/*",

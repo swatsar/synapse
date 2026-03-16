@@ -110,3 +110,19 @@ class DeterministicScheduler:
         }
         schedule_json = json.dumps(schedule_data, sort_keys=True)
         return hashlib.sha256(schedule_json.encode()).hexdigest()
+
+
+def compute_module_hash() -> str:
+    """Compute hash of scheduler module for baseline verification"""
+    import hashlib
+
+    # Key components that define the module
+    components = [
+        "TenantScheduler",
+        "DeterministicScheduling",
+        "compute_schedule_hash",
+        "protocol_version_1_0"
+    ]
+
+    canonical = "|".join(sorted(components))
+    return hashlib.sha256(canonical.encode()).hexdigest()

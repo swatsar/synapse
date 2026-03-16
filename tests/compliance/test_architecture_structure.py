@@ -30,23 +30,25 @@ class TestArchitectureStructure:
     
     def test_no_unauthorized_architecture(self):
         """Test that no unauthorized directories exist in synapse/"""
-        # Complete list of authorized directories (Phase 1-6)
+        # Complete list of authorized directories (Phase 1-8)
         authorized_dirs = {
             # Core modules
             "core", "skills", "agents", "memory", "connectors", "llm",
             "network", "observability", "ui", "database", "config",
             # Security & Policy
-            "security", "crypto", "policy", "governance",
+            "security", "crypto", "policy", "governance", "zero_trust",
             # Execution & Runtime
             "environment", "runtime", "reliability", "agent_runtime",
-            "runtime_isolation",  # Phase 6: Multi-tenant runtime isolation
+            "runtime_isolation", "runtime_api",
             # Distributed & Control Plane (Phase 3-5)
             "distributed", "distributed_consensus", "control_plane",
-            "transport", "node",
+            "transport", "node", "cluster_orchestration",
             # Orchestration
-            "orchestrator", "interfaces", "planning", "api",
+            "orchestrator", "interfaces", "planning", "api", "orchestrator_control",
             # Additional modules
-            "deployment", "integrations", "learning", "telemetry",
+            "deployment", "integrations", "learning", "telemetry", "audit",
+            # Ecosystem
+            "ecosystem", "capability",
             # Internal
             "tests"
         }
@@ -92,7 +94,7 @@ class TestArchitectureStructure:
         tests_path = Path("tests")
         
         # Check that phase tests exist
-        phase_dirs = ["phase1", "phase2", "phase3", "phase4", "phase5", "phase6"]
+        phase_dirs = ["phase1", "phase2", "phase3", "phase4", "phase5", "phase6", "phase7", "phase8"]
         
         for phase in phase_dirs:
             phase_path = tests_path / phase

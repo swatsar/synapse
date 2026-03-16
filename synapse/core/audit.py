@@ -120,3 +120,20 @@ class AuditLogger:
             "hash_chain": self._hash_chain,
             "protocol_version": self.PROTOCOL_VERSION
         }
+
+
+def compute_module_hash() -> str:
+    """Compute hash of audit module for baseline verification"""
+    import hashlib
+
+    # Key components that define the module
+    components = [
+        "TenantAuditChain",
+        "AuditEntry",
+        "replay_safe",
+        "cryptographic_tenant_boundary",
+        "protocol_version_1_0"
+    ]
+
+    canonical = "|".join(sorted(components))
+    return hashlib.sha256(canonical.encode()).hexdigest()

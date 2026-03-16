@@ -380,7 +380,7 @@ class AuditMechanism:
         
         return events[-limit:]
     
-    async def log_action(
+    def log_action(
         self,
         action: str,
         result: Dict[str, Any],
@@ -390,7 +390,7 @@ class AuditMechanism:
         Compatibility method for CapabilityManager.
         Wraps emit_event with log_action interface.
         """
-        await self.emit_event(
+        self.emit_event(
             event_type=action,
             details={
                 **result,
@@ -412,6 +412,109 @@ class GuardResult(BaseModel):
 
 
 class RuntimeGuard:
+    """
+    Middleware для защиты выполнения.
+    Phase 1: Capability Security Layer v1
+    """
+
+    def __init__(self, audit_logger=None):
+        self.audit = audit_logger
+        self.protocol_version = PROTOCOL_VERSION
+
+    def emit_event(
+        self,
+        event_type: str,
+        details: Dict[str, Any]
+    ) -> str:
+        """
+        Публикация события аудита.
+        Передает событие внутреннему аудит-логгеру.
+        """
+        if self.audit:
+            return self.audit.emit_event(event_type, details)
+        import uuid
+        return str(uuid.uuid4())  # Return dummy id if no audit logger
+
+    async def guard(
+        self,
+        action: Callable,
+        capabilities: List[str],
+        agent_id: str,
+        capability_manager: 'CapabilityManager',
+        audit: 'AuditMechanism' = None
+    ) -> GuardResult:
+        """
+        Защита выполнения действия.
+        """
+        # Проверка capabilities
+        result = await capability_manager.check_capabilities(
+            required=capabilities,
+            agent_id=agent_id
+        )
+
+        # Emit audit event
+        audit_obj = audit or self.audit
+        if audit_obj:
+            await audit_obj.emit_event(
+                event_type="capability_checked" if result.approved else "capability_denied",
+                details={
+                    "capabilities": capabilities,
+                    "agent_id": agent_id,
+                    "approved": result.approved
+                }
+            )
+
+        if not result.approved:
+            return GuardResult(
+                allowed=False,
+                error=result.reason
+            )
+
+        # Execute action
+        try:
+            action_result = await action()
+
+            # Emit execution event
+            if audit_obj:
+                await audit_obj.emit_event(
+                    event_type="capability_executed",
+                    details={
+                        "capabilities": capabilities,
+                        "agent_id": agent_id,
+                        "result": "success"
+                    }
+                )
+
+            return GuardResult(
+                allowed=True,
+                result=action_result
+            )
+
+        except Exception as e:
+            return GuardResult(
+                allowed=False,
+                error=str(e)
+            )
+
+    # Add log_action method for compatibility with CapabilityManager
+    def log_action(
+        self,
+        action: str,
+        result: Dict[str, Any],
+        context: Dict[str, Any] = None
+    ):
+        """
+        Compatibility method for CapabilityManager.
+        Wraps emit_event with log_action interface.
+        """
+        self.emit_event(
+            event_type=action,
+            details={
+                **result,
+                **(context or {})
+            }
+        )
+
     """
     Middleware для защиты выполнения.
     Phase 1: Capability Security Layer v1
@@ -483,7 +586,7 @@ class RuntimeGuard:
             )
 
     # Add log_action method for compatibility with CapabilityManager
-    async def log_action(
+    def log_action(
         self,
         action: str,
         result: Dict[str, Any],
@@ -493,10 +596,164 @@ class RuntimeGuard:
         Compatibility method for CapabilityManager.
         Wraps emit_event with log_action interface.
         """
-        await self.emit_event(
+        self.emit_event(
             event_type=action,
             details={
                 **result,
                 **(context or {})
             }
         )
+
+# ============================================================================
+# SecurityManager: Main security orchestrator
+# ============================================================================
+
+class SecurityManager:
+    """Main security manager coordinating all security operations.
+
+    Provides unified interface for:
+    - Capability checks and verification
+    - Permission enforcement
+    - Security auditing
+    - Runtime guard activation
+    - Risk assessment
+    """
+
+    protocol_version: str = "1.0"
+    spec_version: str = "3.1"
+
+    def __init__(self, 
+                 capability_manager: Optional[CapabilityManager] = None,
+                 permission_enforcer: Optional[PermissionEnforcer] = None,
+                 audit_mechanism: Optional[AuditMechanism] = None,
+                 runtime_guard: Optional[RuntimeGuard] = None):
+        self.capability_manager = capability_manager or CapabilityManager()
+        self.permission_enforcer = permission_enforcer or PermissionEnforcer()
+        self.audit_mechanism = audit_mechanism or AuditMechanism()
+        self.runtime_guard = runtime_guard or RuntimeGuard()
+
+        # Audit: SecurityManager initialized
+        self.audit_mechanism.emit_event(
+            event_type="security_manager_initialized",
+            details={
+                "protocol_version": self.protocol_version,
+                "spec_version": self.spec_version
+            }
+        )
+
+    async def check_capabilities(self, 
+                               required_capabilities: Optional[List[str]] = None,
+                               context: Optional[Dict[str, Any]] = None) -> SecurityCheckResult:
+        """Check if the system has the required capabilities.
+
+        Args:
+            required_capabilities: List of capabilities to check
+            context: Additional context for the check
+
+        Returns:
+            SecurityCheckResult indicating success/failure
+        """
+        context = context or {}
+        required_capabilities = required_capabilities or []
+
+        # Delegate to capability manager
+        return await self.capability_manager.check_capabilities(
+            required_capabilities, context
+        )
+
+    async def enforce_permissions(self, 
+                                principal: str, 
+                                resource: str, 
+                                action: str) -> EnforcementResult:
+        """Enforce permissions for a principal on a resource.
+
+        Args:
+            principal: The principal performing the action
+            resource: The resource being accessed
+            action: The action being performed
+
+        Returns:
+            EnforcementResult indicating if the action is allowed
+        """
+        return await self.permission_enforcer.enforce(principal, resource, action)
+
+    async def log_security_event(self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None):
+        """Log a security event for audit purposes.
+
+        Args:
+            event: The security event to log
+            context: Additional context
+        """
+        context = context or {}
+        self.audit_mechanism.emit_event(
+            event_type=event.get("event", "security_event"),
+            details={
+                **event,
+                **context,
+                "protocol_version": self.protocol_version,
+                "spec_version": self.spec_version
+            }
+        )
+
+    async def activate_runtime_guard(self, context: Optional[Dict[str, Any]] = None) -> GuardResult:
+        """Activate the runtime guard for security enforcement.
+
+        Args:
+            context: Activation context
+
+        Returns:
+            GuardResult indicating if the guard was activated
+        """
+        return await self.runtime_guard.activate(context)
+
+    async def assess_risk(self, operation: str, context: Optional[Dict[str, Any]] = None) -> int:
+        """Assess the risk level of an operation.
+
+        Args:
+            operation: The operation to assess
+            context: Additional context
+
+        Returns:
+            Risk level from 1 (low) to 5 (high)
+        """
+        context = context or {}
+
+        # Simple risk assessment based on operation type
+        high_risk_operations = ["execute_command", "write_file", "network_scan"]
+        medium_risk_operations = ["read_file", "web_request"]
+
+        if any(op in operation.lower() for op in high_risk_operations):
+            return 4
+        elif any(op in operation.lower() for op in medium_risk_operations):
+            return 2
+        else:
+            return 1
+
+    async def get_security_report(self) -> Dict[str, Any]:
+        """Get a comprehensive security report.
+
+        Returns:
+            Dictionary with security status and metrics
+        """
+        return {
+            "protocol_version": self.protocol_version,
+            "spec_version": self.spec_version,
+            "status": "active",
+            "components": {
+                "capability_manager": {
+                    "status": "operational",
+                    "capabilities_count": len(await self.capability_manager.list_capabilities())
+                },
+                "permission_enforcer": {
+                    "status": "operational"
+                },
+                "audit_mechanism": {
+                    "status": "operational",
+                    "events_count": self.audit_mechanism.get_event_count()
+                },
+                "runtime_guard": {
+                    "status": "operational",
+                    "is_active": await self.runtime_guard.is_active()
+                }
+            }
+        }

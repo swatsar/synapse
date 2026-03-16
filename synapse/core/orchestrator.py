@@ -108,6 +108,47 @@ class Orchestrator:
     # =========================================================================
 
     async def execute_cycle(self, event: Dict[str, Any]) -> CognitiveCycleResult:
+        """Execute a complete cognitive cycle on an event.
+
+        This is the main orchestration method that implements the 7-step
+        cognitive cycle: Perception → Recall → Plan → Action → Observe → Evaluate → Learn
+        """
+        # Parse the event to extract goals
+        goals = self._parse_event(event)
+
+        # Execute the first goal
+        if goals:
+            return await self.run_goal(goals[0])
+
+        return CognitiveCycleResult(
+            success=False,
+            result=None,
+            reasoning="No valid goals extracted from event",
+            protocol_version=self.protocol_version
+        )
+
+    async def run_goal(self, goal: Dict[str, Any]) -> CognitiveCycleResult:
+        """Run a high-level goal through the cognitive cycle.
+
+        This method provides a simplified interface for running goals
+        that delegate directly to the execute_cycle method.
+
+        Args:
+            goal: The high-level goal to execute
+
+        Returns:
+            CognitiveCycleResult with the execution result
+        """
+        # Convert goal to event format understood by execute_cycle
+        event = {
+            "type": "goal",
+            "data": goal,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+        return await self.execute_cycle(event)
+
+
         """Execute full 7-step cognitive cycle.
         
         Args:
@@ -258,7 +299,7 @@ class Orchestrator:
             try:
                 # Query semantic memory
                 query_text = perceived.get("content", "")
-                # recalled["semantic"] = await self.memory_store.query(query_text)
+                recalled["semantic"] = await self.memory_store.query(query_text)
             except Exception as e:
                 audit(
                     event="recall_memory_error",

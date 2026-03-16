@@ -13,7 +13,7 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 from synapse.core.models import *
-from synapse.core.security import CapabilityManager
+from synapse.core.security import CapabilityManager, SecurityManager
 from synapse.core.rollback import RollbackManager
 from synapse.core.checkpoint import CheckpointManager
 from synapse.skills.base import BaseSkill

@@ -23,14 +23,40 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8080", "http://127.0.0.1:8080", "https://localhost:8080", "https://127.0.0.1:8080"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 # Include API routes
 from synapse.api.routes import api_router
+
+# API Key authentication middleware
+@app.middleware("http")
+async def api_key_auth(request, call_next):
+    """API key authentication middleware."""
+    # Skip authentication for health and dashboard endpoints
+    if request.url.path == "/" or request.url.path == "/health" or request.url.path == "/ws":
+        response = await call_next(request)
+        return response
+
+    # Check API key from header or query parameter
+    api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+    expected_api_key = "synapse-api-key"  # In production, this should be from environment variable
+
+    if api_key != expected_api_key:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "error": "Unauthorized",
+                "message": "Invalid API key",
+                "protocol_version": PROTOCOL_VERSION
+            }
+        )
+
+    response = await call_next(request)
+    return response
 app.include_router(api_router, prefix="/api/v1")
 
 # In-memory storage for demo

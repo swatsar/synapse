@@ -1,6 +1,3 @@
-PROTOCOL_VERSION: str = "1.0"
-SPEC_VERSION: str = "3.1"
-
 #!/usr/bin/env python3
 """Synapse Agent Platform - Main Entry Point.
 
@@ -27,7 +24,7 @@ logger = logging.getLogger("synapse")
 
 def print_banner():
     """Print startup banner."""
-    print(f"""
+    print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
 ║   ███████╗██╗   ██╗ ██████╗ ██████╗███████╗██████╗ ███████╗ ║
@@ -38,17 +35,17 @@ def print_banner():
 ║   ╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝╚══════╝╚═╝  ╚═╝╚══════╝ ║
 ║                                                              ║
 ║   Universal Autonomous Agent Platform                        ║
-║   Protocol v{protocol} | Spec v{spec}                              ║
+║   Protocol v{} | Spec v{}                              ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
-""".format(protocol=PROTOCOL_VERSION, spec=SPEC_VERSION))
+""".format(PROTOCOL_VERSION, SPEC_VERSION))
 
 
 async def run_web_ui(host: str = "0.0.0.0", port: int = 8080):  # nosec B104
     """Run the Web UI server."""
     import uvicorn
     from synapse.api.app import app
-    
+
     logger.info(f"Starting Web UI on http://{host}:{port}")
     config = uvicorn.Config(
         app,
@@ -63,19 +60,22 @@ async def run_web_ui(host: str = "0.0.0.0", port: int = 8080):  # nosec B104
 async def run_agent(mode: str = "local"):
     """Run the agent in specified mode."""
     from synapse.core.orchestrator import Orchestrator
+    from synapse.core.determinism import DeterministicSeedManager, DeterministicIDGenerator
     from synapse.core.security import SecurityManager
     from synapse.memory.store import MemoryStore
-    
+
     logger.info(f"Starting Synapse Agent in {mode} mode")
-    
+
     # Initialize components
+    seed_manager = DeterministicSeedManager()
+    id_generator = DeterministicIDGenerator()
     security = SecurityManager()
     memory = MemoryStore()
-    orchestrator = Orchestrator(security=security, memory=memory)
-    
+    orchestrator = Orchestrator(seed_manager, id_generator, memory, security)
+
     logger.info("Agent initialized successfully")
     logger.info("Waiting for tasks...")
-    
+
     # Keep running
     while True:
         await asyncio.sleep(1)
@@ -85,13 +85,13 @@ async def run_full(host: str = "0.0.0.0", api_port: int = 8000, web_port: int = 
     """Run both API and Web UI."""
     import uvicorn
     from synapse.api.app import app
-    
+
     print_banner()
     logger.info(f"Starting Synapse Platform")
     logger.info(f"API Server: http://{host}:{api_port}")
     logger.info(f"Web Dashboard: http://{host}:{web_port}")
     logger.info(f"Health Check: http://{host}:{api_port}/health")
-    
+
     # Run API server (which also serves the dashboard at /)
     config = uvicorn.Config(
         app,
@@ -137,14 +137,14 @@ def main():
         default=8080,
         help="Web UI port"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Set environment
     os.environ["MODE"] = args.mode
     os.environ["PROTOCOL_VERSION"] = PROTOCOL_VERSION
     os.environ["SPEC_VERSION"] = SPEC_VERSION
-    
+
     try:
         if args.web_ui or args.mode == "docker":
             # Run full platform with Web UI
@@ -159,7 +159,8 @@ def main():
             asyncio.run(run_agent(mode=args.mode))
     except KeyboardInterrupt:
         logger.info("Shutting down...")
-        print("\n👋 Synapse stopped. Goodbye!")
+        print("""
+👋 Synapse stopped. Goodbye!""")
     except Exception as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
