@@ -1,3 +1,4 @@
+from synapse.observability.logger import audit
 """
 Capability-Based Security Manager для Synapse.
 Spec v3.1 compliant с полной реализацией токенов и проверок.
@@ -81,7 +82,7 @@ class CapabilityManager:
         
         # Audit logging
         if self.audit:
-            await self.audit.log_action(
+            audit(
                 action="capability_token_issued",
                 result={
                     'token_id': token.id,
@@ -113,7 +114,7 @@ class CapabilityManager:
         if blocked:
             # Audit logging denied access
             if self.audit:
-                await self.audit.log_action(
+                audit(
                     action="capability_check_denied",
                     result={
                         'agent_id': agent_id,
@@ -187,7 +188,7 @@ class CapabilityManager:
                 
                 # Audit logging
                 if self.audit:
-                    await self.audit.log_action(
+                    audit(
                         action="capability_token_revoked",
                         result={
                             'token_id': token_id,

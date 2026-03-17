@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 import json
 import asyncio
 
+from synapse.core.exceptions import synapse_error_handler, generic_error_handler, SynapseError
+from synapse.api.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware, RateLimitMiddleware
 PROTOCOL_VERSION: str = "1.0"
 
 app = FastAPI(
@@ -19,6 +21,12 @@ app = FastAPI(
     description="Universal Autonomous Agent Platform API",
     version="3.1.0",
 )
+
+# Phase 2 Middleware
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+
 
 # CORS middleware
 app.add_middleware(
@@ -31,6 +39,7 @@ app.add_middleware(
 
 # Include API routes
 from synapse.api.routes import api_router
+from synapse.api.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware, RateLimitMiddleware
 
 # API Key authentication middleware
 @app.middleware("http")
@@ -43,7 +52,7 @@ async def api_key_auth(request, call_next):
 
     # Check API key from header or query parameter
     api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
-    expected_api_key = "synapse-api-key"  # In production, this should be from environment variable
+    expected_api_key = os.getenv("SYNAPSE_API_KEY")  # In production, this should be from environment variable
 
     if api_key != expected_api_key:
         return JSONResponse(
@@ -57,6 +66,10 @@ async def api_key_auth(request, call_next):
 
     response = await call_next(request)
     return response
+# Phase 2 Exception Handlers
+app.add_exception_handler(SynapseError, synapse_error_handler)
+app.add_exception_handler(Exception, generic_error_handler)
+
 app.include_router(api_router, prefix="/api/v1")
 
 # In-memory storage for demo
@@ -209,7 +222,19 @@ async def add_log(log: Dict[str, Any]):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time updates."""
+    """WebSocket endpoint with token authentication."""
+    # Get token from query parameters
+    token = websocket.query_params.get("token")
+    
+    # Get expected token from environment
+    expected_token = os.getenv("SYNAPSE_API_KEY")
+    
+    # Validate token
+    if not token or token != expected_token:
+        await websocket.close(code=1008, reason="Unauthorized: Invalid or missing token")
+        return
+    
+    # Auth successful - accept connection
     await websocket.accept()
     try:
         while True:
