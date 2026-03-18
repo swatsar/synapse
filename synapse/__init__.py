@@ -1,11 +1,11 @@
 """Synapse - Distributed Cognitive Platform for Autonomous Agents
 
-Version: 3.2.6
+Version: 3.2.7
 Protocol Version: 1.0
 Spec Version: 3.1
 """
 
-__version__ = "3.2.6"
+__version__ = "3.2.7"
 __author__ = "Synapse Contributors"
 __license__ = "MIT"
 

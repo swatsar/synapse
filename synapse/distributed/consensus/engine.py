@@ -16,17 +16,23 @@ class ConsensusEngine:
     def __init__(self, caps: CapabilityManager):
         self._caps = caps
         self._states: Dict[str, Dict] = {}
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock = None  # created lazily per event loop
+
+    def _get_lock(self) -> asyncio.Lock:
+        """Return a Lock bound to the current event loop (lazy creation)."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def propose(self, node_id: str, state: Dict) -> None:
         await self._caps.check_capability(["consensus:propose"])
-        async with self._lock:
+        async with self._get_lock():
             self._states[node_id] = state
 
     async def decide(self) -> Dict:
         """Return the state of the elected leader (lowest node_id)."""
         await self._caps.check_capability(["consensus:decide"])
-        async with self._lock:
+        async with self._get_lock():
             if not self._states:
                 return {}
             leader = min(self._states.keys())

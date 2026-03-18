@@ -19,17 +19,22 @@ class ClusterCoordinationService:
         self._caps = caps
         self._node_registry: List[str] = []
         self._event_log: List[Dict] = []
-        self._log_lock = asyncio.Lock()
+        self._log_lock: asyncio.Lock = None  # lazy per-loop
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._log_lock is None:
+            self._log_lock = asyncio.Lock()
+        return self._log_lock
 
     async def register_node(self, node_id: str) -> None:
         await self._caps.check_capability(["coordination:register"])
-        async with self._log_lock:
+        async with self._get_lock():
             if node_id not in self._node_registry:
                 self._node_registry.append(node_id)
 
     async def broadcast(self, node_id: str, payload: Dict) -> None:
         await self._caps.check_capability(["coordination:broadcast"])
-        async with self._log_lock:
+        async with self._get_lock():
             event = {
                 "timestamp": time.time(),
                 "node_id": node_id,
@@ -40,6 +45,6 @@ class ClusterCoordinationService:
 
     async def fetch_log(self) -> List[Dict]:
         await self._caps.check_capability(["coordination:read"])
-        async with self._log_lock:
+        async with self._get_lock():
             # Return a copy to avoid external mutation
             return list(self._event_log)

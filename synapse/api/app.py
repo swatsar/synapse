@@ -13,7 +13,11 @@ import asyncio
 import os
 
 from synapse.core.exceptions import synapse_error_handler, generic_error_handler, SynapseError
-from synapse.api.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware, RateLimitMiddleware
+from synapse.api.middleware import (
+    make_request_logging_middleware,
+    make_security_headers_middleware,
+    make_rate_limit_middleware,
+)
 PROTOCOL_VERSION: str = "1.0"
 
 app = FastAPI(
@@ -22,10 +26,10 @@ app = FastAPI(
     version="3.1.0",
 )
 
-# Phase 2 Middleware
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+# Phase 2 Middleware — registered as pure async functions (no BaseHTTPMiddleware)
+app.middleware("http")(make_request_logging_middleware())
+app.middleware("http")(make_security_headers_middleware())
+app.middleware("http")(make_rate_limit_middleware(requests_per_minute=60))
 
 
 # CORS middleware

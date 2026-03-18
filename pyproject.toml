@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synapse-agent"
-version = "3.2.6"
+version = "3.2.7"
 description = "Universal Autonomous Agent Platform - Distributed Cognitive Platform for Autonomous Agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -100,6 +100,7 @@ include = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "phase1: Core Skeleton",
     "phase2: Execution & Security",
