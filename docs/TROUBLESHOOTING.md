@@ -1,402 +1,241 @@
-# Synapse Troubleshooting Guide
+# Устранение неполадок Synapse
 
-**Protocol Version:** 1.0  
-**Spec Version:** 3.1  
+**Protocol Version:** 1.0 | **Версия:** 3.2.5
 
 ---
 
-## 🔍 Common Issues
+## Установка и запуск
 
-### Installation Issues
+### `ModuleNotFoundError: No module named 'synapse'`
 
-#### ImportError: No module named 'synapse'
-
-**Problem:** Python cannot find the synapse module.
-
-**Solution:**
 ```bash
-# Ensure virtual environment is activated
+# Убедитесь что venv активирован
 source .venv/bin/activate
 
-# Install in development mode
-pip install -e .
+# Переустановите
+pip install -e ".[dev]"
 
-# Verify installation
-python -c "import synapse; print(synapse.PROTOCOL_VERSION)"
-```
-
-#### Dependency Conflicts
-
-**Problem:** Package version conflicts.
-
-**Solution:**
-```bash
-# Clear cache and reinstall
-pip cache purge
-pip install --force-reinstall -r requirements.txt
+# Проверка
+python -c "import synapse; print(synapse.__version__)"
 ```
 
 ---
 
-### Database Issues
+### `ImportError: No module named 'litellm'` или другой зависимости
 
-#### Database Connection Failed
-
-**Problem:** Cannot connect to PostgreSQL.
-
-**Solution:**
 ```bash
-# Check PostgreSQL is running
-pg_isready
-
-# Check connection string
-echo $DATABASE_URL
-
-# Test connection
-psql $DATABASE_URL -c "SELECT 1"
-```
-
-#### Migration Errors
-
-**Problem:** Database migrations fail.
-
-**Solution:**
-```bash
-# Reset database (WARNING: destroys data)
-dropdb synapse
-createdb synapse
-synapse migrate
+pip install -r requirements.txt
+# или
+pip install -e ".[dev]"
 ```
 
 ---
 
-### LLM Provider Issues
+### Сервер не запускается: `Address already in use`
 
-#### OpenAI API Errors
-
-**Problem:** OpenAI API returns errors.
-
-**Solution:**
 ```bash
-# Verify API key
+# Найти процесс на порту 8000
+lsof -i :8000        # Linux/macOS
+netstat -ano | findstr 8000  # Windows
+
+# Убить
+kill -9 <PID>
+# или использовать другой порт:
+synapse --port 8001 --web-ui
+```
+
+---
+
+### `SYNAPSE_API_KEY is not set` — предупреждение при старте
+
+В dev-режиме без ключа API открыто. Для production обязательно задайте:
+```bash
+export SYNAPSE_API_KEY="$(openssl rand -hex 32)"
+# или добавьте в .env:
+SYNAPSE_API_KEY=my-secure-key
+```
+
+---
+
+## API и аутентификация
+
+### `401 Unauthorized` при запросах
+
+```bash
+# Проверьте заголовок
+curl -H "X-API-Key: $SYNAPSE_API_KEY" http://localhost:8000/api/v1/agents
+
+# Проверьте что ключ совпадает с .env
+cat .env | grep SYNAPSE_API_KEY
+```
+
+---
+
+### `404 Not Found` для `/api/v1/...`
+
+Убедитесь что роутер подключён. Все API-маршруты доступны по префиксу `/api/v1/`.
+```bash
+# Список доступных маршрутов
+curl http://localhost:8000/openapi.json | python -m json.tool | grep '"path"'
+```
+
+---
+
+### WebSocket: `1008 Unauthorized`
+
+WebSocket требует токен в query-параметре:
+```
+ws://localhost:8000/ws?token=<SYNAPSE_API_KEY>
+```
+
+---
+
+## LLM провайдеры
+
+### `litellm.AuthenticationError` / `Invalid API key`
+
+```bash
+# Проверьте ключ
 echo $OPENAI_API_KEY
+# или
+cat .env | grep API_KEY
 
-# Test API
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
-
-# Check rate limits
-# Wait and retry if rate limited
-```
-
-#### LLM Timeout
-
-**Problem:** LLM requests timeout.
-
-**Solution:**
-```yaml
-# Increase timeout in config
-llm:
-  timeout_seconds: 60  # Increase from default 30
-```
-
-#### Fallback Not Working
-
-**Problem:** LLM fallback doesn't activate.
-
-**Solution:**
-```python
-# Check failure strategy configuration
-from synapse.llm.failure_strategy import LLMFailureStrategy
-
-strategy = LLMFailureStrategy(providers)
-# Ensure multiple providers configured
+# Тест напрямую
+python -c "import litellm; r = litellm.completion(model='gpt-4o-mini', messages=[{'role':'user','content':'hi'}]); print(r)"
 ```
 
 ---
 
-### Security Issues
+### `RuntimeError: No available provider`
 
-#### Capability Denied
-
-**Problem:** Operation blocked due to missing capabilities.
-
-**Solution:**
-```python
-# Check required capabilities
-result = await security.check_capabilities(
-    required=["fs:read:/workspace/**"],
-    context=context
-)
-
-print(f"Approved: {result.approved}")
-print(f"Blocked: {result.blocked_capabilities}")
-
-# Grant capabilities in context
-context.capabilities = ["fs:read:/workspace/**"]
-```
-
-#### Human Approval Timeout
-
-**Problem:** Waiting for human approval times out.
-
-**Solution:**
-```yaml
-# Increase approval timeout
-security:
-  approval_timeout_seconds: 3600  # 1 hour
-```
-
-#### Isolation Container Fails
-
-**Problem:** Container isolation fails to start.
-
-**Solution:**
+LLM Router не нашёл активного провайдера. Добавьте провайдер:
 ```bash
-# Check Docker is running
-docker ps
+curl -X POST http://localhost:8000/api/v1/providers \
+  -H "X-API-Key: $SYNAPSE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"openai","model":"gpt-4o","api_key":"sk-...","priority":1}'
+```
 
-# Check Docker permissions
-sudo usermod -aG docker $USER
+Или укажите ключ в `.env` и перезапустите.
 
-# Restart Docker
-sudo systemctl restart docker
+---
+
+## База данных
+
+### `asyncpg.exceptions.ConnectionDoesNotExistError`
+
+PostgreSQL недоступен. Проверьте:
+```bash
+pg_isready -h localhost -p 5432 -U synapse_user
+# или запустите через Docker:
+docker-compose -f docker/docker-compose.yml up -d db
+```
+
+Если PostgreSQL не нужен — уберите `DATABASE_URL` из `.env`, будет использоваться SQLite.
+
+---
+
+### ChromaDB / Qdrant недоступен
+
+```bash
+# ChromaDB (встроенный, не требует отдельного сервера)
+# Qdrant — запустите:
+docker run -d -p 6333:6333 qdrant/qdrant:latest
+
+# Или уберите VECTOR_DB_URL из .env — memory будет in-memory
 ```
 
 ---
 
-### Memory Issues
+## Безопасность
 
-#### Vector Store Connection Failed
+### `CapabilityError: Missing required capabilities`
 
-**Problem:** Cannot connect to ChromaDB/Qdrant.
-
-**Solution:**
-```bash
-# Check ChromaDB is running
-curl http://localhost:8000/api/v1/heartbeat
-
-# Start ChromaDB
-docker run -d -p 8000:8000 chromadb/chroma
-
-# Check configuration
-echo $VECTOR_DB_URL
-```
-
-#### Memory Recall Returns Empty
-
-**Problem:** Memory queries return no results.
-
-**Solution:**
+Агенту не выдан токен для операции. Выдайте токен:
 ```python
-# Check if data exists
-from synapse.memory import VectorStore
+from synapse.core.security import CapabilityManager
 
-store = VectorStore()
-count = await store.count()
-print(f"Total entries: {count}")
-
-# Lower similarity threshold
-query = MemoryQuery(
-    query_text="test",
-    limit=10,
-    min_similarity=0.5  # Lower threshold
+cm = CapabilityManager()
+await cm.issue_token(
+    capability="fs:read:/workspace/**",
+    issued_to="developer_agent",
+    issued_by="orchestrator",
+    expires_in_hours=24
 )
 ```
 
 ---
 
-### Performance Issues
+### `SecurityViolationError` при выполнении навыка
 
-#### Slow Task Execution
+Навык пытается выполнить операцию вне разрешённого scope. Проверьте:
+1. Лог аудита: `cat /var/log/synapse/audit.log | grep DENIED`
+2. Capability token scope — возможно, слишком ограничен
 
-**Problem:** Tasks take too long.
+---
 
-**Solution:**
+## Docker
+
+### Контейнер не стартует: `unhealthy`
+
 ```bash
-# Check resource usage
-top
+# Логи конкретного контейнера
+docker logs synapse-core --tail 50
 
-# Check Prometheus metrics
-curl http://localhost:9090/metrics | grep synapse
-
-# Increase resource limits
-resource_limits:
-  cpu_seconds: 120
-  memory_mb: 1024
-```
-
-#### High Memory Usage
-
-**Problem:** Memory usage grows over time.
-
-**Solution:**
-```python
-# Trigger memory consolidation
-from synapse.memory import MemoryConsolidator
-
-consolidator = MemoryConsolidator()
-await consolidator.run()
-
-# Check for memory leaks
-import gc
-gc.collect()
+# Статус healthcheck
+docker inspect synapse-core | grep -A 10 Health
 ```
 
 ---
 
-### Network Issues
+### `db` сервис не готов при старте `synapse-core`
 
-#### API Not Responding
-
-**Problem:** HTTP API returns no response.
-
-**Solution:**
 ```bash
-# Check server is running
-ps aux | grep synapse
-
-# Check port is open
-netstat -tlnp | grep 8000
-
-# Check logs
-tail -f /var/log/synapse/server.log
-```
-
-#### WebSocket Connection Failed
-
-**Problem:** WebSocket connections fail.
-
-**Solution:**
-```bash
-# Check WebSocket endpoint
-wscat -c ws://localhost:8000/ws
-
-# Check proxy configuration
-# Ensure WebSocket upgrade headers are passed
+# Подождите готовности DB
+docker-compose -f docker/docker-compose.yml up -d db
+sleep 10
+docker-compose -f docker/docker-compose.yml up -d synapse-core
 ```
 
 ---
 
-## 🐛 Debugging
+## Тесты
 
-### Enable Debug Logging
-
-```python
-import logging
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-```
-
-### Check Audit Logs
+### Тесты падают: `ImportError`
 
 ```bash
-# View recent audit entries
-tail -100 /var/log/synapse/audit.log | jq
-
-# Search for errors
-grep "error" /var/log/synapse/audit.log
+pip install -e ".[dev]"
+pytest tests/ -v --tb=short
 ```
 
-### Run Diagnostics
+### Определённые тесты зависают
 
 ```bash
-# Run diagnostic script
-synapse diagnose
+# Запустите с таймаутом
+pytest tests/ -v --timeout=30
 
-# Check all components
-synapse health-check
+# Отдельный файл
+pytest tests/api/test_exceptions.py -v
 ```
 
 ---
 
-## 📊 Monitoring
-
-### Prometheus Metrics
+## Сбор диагностики
 
 ```bash
-# Get all Synapse metrics
-curl http://localhost:9090/metrics | grep synapse
+# Версия и здоровье
+curl http://localhost:8000/health
+synapse --version
 
-# Check specific metrics
-curl http://localhost:9090/metrics | grep synapse_tasks_total
+# Зависимости
+pip list | grep -E "fastapi|pydantic|litellm|uvicorn"
+
+# Логи сервиса
+journalctl -u synapse -n 100 --no-pager   # systemd
+docker logs synapse-core --tail 100        # Docker
+
+# Открыть issue с этой информацией
+python --version && pip show synapse-agent
 ```
 
-### Grafana Dashboard
-
-1. Open Grafana at `http://localhost:3000`
-2. Import Synapse dashboard
-3. Check for anomalies
-
----
-
-## 🔄 Recovery
-
-### Rollback to Checkpoint
-
-```python
-from synapse.core.rollback import RollbackManager
-
-rollback = RollbackManager()
-result = await rollback.execute_rollback(
-    checkpoint_id="cp_123",
-    reason="Recovery from error"
-)
-```
-
-### Reset State
-
-```bash
-# Stop all services
-docker-compose down
-
-# Clear data
-rm -rf data/
-
-# Restart
-docker-compose up -d
-```
-
----
-
-## 📞 Getting Help
-
-### Check Documentation
-
-- [Installation Guide](INSTALLATION_GUIDE.md)
-- [Security Guide](SECURITY_GUIDE.md)
-- [API Reference](API_REFERENCE.md)
-
-### Report Issues
-
-1. Collect diagnostic information:
-```bash
-synapse diagnose > diagnostic.txt
-```
-
-2. Create issue with:
-   - Error messages
-   - Steps to reproduce
-   - Diagnostic output
-   - Protocol version
-
----
-
-## ✅ Quick Fixes Checklist
-
-- [ ] Virtual environment activated
-- [ ] All dependencies installed
-- [ ] Database running
-- [ ] Vector store running
-- [ ] API keys configured
-- [ ] Ports not blocked
-- [ ] Sufficient disk space
-- [ ] Sufficient memory
-
----
-
-**Protocol Version:** 1.0  
-**Spec Version:** 3.1
+Если проблема не решена — откройте [GitHub Issue](https://github.com/swatsar/synapse/issues) с логами и описанием.

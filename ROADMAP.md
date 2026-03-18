@@ -1,15 +1,124 @@
-# Synapse Roadmap
+# Roadmap Synapse
 
-See: [docs/roadmap.md](docs/roadmap.md)
+**Версия:** 3.2.5 | **Protocol:** 1.0
 
-## Current Status
+---
 
-- **Phase 1-4:** Complete ✅
-- **Phase 5:** In Progress
+## ✅ Завершено
 
-## Timeline
+### Phase 1 — Core Skeleton (v1.0.0)
+- Orchestrator с 10-шаговым когнитивным циклом
+- SecurityManager + CapabilityManager
+- DeterministicSeedManager + DeterministicIDGenerator
+- FastAPI REST API + WebSocket
+- LLM Router с fallback (litellm)
+- Telegram / Discord коннекторы
+- Base skill lifecycle
 
-- Q1 2026: Phase 5 - Control Plane
-- Q2 2026: Phase 6 - Platform Runtime
-- Q3 2026: Phase 7 - Ecosystem Layer
-- Q4 2026: Phase 8 - Enterprise Readiness
+### Phase 2 — Execution & Security (v1.1.0)
+- Capability токены с wildcard scope + TTL
+- ExecutionGuard — pre-execution capability check
+- IsolationPolicy (subprocess / container / strict_sandbox)
+- AuditMechanism — полное логирование
+- Human-in-the-Loop для risk_level ≥ 3
+- RateLimitMiddleware, SecurityHeadersMiddleware
+
+### Phase 3 — Perception & Memory (v2.0.0)
+- MemoryStore (SQL + vector)
+- DistributedMemoryStore
+- ChromaDB / Qdrant интеграция
+- RAG (Retrieval-Augmented Generation)
+
+### Phase 4 — Self-Evolution (v3.0.0)
+- SelfImprovementEngine
+- SkillEvolutionEngine
+- 6-статусный lifecycle навыков (GENERATED → ARCHIVED)
+- Предиктивная автономия
+- Динамический реестр навыков
+
+### Phase 5 — Reliability & Observability (v3.1.0)
+- SnapshotManager + RollbackManager + FaultTolerance
+- Prometheus metrics + Grafana dashboards
+- Structured logging (structlog)
+- Chaos testing suite
+
+### Phase 6 — Deterministic Runtime (v3.2.0)
+- Детерминированное выполнение через execution_seed
+- Replay системы для воспроизводимости
+- Tenant-level изоляция
+- TenantAuditChain
+
+### Phase 7 — Control Plane (v3.2.1)
+- Web UI Control Plane
+- Orchestrator Chat Interface
+- ClusterManager, DeterministicScheduler, OrchestratorMesh
+
+### Phase 7.1 — Orchestrator Control Plane (v3.2.2)
+- OrchestratorControlAPI
+- ExecutionProvenanceRegistry
+- ClusterMembershipAuthority
+
+### Phase 7.2 — Ecosystem Layer (v3.2.3)
+- DomainPacks
+- CapabilityMarketplace
+- ExternalAPIGateway (REST + WebSocket broadcast)
+
+### Phase 8 — Zero-Trust Fabric — частично (v3.2.4)
+- TrustIdentityRegistry
+- ExecutionAuthorizationToken
+- RemoteAttestationVerifier
+- TrustPolicyEngine
+- ZeroTrustExecutionEnforcement
+
+### Bugfix Release (v3.2.5)
+- Устранены все синтаксические ошибки
+- Заполнены все незаполненные заглушки
+- Исправлены runtime-ошибки SecurityManager
+- Обновлена документация
+
+---
+
+## 🔄 В работе
+
+### Phase 8 — Zero-Trust Fabric (завершение, Q2 2026)
+- [ ] Distributed consensus для cluster membership
+- [ ] Cluster membership protocol (Raft-like)
+- [ ] Cross-node capability verification
+- [ ] Node revocation и blacklisting
+
+---
+
+## 📋 Запланировано
+
+### Phase 9 — Enterprise Features (Q3 2026)
+- [ ] Multi-Tenancy с полной изоляцией данных
+- [ ] RBAC / ABAC модель поверх capability-based security
+- [ ] Enterprise SSO (SAML 2.0, OIDC)
+- [ ] Audit Dashboard (веб-интерфейс для просмотра логов)
+- [ ] SLA monitoring и alerting
+- [ ] Backup / Restore для memory vault
+
+### Phase 10 — Performance & Scaling (Q4 2026)
+- [ ] Horizontal scaling агентов
+- [ ] Load balancing между узлами
+- [ ] Caching layer для LLM-ответов (семантический кэш)
+- [ ] Async skill execution pipeline
+- [ ] Benchmarking suite (latency, throughput)
+
+### Phase 11 — Developer Experience (Q1 2027)
+- [ ] CLI инструменты (`synapse skill create`, `synapse agent debug`)
+- [ ] Skill SDK с шаблонами
+- [ ] VS Code расширение
+- [ ] OpenAPI SDK генерация
+- [ ] Webhook система событий
+
+---
+
+## 💡 Идеи (backlog)
+
+- Мультиагентные workflow с параллельным выполнением
+- Visual workflow builder (drag-and-drop)
+- Skill marketplace (публичный реестр)
+- LLM fine-tuning на основе audit trail
+- Browser extension коннектор
+- Mobile SDK (iOS / Android)

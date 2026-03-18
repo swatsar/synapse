@@ -131,7 +131,7 @@ class LinuxAdapter(EnvironmentAdapter):
                     if '=' in line:
                         key, value = line.strip().split('=', 1)
                         distro_info[key.lower()] = value.strip('"')
-        except:
+        except Exception:
             pass
 
         return self._create_response({
@@ -188,7 +188,7 @@ class LinuxAdapter(EnvironmentAdapter):
                 )
                 if result['returncode'] == 0:
                     cpu_percent = float(result['stdout'].strip())
-            except:
+            except Exception:
                 pass
 
             # Memory usage (from /proc/meminfo)
@@ -200,7 +200,7 @@ class LinuxAdapter(EnvironmentAdapter):
                 )
                 if result['returncode'] == 0:
                     memory_percent = float(result['stdout'].strip())
-            except:
+            except Exception:
                 pass
 
             # Disk usage
@@ -212,7 +212,7 @@ class LinuxAdapter(EnvironmentAdapter):
                 )
                 if result['returncode'] == 0:
                     disk_percent = float(result['stdout'].strip())
-            except:
+            except Exception:
                 pass
 
             return self._create_response({
@@ -303,7 +303,7 @@ class LinuxAdapter(EnvironmentAdapter):
                 with open(bashrc, 'a') as f:
                     f.write(f'\nexport {key}="{value}"\n')
                 return True
-            except:
+            except Exception:
                 return False
 
         return True

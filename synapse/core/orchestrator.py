@@ -398,9 +398,15 @@ class Orchestrator:
         if self.security_manager:
             try:
                 # Check each required capability
-                for cap in plan.get("required_capabilities", []):
-                    # result = await self.security_manager.check_capability(cap)
-                    pass
+                required_caps = plan.get("required_capabilities", [])
+                if required_caps:
+                    result = await self.security_manager.check_capabilities(
+                        required_capabilities=required_caps,
+                        context={"agent_id": "orchestrator"}
+                    )
+                    if not result.approved:
+                        security_result["approved"] = False
+                        security_result["issues"].extend(result.blocked_capabilities)
             except Exception as e:
                 security_result["approved"] = False
                 security_result["issues"].append(str(e))
@@ -623,8 +629,16 @@ class Orchestrator:
         )
         
         if self.checkpoint_manager:
-            # await self.checkpoint_manager.create(checkpoint_id, event, plan)
-            pass
+            try:
+                if hasattr(self.checkpoint_manager, 'create'):
+                    await self.checkpoint_manager.create(checkpoint_id, event, plan)
+                elif hasattr(self.checkpoint_manager, 'create_checkpoint'):
+                    self.checkpoint_manager.create_checkpoint(
+                        agent_id=event.get("agent_id", "orchestrator"),
+                        session_id=checkpoint_id
+                    )
+            except Exception:
+                pass  # Checkpoint failure is non-fatal
         
         return checkpoint_id
 

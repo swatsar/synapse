@@ -1,7 +1,11 @@
+"""
+Capability Policy Engine for validation.
+
+Protocol Version: 1.0
+Specification: 3.1
+"""
+
 PROTOCOL_VERSION: str = "1.0"
-"""
-Capability Policy Engine for validation
-"""
 
 from synapse.governance.capability_registry import CapabilityMetadata
 

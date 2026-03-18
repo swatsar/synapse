@@ -91,7 +91,7 @@ class SelfImprovementEngine:
                     "improvement_id": improvement_id,
                     "target": plan.target
                 })
-            except:
+            except Exception:
                 pass
         
         # Check if approval required
@@ -189,7 +189,7 @@ class SelfImprovementEngine:
                             "improvement_id": improvement_id,
                             "rollback_executed": rollback_executed
                         })
-                    except:
+                    except Exception:
                         pass
                 
                 return ImprovementResult(
@@ -224,7 +224,7 @@ class SelfImprovementEngine:
                         "improvement_id": improvement_id,
                         "cluster_propagated": cluster_propagated
                     })
-                except:
+                except Exception:
                     pass
             
             # Audit log completion

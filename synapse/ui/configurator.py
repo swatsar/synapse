@@ -95,8 +95,7 @@ def main():
     try:
         asyncio.run(run_configurator_server(args.host, args.port))
     except KeyboardInterrupt:
-        print("
-👋 UI Configurator stopped. Goodbye!")
+        print("\n👋 UI Configurator stopped. Goodbye!")
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         sys.exit(1)

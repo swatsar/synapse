@@ -56,8 +56,15 @@ class CognitiveAgent:
 
     async def learn(self, result: Any) -> None:
         async with trace("learn"):
-            # Placeholder – could store experience in memory
-            pass
+            # Store experience in memory if available
+            if hasattr(self, "memory") and self.memory is not None:
+                try:
+                    await self.memory.store(
+                        key=f"experience:{id(result)}",
+                        value={"result": str(result), "agent": self.__class__.__name__}
+                    )
+                except Exception:
+                    pass
 
     # ---------------------------------------------------------------------
     # Full run – orchestrates the lifecycle

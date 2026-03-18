@@ -140,8 +140,11 @@ class GovernorAgent:
                     await self.policy_engine.update_policy(action.parameters)
             
             elif action.action_type == "optimize_skill":
-                # Would integrate with optimizer
-                pass
+                # Integrate with optimizer if available
+                if hasattr(self, "optimizer") and self.optimizer is not None:
+                    skill_id = action.parameters.get("skill_id") if action.parameters else None
+                    if skill_id and hasattr(self.optimizer, "optimize_skill"):
+                        await self.optimizer.optimize_skill(skill_id, action.parameters)
             
             # Audit log
             if self.audit_logger:

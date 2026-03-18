@@ -150,11 +150,22 @@ class RAGSystem:
         )
     
     async def _generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text"""
-        if self.llm:
-            return await self.llm.embed(text)
-        # Placeholder embedding
-        return [0.0] * 768
+        """Generate embedding: LLM embed() if available, else hash-based deterministic vector."""
+        if self.llm and hasattr(self.llm, "embed"):
+            try:
+                return await self.llm.embed(text)
+            except Exception:
+                pass
+
+        # Deterministic hash-based fallback (768-dim, values in [-1, 1])
+        import hashlib, struct
+        digest = hashlib.sha512(text.encode("utf-8")).digest()  # 64 bytes
+        # Repeat digest to fill 768 floats (768 * 4 = 3072 bytes)
+        raw = (digest * ((768 * 4 // len(digest)) + 1))[: 768 * 4]
+        values = struct.unpack(f">{768}f", raw)
+        # Normalise to [-1, 1] by dividing by max abs value
+        max_abs = max(abs(v) for v in values) or 1.0
+        return [v / max_abs for v in values]
     
     async def _filter_by_sensitivity(
         self,

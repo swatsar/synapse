@@ -183,7 +183,7 @@ class MacOSAdapter(EnvironmentAdapter):
             if cpu_result['returncode'] == 0:
                 try:
                     cpu_percent = float(cpu_result['stdout'].strip())
-                except:
+                except Exception:
                     pass
 
             # Memory usage using vm_stat
@@ -215,7 +215,7 @@ class MacOSAdapter(EnvironmentAdapter):
             if disk_result['returncode'] == 0:
                 try:
                     disk_percent = float(disk_result['stdout'].strip())
-                except:
+                except Exception:
                     pass
 
             return self._create_response({
@@ -306,7 +306,7 @@ class MacOSAdapter(EnvironmentAdapter):
                 with open(zshrc, 'a') as f:
                     f.write(f'\nexport {key}="{value}"\n')
                 return True
-            except:
+            except Exception:
                 return False
 
         return True

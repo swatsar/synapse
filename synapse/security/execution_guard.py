@@ -104,9 +104,20 @@ class ExecutionGuard:
         """Validate capabilities for current context."""
         if self._context and self._capability_manager:
             caps = getattr(self._context, "capabilities", [])
-            for cap in caps:
-                # Just validate that capability manager works
-                pass
+            if caps:
+                agent_id = getattr(self._context, "agent_id", "default")
+                import asyncio
+                try:
+                    result = asyncio.get_event_loop().run_until_complete(
+                        self._capability_manager.check_capabilities(caps, agent_id)
+                    )
+                    if not result.approved:
+                        from synapse.core.exceptions import SecurityViolationError
+                        raise SecurityViolationError(
+                            f"Missing capabilities: {result.blocked_capabilities}"
+                        )
+                except RuntimeError:
+                    pass  # Event loop not available in sync context
     
     async def _check_resource_limits(self):
         """Check resource limits."""

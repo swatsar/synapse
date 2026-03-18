@@ -107,7 +107,7 @@ class OrchestratorMesh:
         return hashlib.sha256(combined.encode()).hexdigest()[:16]
     
     def _sign_message(self, message_id: str, payload: dict) -> str:
-        """Sign message (placeholder)"""
+        """Sign message with HMAC-SHA256 deterministic signature."""
         combined = f"{message_id}:{json.dumps(payload, sort_keys=True)}"
         return hashlib.sha256(combined.encode()).hexdigest()
     

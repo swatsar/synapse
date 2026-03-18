@@ -1,511 +1,201 @@
-# Security Guide
+# Руководство по безопасности Synapse
 
-**Protocol Version:** 1.0  
-**Spec Version:** 3.1  
-
----
-
-## Overview
-
-Synapse implements a **Capability-Based Security Model** that provides fine-grained access control for all operations. This guide explains the security architecture and best practices.
+**Protocol Version:** 1.0 | **Spec Version:** 3.1
 
 ---
 
-## Security Architecture
+## Модель безопасности
 
-### Core Principles
+Synapse реализует **Capability-Based Security** — ни один агент или навык не имеет никаких прав по умолчанию. Каждое действие требует явного capability-токена.
 
-1. **Least Privilege:** Skills only receive minimum required capabilities
-2. **Explicit Consent:** High-risk operations require human approval
-3. **Audit Trail:** All actions are logged immutably
-4. **Isolation:** Untrusted code runs in containers
-5. **Defense in Depth:** Multiple security layers
-
-### Security Layers
+### Уровни защиты
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   User Interface                     │
+│  1. API Authentication (X-API-Key / WebSocket token) │
 ├─────────────────────────────────────────────────────┤
-│              Authentication Layer                    │
-│         (JWT tokens, trusted users list)            │
+│  2. Capability Tokens (wildcard scope + TTL)        │
 ├─────────────────────────────────────────────────────┤
-│            Capability Validation Layer               │
-│         (Capability tokens, risk levels)            │
+│  3. ExecutionGuard (pre-execution capability check)  │
 ├─────────────────────────────────────────────────────┤
-│              Isolation Layer                         │
-│    (main_process, subprocess, container)            │
+│  4. IsolationPolicy (subprocess/container/sandbox)  │
 ├─────────────────────────────────────────────────────┤
-│            Resource Limiting Layer                   │
-│       (CPU, memory, disk, network limits)           │
+│  5. Human-in-the-Loop (risk_level ≥ 3)             │
 ├─────────────────────────────────────────────────────┤
-│               Audit Layer                            │
-│          (Immutable audit logging)                   │
+│  6. AuditMechanism (full event log)                 │
+├─────────────────────────────────────────────────────┤
+│  7. Zero-Trust Fabric (cluster node verification)   │
 └─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Capability-Based Security
+## Capability токены
 
-### Understanding Capabilities
-
-Capabilities are **non-executable tokens** that grant specific permissions. Unlike traditional permissions, capabilities:
-
-- Cannot be forged or transferred
-- Are scoped to specific resources
-- Have explicit expiration
-- Require explicit grant
-
-### Capability Format
+### Синтаксис
 
 ```
-<domain>:<action>:<scope>
+<namespace>:<action>:<scope>
 ```
 
-### Standard Capabilities
-
-| Capability | Description | Example Scope |
-|------------|-------------|---------------|
-| `fs:read` | Read files | `/workspace/**` |
-| `fs:write` | Write files | `/workspace/project/*` |
-| `fs:delete` | Delete files | `/workspace/temp/*` |
-| `network:http` | HTTP requests | `*.example.com` |
-| `network:websocket` | WebSocket connections | `ws://localhost/*` |
-| `os:process` | Run processes | `python, node` |
-| `browser:automation` | Browser control | `*` |
-| `memory:read` | Read memory | `episodic, semantic` |
-| `memory:write` | Write memory | `procedural` |
-| `llm:generate` | LLM generation | `gpt-4o, claude-3.5` |
-
-### Capability Examples
-
-```yaml
-# File system capabilities
-- "fs:read:/workspace/**"           # Read all files in workspace
-- "fs:write:/workspace/project/*"  # Write to project directory
-- "fs:delete:/workspace/temp/*"    # Delete temp files only
-
-# Network capabilities
-- "network:http:api.example.com"   # HTTP to specific domain
-- "network:http:*.github.com"      # HTTP to GitHub domains
-- "network:websocket:ws://localhost:8080"  # WebSocket to local
-
-# Process capabilities
-- "os:process:python"              # Run Python only
-- "os:process:node,npm"            # Run Node.js and npm
-- "os:process:*"                   # Run any process (dangerous!)
-
-# Browser capabilities
-- "browser:automation"             # Full browser automation
-- "browser:automation:example.com" # Browser automation for domain
+Примеры:
+```
+fs:read:/workspace/**              # чтение всех файлов в /workspace
+fs:write:/workspace/output/**      # запись только в /workspace/output
+fs:read:/workspace/config.yaml     # только один файл
+network:http:*                     # любые HTTP-запросы
+network:http:api.openai.com        # только один хост
+code:execute:python                # выполнение Python
+code:execute:*                     # любой код
 ```
 
-### Granting Capabilities
+### Жизненный цикл токена
 
 ```python
-# Via API
-POST /api/v1/capabilities/grant
-{
-  "user_id": "user@example.com",
-  "capabilities": [
-    "fs:read:/workspace/**",
-    "fs:write:/workspace/project/*"
-  ],
-  "expires_at": "2026-03-20T00:00:00Z",
-  "protocol_version": "1.0"
-}
+from synapse.core.security import CapabilityManager
+
+cm = CapabilityManager()
+
+# Выдача
+token = await cm.issue_token(
+    capability="fs:read:/workspace/**",
+    issued_to="developer_agent",
+    issued_by="orchestrator",
+    expires_in_hours=8        # TTL — 8 часов (None = бессрочно)
+)
+
+# Проверка
+result = await cm.check_capabilities(
+    required=["fs:read:/workspace/**"],
+    agent_id="developer_agent"
+)
+# result.approved: bool
+# result.blocked_capabilities: List[str]
+
+# Отзыв
+await cm.revoke_token(token.id, agent_id="developer_agent")
 ```
 
-### Revoking Capabilities
+### Принцип минимальных привилегий
 
+Всегда выдавайте минимально необходимый scope:
 ```python
-# Via API
-POST /api/v1/capabilities/revoke
-{
-  "user_id": "user@example.com",
-  "capabilities": [
-    "fs:write:/workspace/project/*"
-  ],
-  "protocol_version": "1.0"
-}
+# ❌ Слишком широко
+await cm.issue_token("fs:read:/**", ...)
+
+# ✅ Точный scope
+await cm.issue_token("fs:read:/workspace/reports/**", ...)
 ```
 
 ---
 
-## Risk Levels
+## Уровни изоляции
 
-### Risk Level Classification
+| Trust Level | Механизм | Когда применяется |
+|-------------|----------|-------------------|
+| `trusted` | subprocess (без изоляции) | Встроенные навыки платформы |
+| `verified` | Docker-контейнер | Навыки прошедшие security scan |
+| `unverified` | strict_sandbox | LLM-генерированные навыки |
 
-| Level | Description | Examples | Approval Required |
-|-------|-------------|----------|-------------------|
-| 1 | Safe | Read file, list directory | No |
-| 2 | Low Risk | Write file, web search | No |
-| 3 | Moderate Risk | Execute command, API call | Yes (Human) |
-| 4 | High Risk | Install package, network access | Yes (Human + Audit) |
-| 5 | Critical | System modification, credential access | Yes (Human + Audit + Checkpoint) |
-
-### Risk Level Examples
-
-```yaml
-# Risk Level 1 - Safe
-skills:
-  - name: "read_file"
-    risk_level: 1
-    capabilities: ["fs:read"]
-
-# Risk Level 2 - Low Risk
-skills:
-  - name: "write_file"
-    risk_level: 2
-    capabilities: ["fs:write"]
-
-# Risk Level 3 - Moderate Risk
-skills:
-  - name: "execute_command"
-    risk_level: 3
-    capabilities: ["os:process"]
-    requires_approval: true
-
-# Risk Level 4 - High Risk
-skills:
-  - name: "install_package"
-    risk_level: 4
-    capabilities: ["os:process", "network:http"]
-    requires_approval: true
-    audit_enabled: true
-
-# Risk Level 5 - Critical
-skills:
-  - name: "modify_system"
-    risk_level: 5
-    capabilities: ["os:process", "fs:write:/etc/*"]
-    requires_approval: true
-    audit_enabled: true
-    checkpoint_required: true
-```
-
----
-
-## Isolation Types
-
-### Isolation Enforcement Policy (v3.1)
-
+Настройка в `config/default.yaml`:
 ```yaml
 isolation_policy:
-  unverified_skills: "container"      # Unverified → container
-  risk_level_3_plus: "container"      # Risk ≥ 3 → container
-  trusted_skills: "subprocess"        # Trusted → subprocess
-  builtin_skills: "main_process"      # Built-in → main process
+  unverified_skills: "container"
+  risk_level_3_plus: "container"
+  trusted_skills: "subprocess"
 ```
 
-### Isolation Types
+---
 
-| Type | Security Level | Use Case | Overhead |
-|------|----------------|----------|----------|
-| `main_process` | Low | Built-in trusted skills | None |
-| `subprocess` | Medium | Verified skills | Low |
-| `container` | High | Unverified or high-risk skills | Medium |
+## Human-in-the-Loop
 
-### When Each Type is Used
+Операции с `risk_level ≥ 3` требуют ручного одобрения:
+
+```bash
+# Получить ожидающие одобрения
+curl -H "X-API-Key: $SYNAPSE_API_KEY" \
+  http://localhost:8000/api/v1/approvals/pending
+
+# Одобрить
+curl -X POST -H "X-API-Key: $SYNAPSE_API_KEY" \
+  http://localhost:8000/api/v1/approvals/appr_xyz/approve
+
+# Отклонить
+curl -X POST -H "X-API-Key: $SYNAPSE_API_KEY" \
+  http://localhost:8000/api/v1/approvals/appr_xyz/reject
+```
+
+---
+
+## Аудит
+
+Каждое значимое действие записывается в `AuditMechanism`:
 
 ```python
-from core.isolation_policy import IsolationEnforcementPolicy
-from skills.base import SkillTrustLevel
+from synapse.core.security import AuditMechanism
 
-# Determine required isolation
-isolation = IsolationEnforcementPolicy.get_required_isolation(
-    trust_level=SkillTrustLevel.UNVERIFIED,  # unverified, verified, trusted
-    risk_level=4
+audit = AuditMechanism()
+
+# Записать событие
+await audit.emit_event(
+    event_type="skill_executed",
+    details={
+        "agent_id": "developer",
+        "capability": "fs:write:/workspace/**",
+        "result": "success"
+    }
 )
-# Result: RuntimeIsolationType.CONTAINER
+
+# Получить события
+events = await audit.get_events(
+    event_type="capability_denied",
+    agent_id="developer",
+    limit=50
+)
 ```
+
+Типы событий аудита:
+- `capability_token_issued` — выдача токена
+- `capability_token_revoked` — отзыв токена
+- `capability_check_denied` — отказ в доступе
+- `capability_executed` — успешное выполнение
+- `security_manager_initialized` — инициализация системы
 
 ---
 
-## Human Approval System
+## Production: чек-лист безопасности
 
-### Approval Workflow
-
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  Skill       │────▶│  Risk Check  │────▶│  Approval    │
-│  Request     │     │  (Level ≥ 3) │     │  Required?   │
-└──────────────┘     └──────────────┘     └──────────────┘
-                            │                     │
-                            │ Yes                 │ Yes
-                            ▼                     ▼
-                     ┌──────────────┐     ┌──────────────┐
-                     │  Execute     │     │  Wait for    │
-                     │  Immediately │     │  Approval    │
-                     └──────────────┘     └──────────────┘
-```
-
-### Approval Request
-
-```json
-{
-  "request_id": "apr_123456",
-  "skill_name": "execute_command",
-  "risk_level": 3,
-  "required_capabilities": ["os:process:python"],
-  "context": {
-    "command": "pip install requests",
-    "working_dir": "/workspace"
-  },
-  "created_at": "2026-02-20T12:00:00Z",
-  "expires_at": "2026-02-20T12:30:00Z",
-  "protocol_version": "1.0"
-}
-```
-
-### Approval Response
-
-```json
-{
-  "request_id": "apr_123456",
-  "approved": true,
-  "approved_by": "admin@example.com",
-  "approved_at": "2026-02-20T12:05:00Z",
-  "reason": "Package installation approved for project",
-  "protocol_version": "1.0"
-}
-```
+- [ ] `SYNAPSE_API_KEY` установлен (≥32 hex-символа)
+- [ ] `SYNAPSE_API_KEY` не совпадает с dev-значением из `.env.example`
+- [ ] Все LLM-ключи в `.env`, не в коде
+- [ ] `require_approval_for_risk: 3` в конфиге
+- [ ] Audit log путь настроен и директория защищена
+- [ ] HTTPS настроен (nginx/traefik перед Synapse)
+- [ ] `CORS allow_origins` ограничен вашим доменом (в `app.py`)
+- [ ] Docker запускается не от root
+- [ ] PostgreSQL пароль ≥16 символов
+- [ ] Redis защищён паролем или только localhost
+- [ ] Qdrant не доступен из интернета (только localhost/VPC)
+- [ ] Регулярная ротация `SYNAPSE_API_KEY`
 
 ---
 
-## Audit Logging
+## STRIDE Threat Model
 
-### Audit Log Format
-
-```json
-{
-  "timestamp": "2026-02-20T12:00:00.000Z",
-  "event_id": "evt_123456",
-  "event_type": "skill_execution",
-  "user_id": "user@example.com",
-  "session_id": "sess_789",
-  "trace_id": "trace_abc",
-  "action": {
-    "type": "file_read",
-    "resource": "/workspace/test.txt",
-    "skill": "read_file"
-  },
-  "result": {
-    "status": "success",
-    "duration_ms": 45
-  },
-  "security": {
-    "capabilities_used": ["fs:read:/workspace/**"],
-    "risk_level": 1,
-    "isolation_type": "subprocess"
-  },
-  "protocol_version": "1.0"
-}
-```
-
-### Audit Log Locations
-
-| Platform | Log Path |
-|----------|----------|
-| Windows | `%APPDATA%\Synapse\logs\audit.log` |
-| macOS | `~/Library/Logs/Synapse/audit.log` |
-| Linux | `~/.local/share/synapse/logs/audit.log` |
-| Docker | `/var/log/synapse/audit.log` |
-
-### Querying Audit Logs
-
-```bash
-# Via API
-GET /api/v1/audit?start_date=2026-02-01&end_date=2026-02-20
-
-# Via CLI
-synapse audit query --start 2026-02-01 --end 2026-02-20
-
-# Via GUI
-# Open Security → Audit Log tab
-```
+| Угроза | Контрмера |
+|--------|-----------|
+| **Spoofing** | `X-API-Key` + WebSocket token |
+| **Tampering** | Immutable AuditEvent, security_hash |
+| **Repudiation** | Полный audit trail |
+| **Information Disclosure** | Секреты не передаются в sandbox |
+| **Denial of Service** | Rate limit (60 req/min), resource limits per skill |
+| **Elevation of Privilege** | Строгая изоляция + capability scope |
 
 ---
 
-## Security Best Practices
+## Сообщить об уязвимости
 
-### For Users
+Email: [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com)  
+Или через [GitHub Security](https://github.com/swatsar/synapse/security/advisories/new)
 
-1. **Start with Supervised Mode**
-   ```yaml
-   security:
-     mode: "supervised"
-     require_approval_for_risk: 3
-   ```
-
-2. **Review Skill Approvals Carefully**
-   - Check required capabilities
-   - Verify risk level
-   - Review execution context
-
-3. **Regularly Audit Capability Usage**
-   ```bash
-   synapse audit report --type capabilities
-   ```
-
-4. **Keep Audit Logs for Compliance**
-   ```yaml
-   security:
-     audit_log_enabled: true
-     audit_retention_days: 90
-   ```
-
-5. **Update Trusted Users List Periodically**
-   ```yaml
-   security:
-     trusted_users:
-       - "admin@company.com"
-   ```
-
-### For Administrators
-
-1. **Enable Audit Logging in Production**
-   ```yaml
-   security:
-     audit_log_enabled: true
-     audit_log_path: "/var/log/synapse/audit.log"
-   ```
-
-2. **Configure Resource Limits Per User**
-   ```yaml
-   resources:
-     user_limits:
-       "user@example.com":
-         cpu_seconds: 120
-         memory_mb: 1024
-   ```
-
-3. **Set Up Alerting for High-Risk Actions**
-   ```yaml
-   observability:
-     alerts:
-       - name: "high_risk_action"
-         condition: "risk_level >= 4"
-         notification: "email"
-   ```
-
-4. **Regular Security Reviews**
-   ```bash
-   # Run security audit
-   synapse security audit
-   
-   # Check for vulnerabilities
-   pip install bandit
-   bandit -r synapse/ -ll
-   ```
-
-5. **Backup Checkpoint Data**
-   ```yaml
-   reliability:
-     checkpoint_enabled: true
-     checkpoint_backup_path: "/backup/synapse/checkpoints"
-   ```
-
----
-
-## Security Checklist
-
-### Pre-Production Checklist
-
-- [ ] Enable audit logging
-- [ ] Configure trusted users
-- [ ] Set risk level thresholds
-- [ ] Enable resource limits
-- [ ] Configure isolation policy
-- [ ] Set up monitoring alerts
-- [ ] Test human approval workflow
-- [ ] Verify capability grants
-- [ ] Review security configuration
-- [ ] Document security policies
-
-### Production Checklist
-
-- [ ] Enable TLS/SSL for all endpoints
-- [ ] Configure firewall rules
-- [ ] Set up VPN for remote access
-- [ ] Enable rate limiting
-- [ ] Configure CORS properly
-- [ ] Enable MFA for admin accounts
-- [ ] Encrypt database at rest
-- [ ] Set up backup procedures
-- [ ] Test recovery procedures
-- [ ] Schedule regular security audits
-
----
-
-## Security Commands
-
-### CLI Commands
-
-```bash
-# Check security status
-synapse security status
-
-# List capabilities
-synapse capabilities list
-
-# Grant capability
-synapse capabilities grant --user user@example.com --cap "fs:read:/workspace/**"
-
-# Revoke capability
-synapse capabilities revoke --user user@example.com --cap "fs:read:/workspace/**"
-
-# View audit log
-synapse audit view --tail 100
-
-# Export audit log
-synapse audit export --format json --output audit.json
-
-# Run security audit
-synapse security audit
-```
-
----
-
-## Troubleshooting Security Issues
-
-### "Capability check failed"
-
-**Cause:** Missing required capability
-
-**Solution:**
-1. Check required capabilities in skill manifest
-2. Grant missing capabilities
-3. Restart Synapse
-
-### "Human approval timeout"
-
-**Cause:** No response to approval request
-
-**Solution:**
-1. Check notification settings
-2. Verify approver availability
-3. Extend timeout if needed
-
-### "Audit log not writing"
-
-**Cause:** Permission or path issue
-
-**Solution:**
-1. Check log path permissions
-2. Verify disk space
-3. Check log rotation settings
-
----
-
-## Next Steps
-
-- [Configuration Guide](configuration.md) - Detailed configuration
-- [Troubleshooting](troubleshooting.md) - Common issues
-- [API Reference](../developer/api.md) - API documentation
-
----
-
-**Protocol Version:** 1.0  
-**Need Help?** Check [Troubleshooting](troubleshooting.md) or open an issue on GitHub.
+Не публикуйте уязвимости в открытых Issues.

@@ -91,7 +91,19 @@ class WebSocketHandler:
     
     async def broadcast(self, message: Any):
         """Broadcast message to all connections"""
-        pass
+        import asyncio
+        tasks = []
+        for conn_id, conn in list(self.connections.items()):
+            try:
+                if hasattr(conn, 'send_json'):
+                    tasks.append(conn.send_json(message))
+                elif hasattr(conn, 'send_text'):
+                    import json
+                    tasks.append(conn.send_text(json.dumps(message)))
+            except Exception:
+                self.connections.pop(conn_id, None)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 class ExternalAPIGateway:

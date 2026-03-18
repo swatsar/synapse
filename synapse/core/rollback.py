@@ -149,7 +149,7 @@ class RollbackManager:
             if isinstance(checkpoint_id, str):
                 try:
                     cp_id = uuid.UUID(checkpoint_id)
-                except:
+                except Exception:
                     pass
             
             result = self.checkpoint_manager.restore(cp_id)

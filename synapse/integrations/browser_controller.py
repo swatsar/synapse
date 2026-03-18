@@ -436,85 +436,146 @@ class SecureBrowserController:
         value: Optional[str],
         timeout: int
     ) -> BrowserActionResult:
-        """
-        Execute the browser action.
-        
-        This is a placeholder for actual Playwright integration.
-        In production, this would use Playwright for browser automation.
-        """
-        # Placeholder implementation
-        # In production, this would:
-        # 1. Initialize Playwright browser if not already
-        # 2. Execute the action
-        # 3. Return the result
-        
-        if action == BrowserAction.NAVIGATE:
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                url=url,
-                metadata={"title": "Page loaded", "protocol_version": PROTOCOL_VERSION}
-            )
-        
-        elif action == BrowserAction.CLICK:
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                metadata={"clicked": selector, "protocol_version": PROTOCOL_VERSION}
-            )
-        
-        elif action == BrowserAction.FILL:
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                metadata={"filled": selector, "protocol_version": PROTOCOL_VERSION}
-            )
-        
-        elif action == BrowserAction.SCREENSHOT:
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                screenshot="base64_encoded_screenshot_placeholder",
-                metadata={"protocol_version": PROTOCOL_VERSION}
-            )
-        
-        elif action == BrowserAction.SCRAPE:
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                content="Scraped content placeholder",
-                metadata={"protocol_version": PROTOCOL_VERSION}
-            )
-        
-        elif action == BrowserAction.WAIT:
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                metadata={"waited": selector, "protocol_version": PROTOCOL_VERSION}
-            )
-        
-        else:
+        """Execute the browser action via Playwright (async)."""
+        try:
+            from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+        except ImportError:
             return BrowserActionResult(
                 status=BrowserActionStatus.FAILED,
                 action=action.value,
-                error=f"Action not implemented: {action.value}"
+                error="playwright not installed — run: pip install playwright && playwright install chromium"
+            )
+
+        try:
+            async with async_playwright() as pw:
+                browser = await pw.chromium.launch(headless=True)
+                page = await browser.new_page()
+                page.set_default_timeout(timeout * 1000)
+
+                try:
+                    if action == BrowserAction.NAVIGATE:
+                        resp = await page.goto(url or "about:blank", wait_until="domcontentloaded")
+                        title = await page.title()
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            url=page.url,
+                            metadata={"title": title, "status_code": resp.status if resp else None,
+                                      "protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    elif action == BrowserAction.CLICK:
+                        if url:
+                            await page.goto(url, wait_until="domcontentloaded")
+                        await page.click(selector or "body")
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            metadata={"clicked": selector, "protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    elif action == BrowserAction.FILL:
+                        if url:
+                            await page.goto(url, wait_until="domcontentloaded")
+                        await page.fill(selector or "input", value or "")
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            metadata={"filled": selector, "protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    elif action == BrowserAction.SCREENSHOT:
+                        if url:
+                            await page.goto(url, wait_until="domcontentloaded")
+                        import base64
+                        screenshot_bytes = await page.screenshot(full_page=True)
+                        screenshot_b64 = base64.b64encode(screenshot_bytes).decode()
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            screenshot=screenshot_b64,
+                            url=page.url,
+                            metadata={"size_bytes": len(screenshot_bytes), "protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    elif action == BrowserAction.SCRAPE:
+                        if url:
+                            await page.goto(url, wait_until="domcontentloaded")
+                        if selector:
+                            element = await page.query_selector(selector)
+                            content = await element.inner_text() if element else ""
+                        else:
+                            content = await page.inner_text("body")
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            content=content,
+                            url=page.url,
+                            metadata={"chars": len(content), "protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    elif action == BrowserAction.EVALUATE:
+                        if url:
+                            await page.goto(url, wait_until="domcontentloaded")
+                        result = await page.evaluate(value or "document.title")
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            content=str(result),
+                            metadata={"protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    elif action == BrowserAction.WAIT:
+                        if url:
+                            await page.goto(url, wait_until="domcontentloaded")
+                        if selector:
+                            await page.wait_for_selector(selector)
+                        else:
+                            await asyncio.sleep(1)
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            metadata={"waited_for": selector, "protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    elif action == BrowserAction.SCROLL:
+                        if url:
+                            await page.goto(url, wait_until="domcontentloaded")
+                        await page.evaluate("window.scrollBy(0, window.innerHeight)")
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.SUCCESS,
+                            action=action.value,
+                            metadata={"protocol_version": PROTOCOL_VERSION}
+                        )
+
+                    else:
+                        return BrowserActionResult(
+                            status=BrowserActionStatus.FAILED,
+                            action=action.value,
+                            error=f"Unsupported action: {action.value}"
+                        )
+
+                finally:
+                    await browser.close()
+
+        except Exception as e:
+            return BrowserActionResult(
+                status=BrowserActionStatus.FAILED,
+                action=action.value,
+                error=str(e)
             )
     
     async def _check_capabilities(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Check if context has required capabilities"""
+        """Check if context has required capabilities via SecurityManager."""
         if not self.security:
             return {"approved": True}
-        
-        # In production, this would call security manager
-        capabilities = context.get("capabilities", [])
-        
-        for cap in self.REQUIRED_CAPABILITIES:
-            if cap not in capabilities:
-                return {
-                    "approved": False,
-                    "missing": cap
-                }
-        
+        agent_id = context.get("agent_id", "default")
+        result = await self.security.check_capabilities(
+            required_capabilities=self.REQUIRED_CAPABILITIES,
+            context={"agent_id": agent_id}
+        )
+        if not result.approved:
+            return {"approved": False, "missing": result.blocked_capabilities}
         return {"approved": True}
     
     async def _request_human_approval(
@@ -524,12 +585,30 @@ class SecureBrowserController:
         selector: Optional[str],
         context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Request human approval for high-risk action"""
+        """Request human approval for high-risk browser action."""
         if not self.security:
-            return {"approved": True}
-        
-        # In production, this would call security manager
-        # to request human approval via configured channels
+            return {"approved": True, "auto_approved": True}
+        risk_context = {
+            "action": action,
+            "url": url,
+            "selector": selector,
+            "risk_level": 4,
+            "agent_id": context.get("agent_id", "browser_controller"),
+        }
+        try:
+            risk = await self.security.assess_risk(action, risk_context)
+            if risk >= 3:
+                # Log pending approval - in production connects to HITL queue
+                await self.security.log_security_event({
+                    "event": "browser_approval_requested",
+                    "action": action,
+                    "url": url,
+                    "risk_level": risk,
+                }, risk_context)
+                # For now auto-approve with audit trail; replace with actual HITL queue
+                return {"approved": True, "auto_approved": True, "risk_level": risk}
+        except Exception:
+            pass
         return {"approved": True, "auto_approved": True}
     
     async def _audit_action(
@@ -541,22 +620,26 @@ class SecureBrowserController:
         error: str = None,
         context: Dict[str, Any] = None
     ):
-        """Log action to audit system"""
+        """Log browser action to audit system."""
         if not self.audit:
             return
-        
         audit_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event": "browser_action",
             "action": action,
             "status": status.value,
             "url": url,
             "reason": reason,
             "error": error,
-            "protocol_version": PROTOCOL_VERSION
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "protocol_version": PROTOCOL_VERSION,
         }
-        
-        # In production, this would call audit logger
-        # await self.audit.log(audit_entry)
+        try:
+            if hasattr(self.audit, "emit_event"):
+                await self.audit.emit_event("browser_action", audit_entry)
+            elif hasattr(self.audit, "log_action"):
+                self.audit.log_action("browser_action", audit_entry, context or {})
+        except Exception:
+            pass
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get controller statistics"""

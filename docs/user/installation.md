@@ -1,386 +1,225 @@
-# Installation Guide
+# Руководство по установке Synapse
 
-**Protocol Version:** 1.0  
-**Spec Version:** 3.1  
-**Last Updated:** 2026-02-20
+**Protocol Version:** 1.0 | **Spec Version:** 3.1 | **Версия:** 3.2.5
 
 ---
 
-## System Requirements
+## Системные требования
 
-### Minimum Requirements
-| Component | Requirement |
+### Минимум
+
+| Компонент | Требование |
 |-----------|------------|
 | Python | 3.11+ |
-| RAM | 4GB minimum (8GB recommended) |
-| Disk Space | 10GB free |
-| CPU | 2 cores minimum |
+| RAM | 4 GB |
+| Диск | 10 GB |
+| CPU | 2 ядра |
+| ОС | Linux / macOS / Windows 10+ |
 
-### Recommended Requirements
-| Component | Requirement |
+### Рекомендуется (production)
+
+| Компонент | Требование |
 |-----------|------------|
 | Python | 3.12+ |
-| RAM | 16GB |
-| Disk Space | 50GB free (for memory storage) |
-| CPU | 4+ cores |
+| RAM | 16 GB |
+| Диск | 50 GB |
+| CPU | 4+ ядра |
+| ОС | Ubuntu 22.04 LTS / Debian 12 |
 
-### Optional Dependencies
-| Component | Purpose |
-|-----------|---------|
-| Docker | Containerized deployment |
-| PostgreSQL | Production database |
-| Qdrant/ChromaDB | Vector memory storage |
-| Redis | Cache layer |
+### Опциональные зависимости
+
+| Компонент | Назначение |
+|-----------|------------|
+| Docker 24+ | Изолированное выполнение навыков |
+| PostgreSQL 15+ | Production БД |
+| Qdrant / ChromaDB | Vector memory |
+| Redis 7+ | Кэш и сессии |
 
 ---
 
-## Windows Installation
+## Вариант 1: Из исходников (разработка)
 
-### Option 1: MSI Installer (Recommended)
-
-1. **Download the installer**
-   - Download `synapse-installer-3.1.0.msi` from the releases page
-
-2. **Run the installer**
-   - Right-click the `.msi` file
-   - Select "Run as Administrator"
-   - Follow the installation wizard
-
-3. **Complete Configuration Wizard**
-   - Launch Synapse from Start Menu
-   - Complete the 5-step configuration wizard
-   - Configure your LLM provider
-
-4. **Verify Installation**
-   ```cmd
-   synapse --version
-   # Output: Synapse v3.1.0 (protocol_version: 1.0)
-   ```
-
-### Option 2: PyPI Installation
-
-```powershell
-# Create virtual environment
-python -m venv synapse-env
-synapse-env\Scripts\activate
-
-# Install Synapse
-pip install synapse-agent
-
-# Initialize configuration
-synapse --init
-
-# Launch GUI
-synapse-gui
-```
-
-### Option 3: Docker Installation
-
-```powershell
-# Clone repository
-git clone https://github.com/synapse/synapse.git
+```bash
+# 1. Клонирование
+git clone https://github.com/swatsar/synapse.git
 cd synapse
 
-# Start with Docker Compose
-docker-compose up -d
+# 2. Виртуальное окружение
+python -m venv .venv
+source .venv/bin/activate        # Linux/macOS
+# .venv\Scripts\activate         # Windows
 
-# Access GUI
-# Open browser: http://localhost:8000
+# 3. Установка с dev-зависимостями
+pip install -e ".[dev]"
+
+# 4. Конфигурация
+cp .env.example .env
+# Отредактируйте .env — минимум задайте OPENAI_API_KEY или ANTHROPIC_API_KEY
+
+# 5. Запуск
+synapse --web-ui --port 8000
+# Откройте http://localhost:8000
 ```
 
 ---
 
-## macOS Installation
-
-### Option 1: DMG Installer (Recommended)
-
-1. **Download the DMG**
-   - Download `synapse-3.1.0.dmg` from releases
-
-2. **Install Application**
-   - Open the DMG file
-   - Drag Synapse to Applications folder
-
-3. **First Launch**
-   - Open Applications folder
-   - Right-click Synapse → Open
-   - Click "Open" in security dialog
-   - Or run in Terminal:
-     ```bash
-     xattr -d com.apple.quarantine /Applications/Synapse.app
-     ```
-
-4. **Complete Setup**
-   - Follow the Configuration Wizard
-   - Grant necessary permissions
-
-### Option 2: Homebrew
+## Вариант 2: Docker Compose (рекомендуется)
 
 ```bash
-# Add tap
-brew tap synapse/tap
-
-# Install Synapse
-brew install synapse
-
-# Initialize
-synapse --init
-
-# Launch GUI
-synapse-gui
-```
-
-### Option 3: PyPI Installation
-
-```bash
-# Create virtual environment
-python3 -m venv synapse-env
-source synapse-env/bin/activate
-
-# Install
-pip install synapse-agent
-
-# Initialize
-synapse --init
-```
-
----
-
-## Linux Installation
-
-### Option 1: DEB Package (Debian/Ubuntu)
-
-```bash
-# Download package
-wget https://github.com/synapse/synapse/releases/download/v3.1.0/synapse_3.1.0_amd64.deb
-
-# Install
-sudo apt install ./synapse_3.1.0_amd64.deb
-
-# Or using dpkg
-sudo dpkg -i synapse_3.1.0_amd64.deb
-sudo apt-get install -f  # Fix dependencies
-
-# Verify
-synapse --version
-```
-
-### Option 2: RPM Package (RHEL/Fedora/CentOS)
-
-```bash
-# Download package
-wget https://github.com/synapse/synapse/releases/download/v3.1.0/synapse-3.1.0.x86_64.rpm
-
-# Install
-sudo dnf install ./synapse-3.1.0.x86_64.rpm
-
-# Or using yum
-sudo yum install ./synapse-3.1.0.x86_64.rpm
-
-# Verify
-synapse --version
-```
-
-### Option 3: AppImage (Universal)
-
-```bash
-# Download AppImage
-wget https://github.com/synapse/synapse/releases/download/v3.1.0/synapse-3.1.0.AppImage
-
-# Make executable
-chmod +x synapse-3.1.0.AppImage
-
-# Run
-./synapse-3.1.0.AppImage
-
-# Install system-wide (optional)
-sudo mv synapse-3.1.0.AppImage /usr/local/bin/synapse
-```
-
-### Option 4: PyPI Installation
-
-```bash
-# Create virtual environment
-python3 -m venv synapse-env
-source synapse-env/bin/activate
-
-# Install
-pip install synapse-agent
-
-# Initialize
-synapse --init
-
-# Launch GUI
-synapse-gui
-```
-
-### Option 5: Docker Installation
-
-```bash
-# Clone repository
-git clone https://github.com/synapse/synapse.git
+# 1. Клонирование
+git clone https://github.com/swatsar/synapse.git
 cd synapse
 
-# Start services
-docker-compose up -d
+# 2. Конфигурация
+cp .env.example .env
+nano .env  # заполните API ключи и DB_PASSWORD
 
-# Check status
-docker-compose ps
+# 3. Запуск всего стека
+docker-compose -f docker/docker-compose.yml up -d
 
-# View logs
-docker-compose logs -f synapse-core
-```
-
----
-
-## Post-Installation Setup
-
-### Step 1: Launch GUI Configurator
-
-| Platform | Method |
-|----------|--------|
-| Windows | Start Menu → Synapse Configurator |
-| macOS | Applications → Synapse |
-| Linux | Applications → Synapse or `synapse-gui` |
-
-### Step 2: Complete Configuration Wizard
-
-1. **Welcome Page**
-   - Select interface language (EN/RU)
-
-2. **LLM Provider Configuration**
-   - Select provider: OpenAI, Anthropic, Ollama, etc.
-   - Enter API key (stored securely)
-   - Test connection
-
-3. **Storage Paths**
-   - Configure data directory
-   - Configure skills directory
-   - Configure memory storage
-
-4. **Security Mode**
-   - **Safe Mode:** All actions require approval
-   - **Supervised Mode:** Risk ≥ 3 requires approval
-   - **Autonomous Mode:** Minimal restrictions
-
-5. **Review & Apply**
-   - Review all settings
-   - Apply configuration
-
-### Step 3: Verify Installation
-
-```bash
-# Check version
-synapse --version
-
-# Check health
+# 4. Проверка
+docker-compose -f docker/docker-compose.yml ps
 curl http://localhost:8000/health
 
-# Expected response:
-# {
-#   "status": "healthy",
-#   "version": "3.1",
-#   "protocol_version": "1.0",
-#   "timestamp": "2026-02-20T12:00:00Z"
-# }
+# 5. Логи
+docker-compose -f docker/docker-compose.yml logs -f synapse-core
+```
+
+Стек включает:
+- `synapse-core` — основной сервис (порт 8000)
+- `postgres:15` — база данных
+- `qdrant:latest` — vector store (порт 6333)
+- `redis:7` — кэш
+- `prometheus` — метрики (порт 9091)
+- `grafana` — дашборд (порт 3000)
+
+---
+
+## Вариант 3: Production (bare metal)
+
+### Шаг 1. PostgreSQL
+
+```bash
+sudo apt install postgresql-15
+sudo -u postgres psql -c "CREATE DATABASE synapse;"
+sudo -u postgres psql -c "CREATE USER synapse_user WITH PASSWORD 'StrongPass123!';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse_user;"
+```
+
+### Шаг 2. Redis
+
+```bash
+sudo apt install redis-server
+sudo systemctl enable redis --now
+```
+
+### Шаг 3. Qdrant (vector DB)
+
+```bash
+docker run -d --name qdrant \
+  -p 6333:6333 \
+  -v $(pwd)/qdrant_data:/qdrant/storage \
+  --restart unless-stopped \
+  qdrant/qdrant:latest
+```
+
+### Шаг 4. Synapse
+
+```bash
+pip install synapse-agent
+# или
+git clone ... && pip install -e .
+
+# Переменные окружения
+export SYNAPSE_API_KEY="$(openssl rand -hex 32)"
+export DATABASE_URL="postgresql://synapse_user:StrongPass123!@localhost:5432/synapse"
+export VECTOR_DB_URL="http://localhost:6333"
+export OPENAI_API_KEY="sk-..."
+
+synapse --mode local --web-ui --port 8000
+```
+
+### Шаг 5. systemd сервис
+
+```ini
+# /etc/systemd/system/synapse.service
+[Unit]
+Description=Synapse Agent Platform
+After=network.target postgresql.service redis.service
+
+[Service]
+Type=simple
+User=synapse
+WorkingDirectory=/opt/synapse
+EnvironmentFile=/opt/synapse/.env
+ExecStart=/opt/synapse/.venv/bin/synapse --web-ui --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable synapse --now
+sudo systemctl status synapse
 ```
 
 ---
 
-## Configuration Files Location
+## Переменные окружения
 
-| Platform | Config Path |
-|----------|-------------|
-| Windows | `%APPDATA%\Synapse\config\` |
-| macOS | `~/.config/synapse/` |
-| Linux | `~/.config/synapse/` |
-| Docker | `/app/config/` (mounted volume) |
+| Переменная | Обязательна | Описание |
+|------------|-------------|----------|
+| `SYNAPSE_API_KEY` | ✅ | API ключ (32+ символа hex) |
+| `OPENAI_API_KEY` | ✅* | OpenAI ключ (*хотя бы один LLM) |
+| `ANTHROPIC_API_KEY` | ✅* | Anthropic ключ |
+| `DATABASE_URL` | ❌ | PostgreSQL URL (SQLite по умолчанию) |
+| `VECTOR_DB_URL` | ❌ | Qdrant URL |
+| `REDIS_URL` | ❌ | Redis URL |
+| `LOG_LEVEL` | ❌ | `DEBUG`/`INFO`/`WARNING` (по умолч. `INFO`) |
 
-### Main Configuration File
+---
 
-```yaml
-# config.yaml
-system:
-  name: "Synapse"
-  version: "3.1"
-  protocol_version: "1.0"  # Required
+## Проверка установки
 
-llm:
-  default_provider: "openai"
-  models:
-    - name: "gpt-4o"
-      priority: 1
+```bash
+# Health check
+curl http://localhost:8000/health
 
-security:
-  require_approval_for_risk: 3
-  trusted_users: []
-  audit_log_enabled: true
+# Ожидаемый ответ:
+# {"status":"healthy","version":"3.2.5","protocol_version":"1.0",...}
 
-isolation_policy:
-  unverified_skills: "container"
-  risk_level_3_plus: "container"
-  trusted_skills: "subprocess"
+# Статус агентов
+curl -H "X-API-Key: $SYNAPSE_API_KEY" http://localhost:8000/api/v1/agents
 
-resources:
-  default_limits:
-    cpu_seconds: 60
-    memory_mb: 512
-    disk_mb: 100
-    network_kb: 1024
+# Python smoke test
+python -c "import synapse; print('OK:', synapse.__version__)"
 ```
 
 ---
 
-## Uninstallation
-
-### Windows
-```cmd
-# Via Programs and Features
-# Or via command line:
-msiexec /x {INSTALL_GUID}
-```
-
-### macOS
-```bash
-# Remove application
-rm -rf /Applications/Synapse.app
-
-# Remove configuration (optional)
-rm -rf ~/.config/synapse/
-```
-
-### Linux
+## Обновление
 
 ```bash
-# DEB package
-sudo apt remove synapse
-
-# RPM package
-sudo dnf remove synapse
-
-# AppImage
-rm synapse-3.1.0.AppImage
-
-# Remove configuration (optional)
-rm -rf ~/.config/synapse/
+git pull origin main
+pip install -e ".[dev]"
+# или для Docker:
+docker-compose -f docker/docker-compose.yml pull
+docker-compose -f docker/docker-compose.yml up -d
 ```
 
-### PyPI Installation
+---
+
+## Удаление
+
 ```bash
+# Локальная установка
 pip uninstall synapse-agent
-rm -rf ~/.config/synapse/
+rm -rf .venv
+
+# Docker
+docker-compose -f docker/docker-compose.yml down -v
+docker rmi synapse/core:3.2.5
 ```
-
----
-
-## Next Steps
-
-- [Quick Start Guide](quickstart.md) - Get started in 5 minutes
-- [Configuration Guide](configuration.md) - Detailed configuration options
-- [Security Guide](security.md) - Security best practices
-- [Troubleshooting](troubleshooting.md) - Common issues and solutions
-
----
-
-**Protocol Version:** 1.0  
-**Need Help?** Check [Troubleshooting](troubleshooting.md) or open an issue on GitHub.

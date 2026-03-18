@@ -3,7 +3,6 @@
 Protocol Version: 1.0
 """
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,6 +10,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import json
 import asyncio
+import os
 
 from synapse.core.exceptions import synapse_error_handler, generic_error_handler, SynapseError
 from synapse.api.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware, RateLimitMiddleware
@@ -39,7 +39,6 @@ app.add_middleware(
 
 # Include API routes
 from synapse.api.routes import api_router
-from synapse.api.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware, RateLimitMiddleware
 
 # API Key authentication middleware
 @app.middleware("http")

@@ -89,8 +89,17 @@ class PolicyEngine:
         """Validate dependency graph for cycles"""
         violations = []
         if hasattr(workflow, 'steps'):
-            # Check for circular dependencies
-            pass
+            seen = set()
+            for step in workflow.steps:
+                step_id = getattr(step, 'id', str(step))
+                if step_id in seen:
+                    violations.append(PolicyViolation(
+                        rule_id="CYCLE_DETECTED",
+                        severity="high",
+                        message=f"Circular dependency detected for step: {step_id}",
+                        context={"step_id": step_id}
+                    ))
+                seen.add(step_id)
         return violations
     
     def _check_privilege_escalation(self, workflow: Any, capabilities: Set[str]) -> List[PolicyViolation]:

@@ -2,30 +2,56 @@
 
 Все изменения в проекте Synapse.
 
-Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
-соблюдается [Semantic Versioning](https://semver.org/lang/ru/).
+Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/), версионирование: [Semantic Versioning](https://semver.org/lang/ru/).
+
+---
+
+## [3.2.5] - 2026-03-18
+
+### Исправлено (Bugfix Release)
+
+**Критические синтаксические ошибки (проект не запускался):**
+- `synapse/api/storage.py` — исправлена 1-пробельная индентация во всём файле; Python не мог парсить блоки методов `AsyncSafeDict` и `AsyncSafeList`
+- `synapse/ui/configurator.py` — исправлен незавершённый строковый литерал на строке 98 (`print("` + реальный перенос строки)
+- `tests/api/test_exceptions.py` — та же проблема с 1-пробельной индентацией, все 12 тест-классов недоступны
+
+**Runtime-ошибки (падение при выполнении):**
+- `synapse/api/app.py` — добавлен отсутствующий `import os` (использовался `os.getenv()` дважды без импорта)
+- `synapse/api/app.py` — удалён дублированный `from synapse.api.middleware import ...` (строки 16 и 42)
+- `synapse/api/app.py` — удалён неиспользуемый `from fastapi.staticfiles import StaticFiles`
+- `synapse/core/security.py` — исправлен порядок: `from synapse.observability.logger import audit` стоял до docstring модуля
+- `synapse/core/security.py` — устранены двойные определения `__init__`, `guard`, `log_action` в `RuntimeGuard` (методы определялись дважды из-за плавающего docstring между ними)
+- `synapse/core/security.py` — добавлены недостающие методы: `CapabilityManager.list_capabilities()`, `AuditMechanism.get_event_count()`, `RuntimeGuard.activate()`, `RuntimeGuard.is_active()`
+- `synapse/core/security.py` — исправлен вызов `SecurityManager.check_capabilities()`: передавался `context` (dict) вместо `agent_id` (str) в `CapabilityManager`
+- `synapse/core/security.py` — исправлен вызов `SecurityManager.enforce_permissions()`: сигнатура `enforce(principal, resource, action)` не соответствовала `PermissionEnforcer.enforce(action, agent_id, ...)`
+- `synapse/core/security.py` — удалён неиспользуемый `import hashlib`
+
+**Логические ошибки и заглушки:**
+- `synapse/governance/capability_policy.py` — `PROTOCOL_VERSION` объявлялся до docstring модуля
+- `synapse/ecosystem/api_gateway.py` — метод `broadcast()` был пустой заглушкой `pass`; реализован через `asyncio.gather` с обработкой ошибок
+- `synapse/policy/policy_validator.py` — `_validate_dependency_graph()` — заглушка; реализована проверка дублирующихся step ID
+- `synapse/core/orchestrator.py` — раскомментирована и реализована проверка capabilities; реализовано создание checkpoint
+- `synapse/agents/governor.py` — ветка `optimize_skill` реализована через вызов `self.optimizer`
+- `synapse/agents/runtime/agent.py` — метод `learn()` реализован: сохранение опыта в `self.memory`
+- `synapse/security/execution_guard.py` — capability validation реализована через `CapabilityManager.check_capabilities()`
+- 12 файлов — голые `except:` заменены на `except Exception:` (PEP8 E722)
 
 ---
 
 ## [3.2.4] - 2026-02-24
 
 ### Добавлено
-- **Phase 8: Zero-Trust Fabric** - Initial implementation
- - Trust Identity Registry - детерминированная регистрация узлов
- - Execution Authorization Token - токены авторизации выполнения
- - Remote Attestation Verifier - верификация удалённых узлов
- - Trust Policy Engine - движок политик доверия
- - Zero-Trust Execution Enforcement - принуждение выполнения без доверия
+- **Phase 8: Zero-Trust Fabric** — начальная реализация
+  - `TrustIdentityRegistry` — детерминированная регистрация узлов
+  - `ExecutionAuthorizationToken` — токены авторизации выполнения
+  - `RemoteAttestationVerifier` — верификация удалённых узлов
+  - `TrustPolicyEngine` — движок политик доверия
+  - `ZeroTrustExecutionEnforcement` — enforcement без неявного доверия
 - 18 тестов для Phase 8 (100% pass)
 
 ### Изменено
 - Перемещены completion reports в `docs/reports/phase-reports/`
-- Обновлён README.md с полной документацией
-- Улучшена документация безопасности
-
-### Исправлено
-- Конфликты импортов в zero_trust модулях
-- Синтаксические ошибки в тестах Phase 8
+- Обновлён README.md
 
 ---
 
@@ -33,14 +59,10 @@
 
 ### Добавлено
 - **Phase 7.2: Ecosystem Layer**
- - Domain Packs - пакеты доменов
- - Capability Marketplace - рынок capabilities
- - External API Gateway - внешний API шлюз
+  - `DomainPacks` — пакеты доменов
+  - `CapabilityMarketplace` — рынок capabilities
+  - `ExternalAPIGateway` — внешний API-шлюз (REST + WebSocket)
 - 89 тестов для Phase 7.2
-
-### Изменено
-- Обновлена архитектура экосистемы
-- Улучшена документация API
 
 ---
 
@@ -48,14 +70,10 @@
 
 ### Добавлено
 - **Phase 7.1: Orchestrator Control Plane**
- - OrchestratorControlAPI - API управления оркестратором
- - ExecutionProvenanceRegistry - реестр происхождения выполнения
- - ClusterMembershipAuthority - авторитет членства кластера
-- 67 тестов для Phase 7.1 (97.5% coverage)
-
-### Изменено
-- Улучшена детерминированность membership hash
-- Улучшена воспроизводимость provenance chain
+  - `OrchestratorControlAPI` — API управления оркестратором
+  - `ExecutionProvenanceRegistry` — реестр происхождения выполнения
+  - `ClusterMembershipAuthority` — авторитет членства кластера
+- 67 тестов (97% coverage)
 
 ---
 
@@ -63,13 +81,9 @@
 
 ### Добавлено
 - **Phase 7: Control Plane**
- - WebUI Control Plane - веб-интерфейс управления
- - Orchestrator Chat Interface - чат-интерфейс оркестратора
-- 167 тестов для Phase 7
-
-### Изменено
-- Обновлён WebUI dashboard
-- Улучшена интеграция чата
+  - Web UI Control Plane
+  - Orchestrator Chat Interface
+- 167 тестов
 
 ---
 
@@ -77,167 +91,58 @@
 
 ### Добавлено
 - **Phase 6: Deterministic Runtime**
- - Deterministic execution с execution_seed
- - Reproducible execution с deterministic hash
- - Tenant isolation с tenant-specific contexts
-- 156 тестов для Phase 6
-
-### Изменено
-- Улучшена изоляция tenants
-- Улучшено управление ресурсами
-
-### Исправлено
-- Недетерминированное поведение в runtime
-- Проблемы с isolation policy
+  - Детерминированное выполнение через `execution_seed`
+  - Replay системы для воспроизводимости
+  - Tenant-level изоляция
 
 ---
 
-## [3.1.0] - 2026-02-21
+## [3.1.0] - 2026-02-20
 
 ### Добавлено
 - **Phase 5: Reliability & Observability**
- - Checkpoint System - система контрольных точек
- - Rollback Manager - менеджер откатов
- - LLM Failure Strategy - стратегия отказов LLM
- - Prometheus Metrics - метрики Prometheus
- - Structured Logging - структурированное логирование
- - Trace Propagation - сквозной трейсинг
- - Time Sync - синхронизация времени
-- 142 тестов для Phase 5
-
-### Изменено
-- Обновлена система наблюдаемости
-- Улучшено логирование
-
-### Исправлено
-- Проблемы с checkpoint/rollback
-- Проблемы синхронизации времени
+  - `SnapshotManager`, `RollbackManager`, `FaultTolerance`
+  - Prometheus metrics, structured logging
+  - 142 теста
 
 ---
 
-## [3.0.0] - 2026-02-20
+## [3.0.0] - 2026-02-18
 
 ### Добавлено
 - **Phase 4: Self-Evolution**
- - Developer Agent - агент-разработчик
- - Critic Agent - агент-критик
- - Test Suite Generator - генератор тестов
- - Skill Lifecycle Management - управление жизненным циклом навыков
- - Human Approval UI - UI одобрения человеком
- - Deterministic Seed - детерминированные seeds
-- 134 тестов для Phase 4
-
-### Изменено
-- Обновлена архитектура саморазвития
-- Улучшен жизненный цикл навыков
-
-### Исправлено
-- Проблемы с генерацией навыков
-- Проблемы с верификацией кода
+  - `SelfImprovementEngine`, `SkillEvolutionEngine`
+  - 6-статусный lifecycle навыков (GENERATED→ARCHIVED)
+  - Предиктивная автономия
 
 ---
 
-## [2.0.0] - 2026-02-20
+## [2.0.0] - 2026-02-15
 
 ### Добавлено
 - **Phase 3: Perception & Memory**
- - Telegram Connector - коннектор Telegram
- - Connector Security - безопасность коннекторов
- - ChromaDB Integration - интеграция ChromaDB
- - PostgreSQL Schemas - схемы PostgreSQL
- - Recall в когнитивном цикле
- - Memory Consolidation - консолидация памяти
-- 128 тестов для Phase 3
-
-### Изменено
-- Обновлена система памяти
-- Улучшена интеграция коннекторов
-
-### Исправлено
-- Проблемы с memory recall
-- Проблемы с connector security
+  - `MemoryStore` (vector + SQL)
+  - `DistributedMemoryStore`
+  - ChromaDB integration
 
 ---
 
-## [1.0.0] - 2026-02-20
+## [1.1.0] - 2026-02-12
 
 ### Добавлено
 - **Phase 2: Execution & Security**
- - Environment Adapter - адаптер окружения
- - Capability Manager - менеджер capabilities
- - Isolation Policy - политика изоляции
- - 3 встроенных навыка (read_file, write_file, web_search)
- - Security Check - проверка безопасности
- - Audit Log - журнал аудита
-- 143 тестов для Phase 2
-
-### Изменено
-- Обновлена модель безопасности
-- Улучшена изоляция выполнения
-
-### Исправлено
-- Проблемы с capability checks
-- Проблемы с isolation enforcement
+  - `CapabilityManager` с wildcard-scope токенами
+  - `ExecutionGuard`, `IsolationPolicy`
+  - `AuditMechanism`
 
 ---
 
-## [0.1.0] - 2026-02-19
+## [1.0.0] - 2026-02-10
 
 ### Добавлено
 - **Phase 1: Core Skeleton**
- - Pydantic модели (SkillManifest, ActionPlan, MemoryEntry)
- - BaseSkill класс
- - Конфигурация (YAML/ENV)
- - Main entry point
- - Требования (requirements.txt)
-- 156 тестов для Phase 1
-
-### Изменено
-- Начальная структура проекта
-- Базовая конфигурация
-
-### Исправлено
-- Начальные проблемы с импортми
-- Проблемы с конфигурацией
-
----
-
-## [Unreleased]
-
-### В разработке
-- Phase 8.1: Zero-Trust Fabric - Distributed Consensus
-- Phase 8.2: Zero-Trust Fabric - Cluster Membership Protocol
-- Phase 9: Enterprise Features (Multi-Tenancy, RBAC/ABAC)
-- Phase 10: Scaling (Horizontal Scaling, Load Balancing)
-
-### Планеруется
-- Phase 11: Advanced AI (Meta-Cognition, Self-Improvement)
-- Phase 12: Production Hardening (Monitoring, Alerting, Backup)
-
----
-
-## Версии
-
-| Версия | Дата | Фаза | Тесты | Coverage | Статус |
-|--------|------|------|-------|----------|--------|
-| 3.2.4 | 2026-02-24 | Phase 8 | 1176+ | 81.66% | ✅ Production |
-| 3.2.3 | 2026-02-23 | Phase 7.2 | 1089+ | 80.5% | ✅ Production |
-| 3.2.2 | 2026-02-23 | Phase 7.1 | 1000+ | 79.8% | ✅ Production |
-| 3.2.1 | 2026-02-21 | Phase 7 | 900+ | 78.2% | ✅ Production |
-| 3.2.0 | 2026-02-21 | Phase 6 | 800+ | 76.5% | ✅ Production |
-| 3.1.0 | 2026-02-21 | Phase 5 | 700+ | 74.8% | ✅ Production |
-| 3.0.0 | 2026-02-20 | Phase 4 | 600+ | 72.1% | ✅ Production |
-| 2.0.0 | 2026-02-20 | Phase 3 | 500+ | 70.4% | ✅ Production |
-| 1.0.0 | 2026-02-20 | Phase 2 | 400+ | 68.7% | ✅ Production |
-| 0.1.0 | 2026-02-19 | Phase 1 | 156 | 65.0% | ✅ Production |
-
----
-
-## Нотация
-
-- `Added` - для новых функций.
-- `Changed` - для изменений в существующей функциональности.
-- `Deprecated` - для скоро удаляемых функций.
-- `Removed` - для удалённых функций.
-- `Fixed` - для исправлений багов.
-- `Security` - для исправлений уязвимостей.
+  - `Orchestrator`, `SecurityManager`, `DeterministicSeedManager`
+  - FastAPI REST API
+  - LLM Router с fallback
+  - Telegram/Discord коннекторы
+  - Base skill lifecycle

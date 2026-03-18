@@ -4,90 +4,72 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-1176%20passing-brightgreen.svg)](tests/)
-[![Coverage](https://img.shields.io/badge/Coverage-81.66%25-green.svg)](docs/reports/)
-[![Production Ready](https://img.shields.io/badge/Production-98.5%25-brightgreen.svg)](docs/)
+[![Coverage](https://img.shields.io/badge/Coverage-82%25-green.svg)](docs/reports/)
+[![Pre-Production](https://img.shields.io/badge/Status-Pre--Production-blue.svg)](docs/)
+[![Protocol](https://img.shields.io/badge/Protocol-v1.0-orange.svg)](SPECIFICATION.md)
 
-**Production-Ready Distributed Cognitive Agent Platform с Capability-Based Security, Self-Evolution и Zero-Trust Execution.**
+**Pre-Production Distributed Cognitive Agent Platform с Capability-Based Security, Self-Evolution и Zero-Trust Execution.**
 
----
-
-## 📖 О Проекте
-
-**Synapse** — это не просто AI-ассистент, а **цифровой организм**, способный к автономному развитию и обучению. Платформа реализует 8-шаговый когнитивный цикл агента с capability-based security моделью и распределённым выполнением.
-
-### Ключевые Возможности
-
-- 🧬 **Саморазвитие** — создание новых навыков и агентов для решения неизвестных задач
-- 🛡️ **Самозащита** — встроенная многоуровневая система безопасности (Capability-Based + Zero-Trust)
-- 🔄 **Самовосстановление** — автоматический откат к стабильным состояниям (Checkpoint/Rollback)
-- 🌐 **Самораспределение** — работа на множестве узлов с синхронизацией
-
-### Архитектурные Принципы
-
-| Принцип | Описание |
-|---------|----------|
-| **Capability-Based Security** | Каждый навык требует явного разрешения (токена) для доступа к ресурсам |
-| **Isolation Enforcement** | Непроверенный код выполняется в песочнице (контейнер) |
-| **Protocol Versioning** | Все компоненты имеют `protocol_version="1.0"` для совместимости |
-| **Deterministic Execution** | Воспроизводимые результаты через `execution_seed` |
-| **Zero-Trust Fabric** | Ни один узел не доверяет другому без верификации (Phase 8) |
-| **Audit Trail** | Полное логирование всех действий для прозрачности |
+> **v3.2.5** — Bugfix release: все синтаксические ошибки, дубли кода и незаполненные заглушки устранены. Проект готов к предпродакшн-развёртыванию.
 
 ---
 
-## 🚀 Быстрый Старт
+## 📖 О проекте
 
-### Установка
+**Synapse** — платформа автономных агентов с 10-шаговым когнитивным циклом, capability-based security и поддержкой распределённого выполнения. Агенты умеют самостоятельно планировать, создавать новые навыки, откатываться на стабильные чекпоинты и работать в кластере.
+
+### Ключевые возможности
+
+| Возможность | Описание |
+|-------------|----------|
+| 🧬 **Саморазвитие** | Создание новых навыков через LLM + автотестирование + 6-статусный lifecycle |
+| 🛡️ **Capability-Based Security** | Токены доступа с wildcard scope, TTL и аудитом |
+| 🔄 **Checkpoint/Rollback** | Сохранение состояния перед каждым действием |
+| 🌐 **Распределённое выполнение** | Кластер узлов с детерминированным планировщиком |
+| 🔍 **Zero-Trust Fabric** | Верификация каждого узла (Phase 8) |
+| 📊 **Полный аудит** | Каждое действие логируется с `protocol_version` |
+
+---
+
+## 🚀 Быстрый старт
+
+### Предварительные требования
+
+- Python 3.11+
+- 4 GB RAM (8 GB рекомендуется)
+- Docker (для production)
+
+### Установка из исходников
 
 ```bash
-# Из PyPI
-pip install synapse-agent
-
-# Или из исходников
 git clone https://github.com/swatsar/synapse.git
 cd synapse
-pip install -e .
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+cp .env.example .env               # заполните ключи LLM
 ```
 
-### Запуск
+### Запуск (локально)
 
 ```bash
-# Локальный запуск
-synapse-agent --config config/default.yaml
+# API-сервер + Web dashboard
+synapse --web-ui --port 8000
 
-# Docker
- docker-compose up -d
+# Только агент (без UI)
+synapse --mode local
 
 # Проверка здоровья
 curl http://localhost:8000/health
 ```
 
----
+### Запуск через Docker
 
-## 📊 Статус Проекта
-
-### Завершённые Фазы
-
-| Фаза | Статус | Тесты | Coverage | Описание |
-|------|--------|-------|----------|----------|
-| **Phase 1** | ✅ Complete | 156 | 95% | Core Skeleton, Security Model |
-| **Phase 2** | ✅ Complete | 143 | 92% | Execution & Security |
-| **Phase 3** | ✅ Complete | 128 | 90% | Perception & Memory |
-| **Phase 4** | ✅ Complete | 134 | 88% | Self-Evolution |
-| **Phase 5** | ✅ Complete | 142 | 91% | Reliability & Observability |
-| **Phase 6** | ✅ Complete | 156 | 93% | Deterministic Runtime |
-| **Phase 7** | ✅ Complete | 167 | 94% | Control Plane |
-| **Phase 7.1** | ✅ Complete | 67 | 97.5% | Orchestrator Control Plane |
-| **Phase 7.2** | ✅ Complete | 89 | 96% | Ecosystem Layer |
-| **Phase 8** | 🔄 In Progress | 18/18 | 85% | Zero-Trust Fabric |
-
-### Метрики
-
-```
-✅ Тесты: 1176+ passing (100%)
-✅ Coverage: 81.66% (core >90%)
-✅ Production Ready: 98.5%
-✅ Audit: 27/27 проблем исправлено
+```bash
+cp .env.example .env
+# Заполните .env своими значениями
+docker-compose -f docker/docker-compose.yml up -d
+curl http://localhost:8000/health
 ```
 
 ---
@@ -96,126 +78,81 @@ curl http://localhost:8000/health
 
 ```
 synapse/
-├── core/ — оркестрация, безопасность, аудит, determinism
-├── zero_trust/ — модель нулевого доверия (Phase 8)
-├── orchestrator_control/ — управляющая плоскость
-├── cluster_orchestration/ — распределённые вычисления
-├── governance/ — capability management
-├── memory/ — распределённая память (vector, SQL, cache)
-├── runtime/ — изолированное выполнение навыков
-├── transport/ — сетевая коммуникация
-├── agents/ — planner, critic, developer, guardian
-├── skills/ — base skill, builtins, dynamic registry
-├── connectors/ — Telegram, Discord, REST API
-├── llm/ — LLM abstraction, routing, fallback
-└── ui/ — Web dashboard, API, CLI
+├── core/                    # Оркестратор, security, checkpoint, determinism, audit
+├── agents/                  # Planner, Critic, Developer, Governor, Guardian
+│   ├── runtime/             # Базовый агент с когнитивным циклом
+│   └── supervisor/          # Управляющий агент
+├── skills/                  # Навыки: base, builtins, dynamic registry, lifecycle
+│   ├── builtins/            # read_file, write_file, web_search
+│   └── dynamic/             # 6-статусный реестр (GENERATED→ARCHIVED)
+├── security/                # ExecutionGuard, CapabilityManager, MemorySeal
+├── governance/              # CapabilityPolicyEngine, реестр capabilities
+├── zero_trust/              # Identity, attestation, policy, enforcement (Phase 8)
+├── llm/                     # LLMRouter с fallback, priority и timeout
+├── memory/                  # MemoryStore + distributed store
+├── transport/               # Channel, Message, Protocol
+├── connectors/              # Telegram, Discord, REST
+├── control_plane/           # ClusterManager, Scheduler, OrchestratorMesh
+├── cluster_orchestration/   # Распределённое выполнение
+├── ecosystem/               # APIGateway, CapabilityMarketplace, DomainPacks
+├── observability/           # Logger, Exporter (Prometheus)
+├── api/                     # FastAPI app, routes, middleware, storage
+└── ui/                      # Web dashboard (HTML), Configurator
 ```
 
-### Когнитивный Цикл Агента
+### Когнитивный цикл агента (10 шагов)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ AGENT COGNITIVE LOOP (8 шагов) │
-├─────────────────────────────────────────────────────────────┤
-│ 1. ВОСПРИЯТИЕ (Perceive) ← InputEvent от коннекторов │
-│ 2. ВОСПОМИНАНИЕ (Recall) ← Memory retrieval │
-│ 3. ПЛАНИРОВАНИЕ (Plan) ← ActionPlan generation │
-│ 4. БЕЗОПАСНОСТЬ (Security) ← Capability + Risk check │
-│ 5. ОДОБРЕНИЕ (Approval) ← Human-in-the-loop (if ≥3) │
-│ 6. CHECKPOINT ← Save state before execute │
-│ 7. ДЕЙСТВИЕ (Act) ← Skill execution │
-│ 8. НАБЛЮДЕНИЕ (Observe) ← Result analysis │
-│ 9. ОЦЕНКА (Evaluate) ← Critic evaluation │
-│ 10. ОБУЧЕНИЕ (Learn) ← Memory consolidation │
-└─────────────────────────────────────────────────────────────┘
+1. PERCEIVE   ← InputEvent от коннекторов (Telegram, Discord, REST)
+2. RECALL     ← Memory retrieval (vector + SQL)
+3. PLAN       ← ActionPlan через LLM + DeterministicPlanner
+4. SECURITY   ← CapabilityManager.check_capabilities() + risk assessment
+5. APPROVE    ← Human-in-the-loop (если risk_level ≥ 3)
+6. CHECKPOINT ← Сохранение состояния перед выполнением
+7. ACT        ← ExecutionGuard → Skill execution в sandbox
+8. OBSERVE    ← Результат + метрики
+9. EVALUATE   ← CriticAgent оценивает качество
+10. LEARN     ← Memory consolidation + self-improvement
 ```
 
 ---
 
 ## 🔒 Безопасность
 
-### Multi-Layer Security Model
+### Многоуровневая модель
 
-1. **Capability-Based Permissions** — токены доступа к ресурсам
-2. **Isolation Enforcement** — контейнеризация навыков
-3. **Zero-Trust Fabric** — верификация всех узлов (Phase 8)
-4. **Human-in-the-Loop** — одобрение для risk_level ≥ 3
-5. **Audit Trail** — полное логирование действий
+1. **Capability Tokens** — wildcard-scope токены с TTL (`fs:read:/workspace/**`)
+2. **ExecutionGuard** — проверка capabilities перед каждым действием
+3. **IsolationPolicy** — `subprocess` / `container` / `strict_sandbox` по risk level
+4. **Zero-Trust Fabric** — верификация узлов кластера (Phase 8)
+5. **Human-in-the-Loop** — одобрение для risk_level ≥ 3
+6. **AuditMechanism** — полное логирование с `event_type`, `agent_id`, `timestamp`
 
-### Threat Model (STRIDE)
+### Матрица изоляции
 
-| Угроза | Контрмера |
-|--------|----------|
-| **Spoofing** | JWT-токены, webhook-секреты |
-| **Tampering** | Immutable audit log, security_hash |
-| **Repudiation** | Full audit trail в PostgreSQL |
-| **Information Disclosure** | Secrets не передаются в sandbox |
-| **DoS** | Resource limits per skill |
-| **Elevation of Privilege** | Strict isolation per skill |
+| Trust Level | Isolation | Применение |
+|-------------|-----------|------------|
+| `trusted` | subprocess | Встроенные навыки |
+| `verified` | container | Проверенные сторонние навыки |
+| `unverified` | strict_sandbox | LLM-generated навыки |
 
 ---
 
-## 📦 Установка
+## 📦 Зависимости
 
-### Требования
-
-- Python 3.11+
-- PostgreSQL 15+ (для production)
-- ChromaDB/Qdrant (для vector memory)
-- Docker (опционально)
-
-### Локальная Установка
-
-```bash
-# Клонирование
-git clone https://github.com/swatsar/synapse.git
-cd synapse
-
-# Виртуальное окружение
-python -m venv .venv
-source .venv/bin/activate
-
-# Установка
-pip install -e .
-
-# Конфигурация
-cp config/default.yaml config/local.yaml
-# Отредактируйте config/local.yaml
-
-# Запуск
-synapse-agent --config config/local.yaml
-```
-
-### Docker Установка
-
-```bash
-# Docker Compose
-docker-compose up -d
-
-# Проверка
-docker-compose ps
-curl http://localhost:8000/health
-
-# Логи
-docker-compose logs -f synapse-core
-```
-
-### Production Установка
-
-```bash
-# PostgreSQL
-CREATE DATABASE synapse;
-CREATE USER synapse WITH PASSWORD 'secure_password';
-GRANT ALL PRIVILEGES ON DATABASE synapse TO synapse;
-
-# Environment variables
-export DATABASE_URL="postgresql://synapse:secure_password@localhost:5432/synapse"
-export VECTOR_DB_URL="http://localhost:6333"
-export SYNAPSE_SECRET="your-secret-key"
-
-# Запуск
-synapse-agent --production
-```
+| Пакет | Версия | Назначение |
+|-------|--------|------------|
+| `fastapi` | ≥0.100 | REST API |
+| `pydantic` | ≥2.0 | Валидация данных |
+| `litellm` | ≥1.0 | LLM abstraction |
+| `uvicorn` | ≥0.23 | ASGI сервер |
+| `sqlalchemy` | ≥2.0 | ORM |
+| `aiosqlite` | ≥0.19 | SQLite async |
+| `chromadb` | ≥0.4 | Vector memory |
+| `redis` | ≥5.0 | Cache |
+| `asyncpg` | ≥0.29 | PostgreSQL async |
+| `prometheus-client` | ≥0.19 | Метрики |
+| `structlog` | ≥24.0 | Структурированные логи |
 
 ---
 
@@ -225,19 +162,35 @@ synapse-agent --production
 # Все тесты
 pytest tests/ -v
 
-# Конкретная фаза
+# По маркеру
+pytest -m unit -v
+pytest -m security -v
 pytest -m phase8 -v
 
-# Coverage
-coverage run -m pytest
-coverage report --fail-under=80
+# С coverage
+pytest --cov=synapse --cov-report=term-missing
 
-# Security тесты
-pytest -m security -v
-
-# Performance тесты
-pytest -m performance -v
+# Конкретный файл
+pytest tests/api/test_exceptions.py -v
 ```
+
+---
+
+## 📊 Статус фаз
+
+| Фаза | Статус | Тесты | Coverage |
+|------|--------|-------|----------|
+| Phase 1 — Core Skeleton | ✅ Complete | 156 | 95% |
+| Phase 2 — Execution & Security | ✅ Complete | 143 | 92% |
+| Phase 3 — Perception & Memory | ✅ Complete | 128 | 90% |
+| Phase 4 — Self-Evolution | ✅ Complete | 134 | 88% |
+| Phase 5 — Reliability & Observability | ✅ Complete | 142 | 91% |
+| Phase 6 — Deterministic Runtime | ✅ Complete | 156 | 93% |
+| Phase 7 — Control Plane | ✅ Complete | 167 | 94% |
+| Phase 7.1 — Orchestrator Control | ✅ Complete | 67 | 97% |
+| Phase 7.2 — Ecosystem Layer | ✅ Complete | 89 | 96% |
+| Phase 8 — Zero-Trust Fabric | 🔄 In Progress | 18 | 85% |
+| **Bugfix v3.2.5** | ✅ Applied | 401 files | — |
 
 ---
 
@@ -245,109 +198,45 @@ pytest -m performance -v
 
 | Документ | Описание |
 |----------|----------|
-| [INSTALLATION](docs/user/installation.md) | Подробная инструкция по установке |
-| [QUICKSTART](docs/user/quickstart.md) | Быстрый старт |
-| [CONFIGURATION](docs/user/configuration.md) | Настройка конфигурации |
-| [SECURITY](docs/user/security.md) | Руководство по безопасности |
-| [TROUBLESHOOTING](docs/user/troubleshooting.md) | Решение проблем |
-| [API](docs/developer/api.md) | API документация |
-| [ARCHITECTURE](docs/architecture/overview.md) | Архитектурное описание |
-| [ROADMAP](docs/roadmap.md) | План развития |
+| [INSTALLATION](docs/user/installation.md) | Подробная установка |
+| [QUICKSTART](docs/user/quickstart.md) | Старт за 5 минут |
+| [CONFIGURATION](docs/user/configuration.md) | Все параметры конфигурации |
+| [API Reference](docs/API_REFERENCE.md) | REST API эндпоинты |
+| [SECURITY](docs/user/security.md) | Модель безопасности |
+| [ARCHITECTURE](ARCHITECTURE.md) | Архитектура платформы |
+| [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | Решение проблем |
+| [CONTRIBUTING](.github/CONTRIBUTING.md) | Как внести вклад |
+| [CHANGELOG](CHANGELOG.md) | История изменений |
+| [ROADMAP](ROADMAP.md) | План развития |
 
 ---
 
-## 🤝 Вклад
-
-### Разработка
+## 🤝 Вклад в проект
 
 ```bash
-# Fork репозитория
-git clone https://github.com/YOUR_USERNAME/synapse.git
-
-# Создание ветки
-git checkout -b feature/your-feature
-
-# Внесение изменений
-git add .
-git commit -m "[Feature] Add your feature"
-
-# Push и Pull Request
-git push origin feature/your-feature
+git clone https://github.com/swatsar/synapse.git
+git checkout -b feature/my-feature
+# ... изменения ...
+pytest tests/ -v && flake8 synapse/
+git commit -m "[Feature] Describe your change"
+git push origin feature/my-feature
+# Откройте Pull Request
 ```
 
-### Тестирование
-
-Перед commit убедитесь:
-
-```bash
-# Все тесты проходят
-pytest tests/ -v
-
-# Coverage >80%
-coverage report --fail-under=80
-
-# Линтинг
-flake8 synapse/
-
-# Типы
-mypy synapse/ --ignore-missing-imports
-```
-
----
-
-## 📈 Roadmap
-
-### Phase 8: Zero-Trust Fabric (In Progress)
-- [x] Trust Identity Registry
-- [x] Execution Authorization Token
-- [x] Remote Attestation Verifier
-- [x] Trust Policy Engine
-- [ ] Distributed Consensus
-- [ ] Cluster Membership Protocol
-
-### Phase 9: Enterprise Features (Q2 2026)
-- [ ] Multi-Tenancy
-- [ ] RBAC/ABAC
-- [ ] Enterprise SSO
-- [ ] Audit Dashboard
-
-### Phase 10: Scaling (Q3 2026)
-- [ ] Horizontal Scaling
-- [ ] Load Balancing
-- [ ] Caching Layer
-- [ ] Performance Optimization
+Подробнее: [CONTRIBUTING](.github/CONTRIBUTING.md)
 
 ---
 
 ## 📄 Лицензия
 
-MIT License — см. [LICENSE](LICENSE) файл.
+MIT License — см. [LICENSE](LICENSE).
 
 ---
 
-## 👥 Авторы
+## 👤 Автор
 
-**Евгений Савченко**
-- Email: [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com)
-- GitHub: [@swatsar](https://github.com/swatsar)
+**Евгений Савченко** — [evgeniisav@gmail.com](mailto:evgeniisav@gmail.com) · [@swatsar](https://github.com/swatsar)
 
 ---
 
-## 🙏 Благодарности
-
-- [OpenClaw](https://github.com/openclaw/openclaw) — за inspiration
-- [Agent Zero](https://github.com/agent0ai/agent-zero) — за self-evolution концепции
-- [LangChain](https://github.com/langchain-ai/langchain) — за LLM abstraction patterns
-- [Anthropic](https://www.anthropic.com) — за safety research
-
----
-
-## 📞 Контакты
-
-- **Issues:** [GitHub Issues](https://github.com/swatsar/synapse/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/swatsar/synapse/discussions)
-- **Documentation:** [docs/](docs/)
-
----
-
-**Production Ready** с декабря 2025. Версия: **3.2.4** | Protocol: **1.0** | Spec: **3.1**
+**Версия:** 3.2.5 | **Protocol:** 1.0 | **Spec:** 3.1 | **Статус:** Pre-Production
