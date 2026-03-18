@@ -1,3 +1,4 @@
+from pathlib import Path
 """
 Tests for Secure State Graph.
 
@@ -14,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timezone
 
 import sys
-sys.path.insert(0, '/a0/usr/projects/project_synapse')
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).parent.parent.parent))
 
 from synapse.integrations.state_graph import (
     SecureStateGraph,

@@ -141,14 +141,17 @@ class CapabilityManager:
                 denied.append(cap)
         return SecurityCheckResult(approved=len(denied) == 0, granted=granted, denied=denied)
     
-    def _normalize_path(self, path: str) -> str:
-        """Normalize a path to prevent traversal attacks."""
-        if not path:
+    def _normalize_path(self, capability_or_path: str) -> str:
+        """Normalize a capability string or path segment (no filesystem calls)."""
+        if not capability_or_path:
             return ""
-        try:
-            return str(PurePath(path).resolve())
-        except Exception:
-            raise ValueError(f"Invalid path: {path}")
+        # For capability strings like "fs:read:/workspace/**", return as-is
+        # Only normalize actual path segments (no colons)
+        if ":" in capability_or_path:
+            return capability_or_path.strip()
+        # Normalize path separators and collapse double slashes
+        normalized = re.sub(r"/+", "/", capability_or_path.replace("\\", "/"))
+        return normalized.rstrip("/") or "/"
     
     def _is_path_traversal_attempt(self, path: str) -> bool:
         """Check if a path contains traversal patterns."""
@@ -161,24 +164,36 @@ class CapabilityManager:
         return any(capability.startswith(prefix) for prefix in ["fs:", "file:", "path:"])
     
     def _validate_path_boundary(self, pattern: str, value: str) -> bool:
-        """Validate that a value stays within pattern boundaries."""
-        parts = pattern.split(":", 2)
-        if len(parts) < 3:
+        """Validate path scope: extract path part from both pattern and value."""
+        pattern_parts = pattern.split(":", 2)
+        value_parts = value.split(":", 2)
+        if len(pattern_parts) < 3:
             return True
-        pattern_path = parts[2]
+        pattern_path = pattern_parts[2]
+        # Extract path from value (same ns:action:path format)
+        value_path = value_parts[2] if len(value_parts) >= 3 else value
         if pattern_path.endswith("/**"):
             prefix = pattern_path[:-3]
-            if not value.startswith(prefix):
+            if not value_path.startswith(prefix):
+                return False
+        elif pattern_path.endswith("/*"):
+            prefix = pattern_path[:-2]
+            # single-level wildcard: value must be directly under prefix
+            if not value_path.startswith(prefix):
                 return False
         return True
     
     def _safe_wildcard_match(self, pattern: str, value: str) -> bool:
-        """Safely match wildcards on normalized paths."""
-        import re
-        regex = pattern.replace("**", "__DBL__").replace("*", "[^/]*").replace("__DBL__", ".*")
+        """Safely match wildcards on capability strings (e.g. fs:read:/workspace/**)."""
+        import re as _re
+        # Escape special regex chars, then restore our wildcard markers
+        escaped = _re.escape(pattern)
+        # re.escape turns * into \*, ** into \*\*
+        regex = escaped.replace("\\*\\*", "DBLSTAR").replace("\\*", "SGLSTAR")
+        regex = regex.replace("DBLSTAR", ".*").replace("SGLSTAR", "[^/]*")
         try:
-            return bool(re.match(f"^{regex}$", value))
-        except re.error:
+            return bool(_re.fullmatch(regex, value))
+        except _re.error:
             return fnmatch(value, pattern)
     
     def _matches(self, pattern: str, value: str) -> bool:

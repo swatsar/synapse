@@ -15,9 +15,11 @@ class SnapshotManager:
     """
     protocol_version: str = "1.0"
 
-    def __init__(self, caps: CapabilityManager, base_path: str = "/a0/usr/projects/project_synapse"):
+    def __init__(self, caps: CapabilityManager, base_path: str = None):
         self._caps = caps
-        self._snap_dir = os.path.join(base_path, ".snapshots")
+        resolved = base_path or os.path.join(os.path.expanduser("~"), ".synapse")
+        self._snap_dir = os.path.join(resolved, ".snapshots")
+        os.makedirs(self._snap_dir, exist_ok=True)
         os.makedirs(self._snap_dir, exist_ok=True)
 
     async def create_snapshot(self, state: Dict[str, Any]) -> str:

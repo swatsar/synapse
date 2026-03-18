@@ -5,6 +5,8 @@ Specification: 3.1
 """
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from typing import Callable, Dict, List
 from datetime import datetime, timezone
 import logging
@@ -15,14 +17,14 @@ from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 
-class RequestLoggingMiddleware:
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Log all requests with correlation ID."""
 
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, app, **kwargs):
+        super().__init__(app)
         self.skip_paths = ["/health", "/metrics", "/docs", "/openapi.json"]
 
-    async def __call__(self, request: Request, call_next: Callable) -> JSONResponse:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if any(request.url.path.startswith(p) for p in self.skip_paths):
             return await call_next(request)
 
@@ -57,13 +59,13 @@ class RequestLoggingMiddleware:
         return response
 
 
-class SecurityHeadersMiddleware:
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
 
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, app, **kwargs):
+        super().__init__(app)
 
-    async def __call__(self, request: Request, call_next: Callable) -> JSONResponse:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -75,17 +77,17 @@ class SecurityHeadersMiddleware:
         return response
 
 
-class RateLimitMiddleware:
+class RateLimitMiddleware(BaseHTTPMiddleware):
     """Rate limiting by client IP."""
 
-    def __init__(self, app, requests_per_minute: int = 60):
-        self.app = app
+    def __init__(self, app, requests_per_minute: int = 60, **kwargs):
+        super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self._request_counts: Dict[str, List[float]] = defaultdict(list)
         self._cleanup_interval = 300
         self._last_cleanup = time.time()
 
-    async def __call__(self, request: Request, call_next: Callable) -> JSONResponse:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if request.url.path in ["/health", "/metrics"]:
             return await call_next(request)
 

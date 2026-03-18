@@ -200,7 +200,7 @@ class TestNoNondeterministicPaths:
         import ast
         from pathlib import Path
         
-        synapse_path = Path("/a0/usr/projects/project_synapse/synapse")
+        synapse_path = Path(__file__).parent.parent.parent / "synapse"
         
         # Check a few key files for random usage
         key_files = [

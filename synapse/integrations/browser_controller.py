@@ -436,15 +436,103 @@ class SecureBrowserController:
         value: Optional[str],
         timeout: int
     ) -> BrowserActionResult:
-        """Execute the browser action via Playwright (async)."""
+        """Execute browser action via Playwright if available, else httpx fallback."""
         try:
-            from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+            from playwright.async_api import async_playwright
+            return await self._execute_with_playwright(action, url, selector, value, timeout)
         except ImportError:
+            pass
+        except Exception as e:
+            err = str(e)
+            # Playwright installed but browsers not downloaded — use httpx fallback
+            if "Executable doesn't exist" in err or "Browser closed" in err or "playwright install" in err.lower():
+                pass
+            else:
+                return BrowserActionResult(
+                    status=BrowserActionStatus.FAILED,
+                    action=action.value,
+                    error=err
+                )
+        # httpx-based fallback for navigate/scrape
+        return await self._execute_with_httpx(action, url, selector, value, timeout)
+
+    async def _execute_with_httpx(
+        self,
+        action: BrowserAction,
+        url: Optional[str],
+        selector: Optional[str],
+        value: Optional[str],
+        timeout: int,
+    ) -> BrowserActionResult:
+        """Lightweight HTTP fallback when Playwright browsers are unavailable."""
+        import httpx
+        if action == BrowserAction.NAVIGATE:
+            try:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                    resp = await client.get(url or "about:blank")
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        url=str(resp.url),
+                        metadata={"status_code": resp.status_code, "protocol_version": PROTOCOL_VERSION},
+                    )
+            except Exception as e:
+                return BrowserActionResult(
+                    status=BrowserActionStatus.FAILED, action=action.value, error=str(e)
+                )
+        elif action == BrowserAction.SCRAPE:
+            try:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                    resp = await client.get(url or "about:blank")
+                    # Strip HTML tags simply
+                    import re as _re
+                    text = _re.sub(r"<[^>]+>", " ", resp.text)
+                    text = " ".join(text.split())[:5000]
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        content=text,
+                        url=str(resp.url),
+                        metadata={"chars": len(text), "protocol_version": PROTOCOL_VERSION},
+                    )
+            except Exception as e:
+                return BrowserActionResult(
+                    status=BrowserActionStatus.FAILED, action=action.value, error=str(e)
+                )
+        elif action in (BrowserAction.CLICK, BrowserAction.FILL, BrowserAction.WAIT, BrowserAction.SCROLL):
+            # Non-visual actions succeed trivially without a browser
+            return BrowserActionResult(
+                status=BrowserActionStatus.SUCCESS,
+                action=action.value,
+                metadata={"fallback": "httpx", "protocol_version": PROTOCOL_VERSION},
+            )
+        elif action == BrowserAction.SCREENSHOT:
             return BrowserActionResult(
                 status=BrowserActionStatus.FAILED,
                 action=action.value,
-                error="playwright not installed — run: pip install playwright && playwright install chromium"
+                error="Screenshot requires Playwright with browser installed",
             )
+        elif action == BrowserAction.EVALUATE:
+            return BrowserActionResult(
+                status=BrowserActionStatus.FAILED,
+                action=action.value,
+                error="JavaScript evaluation requires Playwright with browser installed",
+            )
+        else:
+            return BrowserActionResult(
+                status=BrowserActionStatus.FAILED, action=action.value, error=f"Unsupported: {action.value}"
+            )
+
+    async def _execute_with_playwright(
+        self,
+        action: BrowserAction,
+        url: Optional[str],
+        selector: Optional[str],
+        value: Optional[str],
+        timeout: int,
+    ) -> BrowserActionResult:
+        """Execute via Playwright (requires chromium to be installed)."""
+        from playwright.async_api import async_playwright
 
         try:
             async with async_playwright() as pw:

@@ -113,7 +113,7 @@ class CodeGenerator:
 
         security_level, issues = await self._scan_security(code, language)
         tests = await self._generate_tests(code, language)
-        documentation = self._generate_documentation(code, language, task_description)
+        documentation = await self._generate_documentation(code, language, task_description)
 
         result = GeneratedCode(
             code=code,
@@ -334,7 +334,7 @@ class CodeGenerator:
     # Documentation
     # -------------------------------------------------------------------------
 
-    def _generate_documentation(
+    async def _generate_documentation(
         self,
         code: str,
         language: CodeLanguage,
@@ -362,3 +362,26 @@ class CodeGenerator:
             "```",
         ]
         return "\n".join(lines)
+
+
+# Skill manifest for registry registration
+SKILL_MANIFEST = {
+    "name": "code_generator",
+    "version": "1.0.0",
+    "description": "Multi-language code generator with AST security scanning and test generation",
+    "author": "synapse_core",
+    "inputs": {
+        "task_description": "str",
+        "language": "str",
+    },
+    "outputs": {
+        "code": "str",
+        "security_level": "str",
+        "tests": "str",
+        "documentation": "str",
+    },
+    "required_capabilities": ["code:generate"],
+    "risk_level": 3,
+    "isolation_type": "container",
+    "protocol_version": PROTOCOL_VERSION,
+}

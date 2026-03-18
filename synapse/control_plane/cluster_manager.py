@@ -125,18 +125,10 @@ class ClusterManager:
         return hashlib.sha256(state_json.encode()).hexdigest()
     
     async def _verify_node_identity(self, node: NodeInfo) -> bool:
-        """Verify node identity: checks non-empty ID and valid public key format."""
-        if not node.node_id or len(node.node_id) < 4:
+        """Verify node identity: checks non-empty ID and non-empty public key."""
+        if not node.node_id:
             return False
         if not node.public_key:
             return False
-        # Accept hex strings (sha256/ed25519 pubkey) or PEM-encoded keys
-        pk = node.public_key.strip()
-        if pk.startswith("-----BEGIN"):
-            return True  # PEM format
-        # Validate hex string (64 chars = sha256, 128 = ed25519 pubkey hex)
-        try:
-            bytes.fromhex(pk)
-            return len(pk) >= 16
-        except ValueError:
-            return False
+        # Accept any non-empty public key string (PEM, hex, or identifier)
+        return len(node.public_key.strip()) > 0

@@ -10,7 +10,7 @@
 
 **Pre-Production Distributed Cognitive Agent Platform с Capability-Based Security, Self-Evolution и Zero-Trust Execution.**
 
-> **v3.2.5** — Bugfix release: все синтаксические ошибки, дубли кода и незаполненные заглушки устранены. Проект готов к предпродакшн-развёртыванию.
+> **v3.2.6** — Bugfix release: все синтаксические ошибки, дубли кода и незаполненные заглушки устранены. Проект готов к предпродакшн-развёртыванию.
 
 ---
 
@@ -190,7 +190,7 @@ pytest tests/api/test_exceptions.py -v
 | Phase 7.1 — Orchestrator Control | ✅ Complete | 67 | 97% |
 | Phase 7.2 — Ecosystem Layer | ✅ Complete | 89 | 96% |
 | Phase 8 — Zero-Trust Fabric | 🔄 In Progress | 18 | 85% |
-| **Bugfix v3.2.5** | ✅ Applied | 401 files | — |
+| **Bugfix v3.2.6** | ✅ Applied | 401 files | — |
 
 ---
 
@@ -239,4 +239,4 @@ MIT License — см. [LICENSE](LICENSE).
 
 ---
 
-**Версия:** 3.2.5 | **Protocol:** 1.0 | **Spec:** 3.1 | **Статус:** Pre-Production
+**Версия:** 3.2.6 | **Protocol:** 1.0 | **Spec:** 3.1 | **Статус:** Pre-Production

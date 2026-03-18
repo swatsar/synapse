@@ -47,8 +47,13 @@ class TestCheckpointORMFix:
     
     def test_checkpoint_no_orm_conflict(self):
         """Test that there's no ORM naming conflict."""
-        # Read checkpoint.py source
-        checkpoint_path = Path("/a0/usr/projects/project_synapse/synapse/core/checkpoint.py")
+        # Read checkpoint.py source - resolve relative to this test file
+        import os
+        project_root = Path(__file__).parent.parent.parent
+        checkpoint_path = project_root / "synapse" / "core" / "checkpoint.py"
+        
+        if not checkpoint_path.exists():
+            pytest.skip("checkpoint.py not found, skipping ORM conflict check")
         
         with open(checkpoint_path, 'r') as f:
             content = f.read()

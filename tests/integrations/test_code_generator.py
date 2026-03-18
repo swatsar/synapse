@@ -1,10 +1,11 @@
+from pathlib import Path
 """Tests for Code Generator."""
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 import sys
-sys.path.insert(0, '/a0/usr/projects/project_synapse')
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).parent.parent.parent))
 
 from synapse.integrations.code_generator import (
     CodeGenerator,

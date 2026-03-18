@@ -1,3 +1,4 @@
+from pathlib import Path
 """
 Tests for Secure Browser Controller.
 
@@ -15,7 +16,7 @@ from datetime import datetime
 
 # Import the module
 import sys
-sys.path.insert(0, '/a0/usr/projects/project_synapse')
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).parent.parent.parent))
 
 from synapse.integrations.browser_controller import (
     SecureBrowserController,
