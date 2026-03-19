@@ -27,7 +27,7 @@ A clear and concise description of what actually happened.
 
 ## 🔧 Environment
 
-- **Synapse Version:** [e.g. 3.1.0]
+- **Synapse Version:** [e.g. 3.4.1]
 - **Python Version:** [e.g. 3.11.5]
 - **OS:** [e.g. Ubuntu 22.04]
 - **Deployment Mode:** [e.g. Docker/Local/VPS]

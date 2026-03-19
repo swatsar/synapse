@@ -1,6 +1,6 @@
 # Synapse API Reference
 
-**Version:** 3.2.5
+**Version:** 3.4.1
 **Protocol Version:** 1.0
 **Base URL:** `http://localhost:8000`
 
@@ -36,7 +36,7 @@ WebSocket (`/ws`) принимает токен через query-парамет�
 ```json
 {
   "status": "healthy",
-  "version": "3.2.5",
+  "version": "3.4.1",
   "protocol_version": "1.0",
   "timestamp": "2026-03-18T10:00:00+00:00"
 }
@@ -52,7 +52,7 @@ WebSocket (`/ws`) принимает токен через query-парамет�
 ```json
 {
   "status": "operational",
-  "version": "3.2.5",
+  "version": "3.4.1",
   "protocol_version": "1.0",
   "agents": 4,
   "uptime_seconds": 3600,

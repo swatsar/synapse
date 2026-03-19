@@ -4,7 +4,7 @@
 
 Strategic development roadmap for Synapse Platform (12-18 months).
 
-**Current Version:** 3.1.0  
+**Current Version:** 3.4.1  
 **Protocol Version:** 1.0  
 **Status:** Production-Ready
 

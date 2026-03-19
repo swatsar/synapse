@@ -65,7 +65,7 @@ GET /health
 ```json
 {
   "status": "healthy",
-  "version": "3.2.5",
+  "version": "3.4.1",
   "protocol_version": "1.0",
   "timestamp": "2026-03-18T10:00:00+00:00"
 }

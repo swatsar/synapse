@@ -78,7 +78,7 @@ asyncio.run(main())
 
 ```bash
 curl http://localhost:8000/health
-# {"status":"healthy","version":"3.2.5","protocol_version":"1.0",...}
+# {"status":"healthy","version":"3.4.1","protocol_version":"1.0",...}
 ```
 
 ---

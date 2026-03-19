@@ -4,7 +4,7 @@
 
 Synapse is a **Production-Ready Distributed Cognitive Agent Platform** designed for deterministic, capability-secured, policy-governed autonomous execution.
 
-**Version:** 3.1.0  
+**Version:** 3.4.1  
 **Protocol Version:** 1.0  
 **Status:** Production-Ready
 

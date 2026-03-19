@@ -274,10 +274,10 @@ This guide provides comprehensive security hardening procedures for production d
 - [ ] **Scan images for vulnerabilities**
   ```bash
   # Trivy scan
-  trivy image synapse/core:3.1.0
+  trivy image synapse/core:3.4.1
   
   # Docker scan
-  docker scan synapse/core:3.1.0
+  docker scan synapse/core:3.4.1
   ```
 
 - [ ] **Use read-only filesystem where possible**
@@ -345,10 +345,10 @@ semgrep --config=auto synapse/
 
 ```bash
 # Trivy - Container vulnerability scanner
-trivy image synapse/core:3.1.0
+trivy image synapse/core:3.4.1
 
 # Grype - Another vulnerability scanner
-grype synapse/core:3.1.0
+grype synapse/core:3.4.1
 
 # Docker Bench Security
 docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \

@@ -1,6 +1,6 @@
 # Phase 6.1 Architecture Baseline
 
-**Version:** 3.2.1  
+**Version:** 3.4.1  
 **Date:** 2026-02-23  
 **Protocol Version:** 1.0  
 **Status:** FROZEN

@@ -376,7 +376,7 @@ curl -X POST http://localhost:8000/api/v1/execute \
 
 ```bash
 curl http://localhost:8000/api/v1/version
-# {"version": "3.1.0", "protocol_version": "1.0", "spec_version": "3.1"}
+# {"version": "3.4.1", "protocol_version": "1.0", "spec_version": "3.1"}
 ```
 
 ---
@@ -397,4 +397,4 @@ docker-compose up -d
 
 **Protocol Version:** 1.0  
 **Spec Version:** 3.1  
-**Docker Image:** synapse/core:3.1.0
+**Docker Image:** synapse/core:3.4.1

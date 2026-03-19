@@ -55,7 +55,7 @@ PROMETHEUS_PORT=9090
 ```yaml
 system:
   name: "Synapse"
-  version: "3.2.5"
+  version: "3.4.1"
   mode: "local"             # local | docker | distributed
   protocol_version: "1.0"
 

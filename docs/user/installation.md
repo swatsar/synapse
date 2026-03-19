@@ -1,6 +1,6 @@
 # Руководство по установке Synapse
 
-**Protocol Version:** 1.0 | **Spec Version:** 3.1 | **Версия:** 3.2.5
+**Protocol Version:** 1.0 | **Spec Version:** 3.1 | **Версия:** 3.4.1
 
 ---
 
@@ -189,7 +189,7 @@ sudo systemctl status synapse
 curl http://localhost:8000/health
 
 # Ожидаемый ответ:
-# {"status":"healthy","version":"3.2.5","protocol_version":"1.0",...}
+# {"status":"healthy","version":"3.4.1","protocol_version":"1.0",...}
 
 # Статус агентов
 curl -H "X-API-Key: $SYNAPSE_API_KEY" http://localhost:8000/api/v1/agents
@@ -221,5 +221,5 @@ rm -rf .venv
 
 # Docker
 docker-compose -f docker/docker-compose.yml down -v
-docker rmi synapse/core:3.2.5
+docker rmi synapse/core:3.4.1
 ```

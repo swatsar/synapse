@@ -86,7 +86,7 @@ sudo spctl --master-disable
 1. Re-download the DMG file
 2. Verify checksum:
    ```bash
-   shasum -a 256 synapse-3.1.0.dmg
+   shasum -a 256 synapse-3.4.1.dmg
    # Compare with published checksum
    ```
 3. If still failing:
@@ -105,8 +105,8 @@ sudo spctl --master-disable
 
 **Solution:**
 ```bash
-chmod +x synapse-3.1.0.AppImage
-./synapse-3.1.0.AppImage
+chmod +x synapse-3.4.1.AppImage
+./synapse-3.4.1.AppImage
 ```
 
 #### "Cannot open shared object file" (missing libraries)

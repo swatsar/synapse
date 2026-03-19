@@ -1,6 +1,6 @@
 # Архитектура Synapse
 
-**Protocol Version:** 1.0 | **Spec Version:** 3.1 | **Версия:** 3.2.5
+**Protocol Version:** 1.0 | **Spec Version:** 3.1 | **Версия:** 3.4.1
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SYNAPSE PLATFORM v3.2.5                      │
+│                    SYNAPSE PLATFORM v3.4.1                      │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
@@ -20,6 +20,7 @@
 │  ┌───────────────────────────────────────────────────┐          │
 │  │          CAPABILITY SECURITY LAYER                │          │
 │  │  CapabilityManager · ExecutionGuard · AuditMech   │          │
+│  │  4-Level Trust Model · CapabilityScope Enum       │          │
 │  └───────────────────────────────────────────────────┘          │
 │         │                 │                 │                   │
 │         ▼                 ▼                 ▼                   │
@@ -32,6 +33,11 @@
 │  │ Execution   │  │   Memory     │  │   Policy    │           │
 │  │   Nodes     │  │    Vault     │  │   Engine    │           │
 │  └─────────────┘  └──────────────┘  └─────────────┘           │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────┐          │
+│  │     ENVIRONMENT ABSTRACTION LAYER                 │          │
+│  │  WindowsAdapter · LinuxAdapter · MacOSAdapter     │          │
+│  └───────────────────────────────────────────────────┘          │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -54,36 +60,50 @@
 ```
 CapabilityManager      — выдача, проверка, отзыв токенов
   └── CapabilityToken  — wildcard scope + TTL
+  └── CapabilityScope  — enum: FILESYSTEM_READ, FILESYSTEM_WRITE, NETWORK_HTTP,
+                         PROCESS_SPAWN, DEVICE_IOT, SYSTEM_INFO
 PermissionEnforcer     — enforce(action, agent_id)
 AuditMechanism         — emit_event(), get_events(), get_event_count()
 RuntimeGuard           — guard(action, capabilities, agent_id)
 SecurityManager        — единый фасад для всех security-операций
 ```
 
-### Layer 3: Deterministic Execution Fabric (`synapse/core/`)
+### Layer 3: Execution Trust Model (`synapse/core/isolation_policy.py`)
+
+4-уровневая модель доверия к исполняемому коду:
+
+| Trust Level | Isolation | Источник кода | Права |
+|-------------|-----------|---------------|-------|
+| **Trusted** | subprocess | Встроенные навыки ядра | Полный доступ через capability-токены |
+| **Verified** | subprocess (isolated) | Прошли автотесты + AST-анализ | Только заявленные capabilities |
+| **Unverified** | sandbox (strict) | Только что сгенерированы LLM | Только вычисления, нет I/O |
+| **Human-Approved** | subprocess (extended) | Одобрены пользователем | Расширенный доступ по запросу |
+
+### Layer 4: Deterministic Execution Fabric (`synapse/core/`)
 
 ```
 DeterministicSeedManager   — детерминированные RNG seeds
 DeterministicIDGenerator   — воспроизводимые UUIDs
-Orchestrator               — 10-шаговый когнитивный цикл
+Orchestrator               — 8-шаговый когнитивный цикл
 CheckpointManager          — сохранение состояния
 RollbackManager            — откат к предыдущему состоянию
 ```
 
-### Layer 4: Agent Runtime (`synapse/agents/`)
+### Layer 5: Agent Runtime (`synapse/agents/`)
 
 ```
 agents/
 ├── runtime/agent.py    — BaseAgent: perceive→recall→plan→act→learn
 ├── supervisor/         — SupervisorAgent: координация подагентов
 ├── planner.py          — Планирование задач
-├── critic.py           — Оценка качества выполнения
+├── critic.py           — Оценка качества выполнения (метапознание)
 ├── developer.py        — Разработка и тестирование навыков
+├── forecaster.py       — Прогнозирование
 ├── governor.py         — Управление политиками и ресурсами
 └── guardian.py         — Безопасность и мониторинг
 ```
 
-### Layer 5: Skill System (`synapse/skills/`)
+### Layer 6: Skill System (`synapse/skills/`)
 
 6-статусный lifecycle навыков:
 
@@ -93,7 +113,7 @@ GENERATED → TESTED → VERIFIED → ACTIVE → DEPRECATED → ARCHIVED
 
 ```
 skills/
-├── base.py              — BaseSkill (abstract)
+├── base.py              — BaseSkill (abstract), SkillTrustLevel
 ├── builtins/
 │   ├── read_file.py     — FileReadSkill
 │   ├── write_file.py    — FileWriteSkill
@@ -105,7 +125,7 @@ skills/
 └── self_improvement/    — Self-improvement engine
 ```
 
-### Layer 6: LLM Abstraction (`synapse/llm/`)
+### Layer 7: LLM Abstraction (`synapse/llm/`)
 
 ```
 LLMRouter
@@ -113,18 +133,39 @@ LLMRouter
 ├── select_provider(capability)     — выбор по приоритету
 ├── generate(prompt, **kwargs)      — генерация с fallback
 └── set_safe_provider(name)         — провайдер для safe mode
+
+LLMModelRouter                      — task-based routing, cost tracking, failover
+ChainSystem                         — LLMChain, SequentialChain, ParallelChain, RouterChain
+OutputParsers                       — JSON, Pydantic, List, Boolean, Structured
 ```
 
 Приоритеты: `PRIMARY=1`, `FALLBACK=2`, `SAFE=3`
 
-### Layer 7: Memory (`synapse/memory/`)
+### Layer 8: Memory (`synapse/memory/`)
 
 ```
-MemoryStore               — SQL + vector store
+MemoryStore               — SQL-backed: short_term, long_term, episodic
+VectorStore               — ChromaDB/Qdrant: семантическая память
 DistributedMemoryStore    — распределённая память кластера
 ```
 
-### Layer 8: Zero-Trust Fabric (`synapse/zero_trust/`)
+### Layer 9: Environment Abstraction (`synapse/environment/`)
+
+Кроссплатформенный слой, скрывающий специфику ОС:
+
+```
+environment/
+├── base.py                 — EnvironmentAdapter (abstract interface)
+├── local_os.py             — Локальное окружение
+├── docker_env.py           — Docker-окружение
+└── adapters/
+    ├── factory.py          — Автоматический выбор адаптера по ОС
+    ├── windows.py          — WindowsAdapter
+    ├── linux.py            — LinuxAdapter
+    └── macos.py            — MacOSAdapter
+```
+
+### Layer 10: Zero-Trust Fabric (`synapse/zero_trust/`)
 
 Phase 8 (in progress):
 ```
@@ -137,46 +178,41 @@ authorization.py — ExecutionAuthorizationToken
 
 ---
 
-## Когнитивный цикл агента (10 шагов)
+## Когнитивный цикл агента (8 шагов)
+
+Реализация спецификации: **Восприятие → Воспоминание → Планирование → Безопасность → Действие → Наблюдение → Оценка → Обучение**
 
 ```python
-# synapse/agents/runtime/agent.py
+# synapse/core/orchestrator.py
 
-async def run_once(self):
+async def run_cognitive_cycle(self, event):
     # 1. PERCEIVE — получение входящего события
-    event = await self.perceive()
+    perceived = await self.perceive(event)
 
     # 2. RECALL — извлечение релевантной памяти
-    context = await self.recall(event)
+    recalled = await self.recall(perceived)
 
     # 3. PLAN — генерация плана действий через LLM
-    plan = await self.plan(event, context)
+    plan = await self.plan(perceived, recalled)
 
     # 4. SECURITY — проверка capabilities + оценка риска
     security_result = await self.security_check(plan)
     if not security_result["approved"]:
-        return
+        return CognitiveCycleResult(success=False, error="security_denied")
 
-    # 5. APPROVE — Human-in-the-Loop для risk_level ≥ 3
-    if plan.risk_level >= 3:
-        approved = await self.request_approval(plan)
-        if not approved:
-            return
+    # 5. ACT — выполнение в sandbox/subprocess/container через ExecutionGuard
+    action_result = await self.act(plan)
 
-    # 6. CHECKPOINT — сохранение состояния
-    await self.checkpoint(event, plan)
+    # 6. OBSERVE — анализ результата
+    observation = await self.observe(action_result)
 
-    # 7. ACT — выполнение в sandbox через ExecutionGuard
-    result = await self.act(plan)
-
-    # 8. OBSERVE — анализ результата
-    observation = await self.observe(result)
-
-    # 9. EVALUATE — оценка качества через CriticAgent
+    # 7. EVALUATE — оценка качества через CriticAgent
     evaluation = await self.evaluate(observation)
 
-    # 10. LEARN — консолидация в память
-    await self.learn(evaluation)
+    # 8. LEARN — консолидация в память + self-improvement
+    learning = await self.learn(evaluation)
+
+    return CognitiveCycleResult(success=True, ...)
 ```
 
 ---
@@ -195,11 +231,11 @@ Client → FastAPI → RateLimitMiddleware → SecurityHeadersMiddleware
 
 ```
 Skill.execute()
-  → ExecutionGuard.validate_capabilities()
-  → CapabilityManager.check_capabilities(required, agent_id)
-  → CapabilityToken.match_capability() [wildcard/exact/prefix]
-  → AuditMechanism.emit_event("capability_checked"|"capability_denied")
-  → SecurityCheckResult(approved: bool)
+  → ExecutionGuard.check_execution_allowed(skill, context)
+  → IsolationPolicy.get_required_isolation(trust_level, risk_level)
+  → CapabilityManager.check_capability(context, cap)
+  → AuditMechanism → audit log
+  → ExecutionCheckResult(allowed, requires_approval, required_isolation)
 ```
 
 ### Skill lifecycle
@@ -208,9 +244,9 @@ Skill.execute()
 LLM generates code
   → SkillRegistry.register(status=GENERATED)
   → AutoTest passes → status=TESTED
-  → SecurityScan passes → status=VERIFIED
-  → Manual activation → status=ACTIVE
-  → Obsolete → status=DEPRECATED
+  → SecurityScan (AST analysis) passes → status=VERIFIED
+  → Human approval → status=ACTIVE
+  → Low success_rate → status=DEPRECATED
   → Cleanup → status=ARCHIVED (terminal)
 ```
 
@@ -222,12 +258,12 @@ LLM generates code
 |------|------------|
 | API | FastAPI + Uvicorn |
 | Валидация | Pydantic v2 |
-| LLM | litellm (multi-provider) |
+| LLM | litellm (100+ провайдеров) |
 | ORM | SQLAlchemy 2.0 (async) |
 | Vector DB | ChromaDB / Qdrant |
 | Cache | Redis |
 | Metrics | Prometheus + Grafana |
 | Logging | structlog |
 | Containers | Docker / Docker Compose |
-| CI/CD | GitHub Actions |
-| Security | Capability tokens + Zero-Trust |
+| Security | Capability tokens + 4-Level Trust Model + Zero-Trust |
+| Cross-platform | Environment Adapters (Windows/Linux/macOS) |
