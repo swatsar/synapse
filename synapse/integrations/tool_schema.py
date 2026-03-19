@@ -205,3 +205,7 @@ SKILL_MANIFEST = {
     "isolation_type": "subprocess",
     "protocol_version": PROTOCOL_VERSION
 }
+
+
+# Anthropic Tool Use API compatibility alias (ANTHROPIC_PATTERNS_INTEGRATION.md §1.2)
+ToolDefinition = ToolSchema  # ToolSchema IS the ToolDefinition per Anthropic pattern

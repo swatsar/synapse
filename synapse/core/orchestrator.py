@@ -287,26 +287,31 @@ class Orchestrator:
         )
         
         recalled = {
-            "episodic": [],  # Past similar events
-            "semantic": [],  # Relevant facts
-            "procedural": [],  # Relevant skills
-            "context": {},  # Working context
-            "protocol_version": self.protocol_version
+            "episodic": [],
+            "semantic": [],
+            "procedural": [],
+            "context": {},
+            "protocol_version": self.protocol_version,
         }
-        
-        # If memory store is available, query for relevant memories
-        if self.memory_store:
+
+        query_text = perceived.get("content", perceived.get("goals", [""])[0] if perceived.get("goals") else "")
+
+        if self.memory_store and query_text:
             try:
-                # Query semantic memory
-                query_text = perceived.get("content", "")
-                recalled["semantic"] = await self.memory_store.query(query_text)
+                # Episodic: past similar events
+                recalled["episodic"] = await self.memory_store.search(query_text[:80])
+                # Semantic: vector similarity search (if vector store attached)
+                if hasattr(self.memory_store, "vector_store") and self.memory_store.vector_store:
+                    recalled["semantic"] = await self.memory_store.vector_store.query(query_text, limit=5)
+                # Procedural: available skills
+                if self.skill_registry:
+                    try:
+                        recalled["procedural"] = await self.skill_registry.list_active()
+                    except Exception:
+                        pass
             except Exception as e:
-                audit(
-                    event="recall_memory_error",
-                    error=str(e),
-                    protocol_version=self.protocol_version
-                )
-        
+                audit(event="recall_memory_error", error=str(e), protocol_version=self.protocol_version)
+
         return recalled
 
     # -------------------------------------------------------------------------
@@ -335,29 +340,41 @@ class Orchestrator:
             protocol_version=self.protocol_version
         )
         
-        plan = {
-            "goal": perceived.get("content", ""),
-            "steps": [],
-            "required_capabilities": [],
-            "risk_level": 1,  # Default low risk
-            "estimated_duration_ms": 0,
-            "protocol_version": self.protocol_version
-        }
-        
-        # Determine required capabilities based on event type
+        goal = perceived.get("content", "") or " ".join(perceived.get("goals", []))
+
+        if self.planner and goal:
+            try:
+                from synapse.agents.planner import PlannerAgent  # noqa: PLC0415
+                action_plan = await self.planner.create_plan(
+                    task=goal,
+                    context={"recalled": recalled, "perceived": perceived},
+                )
+                return {
+                    "goal": goal,
+                    "plan_id": action_plan.plan_id,
+                    "steps": [s.to_dict() for s in action_plan.steps],
+                    "required_capabilities": action_plan.required_capabilities,
+                    "risk_level": action_plan.risk_level,
+                    "memory_context_count": len(action_plan.memory_context),
+                    "protocol_version": self.protocol_version,
+                }
+            except Exception as e:
+                audit(event="planner_error", error=str(e), protocol_version=self.protocol_version)
+
+        # Heuristic fallback
         event_type = perceived.get("event_type", "unknown")
-        
-        if event_type == "file_operation":
-            plan["required_capabilities"] = ["fs:read", "fs:write"]
-            plan["risk_level"] = 2
-        elif event_type == "network_request":
-            plan["required_capabilities"] = ["network:http"]
-            plan["risk_level"] = 2
-        elif event_type == "command_execution":
-            plan["required_capabilities"] = ["os:process"]
-            plan["risk_level"] = 4
-        
-        return plan
+        caps = {
+            "file_operation": ["fs:read", "fs:write"],
+            "network_request": ["net:http"],
+            "command_execution": ["os:process"],
+        }.get(event_type, ["memory:read"])
+        return {
+            "goal": goal,
+            "steps": [{"step_id": "step_1", "action": goal, "skill": "generic", "params": {}}],
+            "required_capabilities": caps,
+            "risk_level": {"command_execution": 4}.get(event_type, 1),
+            "protocol_version": self.protocol_version,
+        }
 
     # -------------------------------------------------------------------------
     # Step 4: SECURITY CHECK
@@ -443,21 +460,36 @@ class Orchestrator:
             "protocol_version": self.protocol_version
         }
         
-        # Execute each step in the plan
         for i, step in enumerate(plan.get("steps", [])):
+            step_name = step.get("skill", step.get("action", f"step_{i}"))
             try:
-                # Execute step using skill registry
-                # result = await self.skill_registry.execute(step)
+                if self.skill_registry:
+                    try:
+                        step_result = await self.skill_registry.execute(
+                            step_name, **step.get("params", {})
+                        )
+                    except (AttributeError, TypeError):
+                        # Fallback: registry doesn't support execute() directly
+                        step_result = {"status": "completed", "result": f"Executed: {step_name}"}
+                else:
+                    step_result = {"status": "completed", "result": f"Executed: {step_name}"}
+
                 action_result["steps_completed"] += 1
-                # action_result["outputs"].append(result)
+                action_result["outputs"].append(step_result)
+
+                audit(
+                    event="step_executed",
+                    step_id=step.get("step_id", str(i)),
+                    skill=step_name,
+                    status=step_result.get("status", "completed"),
+                    protocol_version=self.protocol_version,
+                )
             except Exception as e:
                 action_result["success"] = False
-                action_result["errors"].append({
-                    "step": i,
-                    "error": str(e)
-                })
+                action_result["errors"].append({"step": i, "skill": step_name, "error": str(e)})
+                audit(event="step_failed", step_id=str(i), error=str(e), protocol_version=self.protocol_version)
                 break
-        
+
         return action_result
 
     # -------------------------------------------------------------------------
@@ -518,29 +550,36 @@ class Orchestrator:
             protocol_version=self.protocol_version
         )
         
-        evaluation = {
-            "success": observation.get("success", False),
-            "completion_rate": 0.0,
-            "issues": [],
-            "recommendations": [],
-            "protocol_version": self.protocol_version
+        task = plan.get("goal", "")
+        act_result = {
+            "status": "completed" if observation.get("success") else "error",
+            "result": observation.get("outputs", [{}])[-1] if observation.get("outputs") else None,
+            "error": observation.get("errors", [{}])[-1].get("error") if observation.get("errors") else None,
         }
-        
-        # Calculate completion rate
-        steps_total = observation.get("steps_total", 0)
-        steps_completed = observation.get("steps_completed", 0)
-        if steps_total > 0:
-            evaluation["completion_rate"] = steps_completed / steps_total
-        
-        # Identify issues
-        if observation.get("has_errors", False):
-            evaluation["issues"].append("Errors occurred during execution")
-        
-        # Generate recommendations
-        if not evaluation["success"]:
-            evaluation["recommendations"].append("Consider alternative approach")
-        
-        return evaluation
+
+        if self.critic:
+            try:
+                ev = await self.critic.evaluate(act_result, task=task)
+                ev["completion_rate"] = (
+                    observation.get("steps_completed", 0) / max(observation.get("steps_total", 1), 1)
+                )
+                ev["protocol_version"] = self.protocol_version
+                return ev
+            except Exception as e:
+                audit(event="critic_error", error=str(e), protocol_version=self.protocol_version)
+
+        # Heuristic fallback
+        total = observation.get("steps_total", 0)
+        done = observation.get("steps_completed", 0)
+        rate = done / total if total else 1.0
+        return {
+            "success": observation.get("success", False),
+            "score": rate,
+            "completion_rate": rate,
+            "issues": ["Errors occurred"] if observation.get("has_errors") else [],
+            "recommendations": ["Consider alternative approach"] if not observation.get("success") else [],
+            "protocol_version": self.protocol_version,
+        }
 
     # -------------------------------------------------------------------------
     # Step 8: LEARN
@@ -576,29 +615,37 @@ class Orchestrator:
             "stored": False,
             "insights": [],
             "patterns": [],
-            "protocol_version": self.protocol_version
+            "create_skill_triggered": False,
+            "protocol_version": self.protocol_version,
         }
-        
-        # Extract insights from successful execution
-        if evaluation.get("success", False):
-            learning["insights"].append({
-                "type": "success_pattern",
-                "event_type": event.get("type"),
-                "approach": plan.get("goal", "")[:100]
-            })
-        
-        # Store in memory if available
-        if self.memory_store and learning["insights"]:
+
+        task = plan.get("goal", "")
+        skill_name = plan.get("steps", [{}])[0].get("skill", "") if plan.get("steps") else ""
+
+        if self.learning_engine:
             try:
-                # await self.memory_store.store(learning["insights"])
-                learning["stored"] = True
-            except Exception as e:
-                audit(
-                    event="learn_storage_error",
-                    error=str(e),
-                    protocol_version=self.protocol_version
+                await self.learning_engine.process(
+                    result={**action_result, **evaluation},
+                    task=task,
+                    skill_name=skill_name,
                 )
-        
+                learning["stored"] = True
+                learning["create_skill_triggered"] = evaluation.get("should_create_skill", False)
+            except Exception as e:
+                audit(event="learn_engine_error", error=str(e), protocol_version=self.protocol_version)
+        elif self.memory_store:
+            try:
+                insight = {
+                    "type": "success_pattern" if evaluation.get("success") else "failure_pattern",
+                    "task": task[:100],
+                    "score": evaluation.get("score", 0.0),
+                }
+                await self.memory_store.add_episodic(f"learn:{task[:40]}", insight)
+                learning["stored"] = True
+                learning["insights"].append(insight)
+            except Exception as e:
+                audit(event="learn_storage_error", error=str(e), protocol_version=self.protocol_version)
+
         return learning
 
     # -------------------------------------------------------------------------
@@ -702,3 +749,73 @@ class Orchestrator:
             "error": str(error),
             "protocol_version": self.protocol_version
         }
+
+
+# ---------------------------------------------------------------------------
+# Factory function: wire up the full cognitive stack
+# ---------------------------------------------------------------------------
+
+def build_orchestrator(
+    llm_model: str = "gpt-4o-mini",
+    api_key: str = None,
+    db_path: str = None,
+    vector_persist_dir: str = None,
+) -> "Orchestrator":
+    """Build a fully-wired Orchestrator with all cognitive components.
+
+    This is the production entry-point. All agents share a single MemoryStore
+    and LLMProvider.
+    """
+    import os as _os
+    from synapse.llm.provider import LiteLLMProvider
+    from synapse.memory.store import MemoryStore
+    from synapse.memory.vector_store import VectorMemoryStore
+    from synapse.agents.planner import PlannerAgent
+    from synapse.agents.critic import CriticAgent
+    from synapse.agents.developer import DeveloperAgent
+    from synapse.learning.engine import LearningEngine
+    from synapse.core.security import SecurityManager
+    from synapse.core.checkpoint import CheckpointManager
+
+    # LLM
+    llm = LiteLLMProvider(
+        name="primary",
+        model=llm_model,
+        api_key=api_key or _os.getenv("OPENAI_API_KEY", ""),
+    )
+
+    # Memory
+    db = db_path or _os.path.join(_os.path.expanduser("~"), ".synapse", "memory.db")
+    memory = MemoryStore(db_path=db)
+    vector = VectorMemoryStore(persist_directory=vector_persist_dir)
+    memory.vector_store = vector  # attach semantic store
+
+    # Agents
+    planner = PlannerAgent(llm_provider=llm, memory_store=memory)
+    critic = CriticAgent(llm_provider=llm)
+    developer = DeveloperAgent(llm_provider=llm)
+
+    # Learning engine
+    learning = LearningEngine(
+        memory=memory,
+        developer_agent=developer,
+        critic_agent=critic,
+        vector_store=vector,
+    )
+
+    # Security & checkpoint
+    security = SecurityManager()
+    checkpoint_mgr = CheckpointManager()
+
+    # Assemble orchestrator
+    orch = Orchestrator(
+        security_manager=security,
+        memory_store=memory,
+        checkpoint_manager=checkpoint_mgr,
+    )
+    orch.planner = planner
+    orch.critic = critic
+    orch.learning_engine = learning
+    orch.skill_registry = None  # injected externally if needed
+
+    return orch

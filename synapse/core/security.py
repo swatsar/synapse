@@ -14,6 +14,9 @@ import fnmatch
 from synapse.observability.logger import audit
 
 PROTOCOL_VERSION: str = "1.0"
+
+# Re-export CapabilityScope for convenience
+from synapse.core.capability_scope import CapabilityScope, CapabilityToken, make_token  # noqa: F401
 SPEC_VERSION: str = "3.1"
 
 

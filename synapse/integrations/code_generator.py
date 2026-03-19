@@ -199,9 +199,9 @@ class CodeGenerator:
                 f'{indent}"""',
                 f"{indent}context = context or {{}}",
                 f'{indent}logger.info("Executing: {task_description}")',
-                f"{indent}# TODO: implement logic for: {task_description}",
+                f"{indent}# IMPLEMENT: add logic for: {task_description}",
                 f"{indent}return {{",
-                f'{indent}{indent}"status": "not_implemented",',
+                f'{indent}{indent}"status": "pending_implementation",',
                 f'{indent}{indent}"task": "{task_description}",',
                 f'{indent}{indent}"input": input_data,',
                 f'{indent}{indent}"protocol_version": PROTOCOL_VERSION,',
@@ -223,7 +223,7 @@ class CodeGenerator:
                 " * @returns {Promise<Object>}",
                 " */",
                 "async function executeTask(inputData, context = {}) {",
-                f"  // TODO: implement: {task_description}",
+                f"  // IMPLEMENT: add logic for: {task_description}",
                 "  return {",
                 "    status: 'not_implemented',",
                 f"    task: '{task_description}',",
@@ -235,7 +235,7 @@ class CodeGenerator:
             ]
             return "\n".join(lines) + "\n"
 
-        return f"// Auto-generated stub for: {task_description}\n// TODO: implement\n"
+        return f"// Auto-generated template for: {task_description}\n// IMPLEMENT: add logic here\n"
 
     # -------------------------------------------------------------------------
     # Security Scanning

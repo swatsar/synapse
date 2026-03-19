@@ -48,7 +48,8 @@ class MemoryStore:
     
     def __init__(self, db_path: Optional[str] = None):
         self.protocol_version = "1.0"
-        self.db_path = db_path or os.path.join(os.getcwd(), "synapse", "memory", "memory.db")
+        self.db_path = db_path
+        self.vector_store = None  # Attached externally: VectorMemoryStore or os.path.join(os.getcwd(), "synapse", "memory", "memory.db")
         # No async task is started here – we will create it lazily when needed
         self._init_task: Optional[asyncio.Task] = None
 

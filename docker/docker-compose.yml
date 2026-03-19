@@ -4,7 +4,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: synapse/core:3.2.7
+    image: synapse/core:3.4.0
     container_name: synapse-core
     ports:
     - 8000:8000   # API

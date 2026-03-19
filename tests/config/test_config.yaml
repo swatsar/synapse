@@ -1,0 +1,12 @@
+synapse:
+  protocol_version: "1.0"
+  spec_version: "3.1"
+  environment: "test"
+database:
+  url: "sqlite+aiosqlite:///:memory:"
+llm:
+  default_model: "gpt-4o-mini"
+  timeout: 30
+security:
+  max_risk_level: 5
+  require_human_approval_above: 4
