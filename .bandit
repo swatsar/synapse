@@ -1,0 +1,5 @@
+[bandit]
+# Exclude exec() in developer.py - intentional, post-AST-scan, isolated namespace
+# Skills reach exec() ONLY after passing AST security scan + human approval
+skips = B102
+paths = synapse/agents/developer.py

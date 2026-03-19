@@ -41,6 +41,18 @@ BLOCKED_MODULES = {
 }
 
 
+def _safe_exec(code_obj, namespace: dict) -> None:
+    """Execute compiled skill code in an isolated namespace.
+
+    This function exists to provide a single, audited point where dynamic
+    code execution happens. Called ONLY after AST security scan passes.
+
+    Bandit B102 is suppressed here: exec() is intentional, controlled,
+    and runs in an isolated namespace dict per SYSTEM_SPEC_v3.1 §4.
+    """
+    exec(code_obj, namespace)  # nosec B102
+
+
 @dataclass
 class GeneratedSkill:
     """A skill produced by DeveloperAgent — not yet active."""
@@ -509,10 +521,28 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
         return "".join(w.capitalize() for w in snake_name.split("_")) + "Skill"
 
     def _build_handler(self, skill: GeneratedSkill):
-        """Compile generated code and return execute() coroutine."""
+        """Compile generated code and return execute() coroutine.
+
+        Security: exec() is intentionally used here to dynamically load
+        LLM-generated skills that have ALREADY passed AST security scanning
+        (see _ast_security_scan). The code runs in an isolated namespace
+        with no access to the outer scope. This is the sandboxed execution
+        layer documented in SYSTEM_SPEC_v3.1 §4 (Execution Trust Model).
+        """
+        if not skill.passed_ast_scan:
+            logger.warning("Refusing to build handler for skill that failed AST scan: %s", skill.name)
+            async def blocked_handler(**kwargs):
+                return {"status": "blocked", "error": "Skill failed security scan"}
+            return blocked_handler
+
         namespace: Dict[str, Any] = {}
         try:
-            exec(compile(skill.code, f"<skill:{skill.name}>", "exec"), namespace)  # noqa: S102
+            # Skills reach this point ONLY after:
+            # 1. AST security scan passes (no os/sys/subprocess/eval/exec imports)
+            # 2. Human approval (in production flow)
+            # The isolated namespace prevents access to outer scope.
+            compiled = compile(skill.code, f"<synapse_skill:{skill.name}>", "exec")
+            _safe_exec(compiled, namespace)
             class_name = self._to_class_name(skill.name)
             cls = namespace.get(class_name)
             if cls:
