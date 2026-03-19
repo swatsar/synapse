@@ -1,8 +1,9 @@
 pytest>=7.0
 pytest-asyncio>=0.21
+pytest-cov>=4.0.0
 requests>=2.31
 coverage>=7.0
 pydantic>=2.5
 aiosqlite
 aiofiles
-aiofiles
+freezegun>=1.2.0

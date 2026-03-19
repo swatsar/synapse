@@ -183,8 +183,8 @@ class MacOSAdapter(EnvironmentAdapter):
             if cpu_result['returncode'] == 0:
                 try:
                     cpu_percent = float(cpu_result['stdout'].strip())
-                except Exception:
-                    pass
+                except Exception as _exc:  # noqa
+                    pass  # noqa: silenced - _exc
 
             # Memory usage using vm_stat
             mem_result = await self.execute_command(
@@ -215,8 +215,8 @@ class MacOSAdapter(EnvironmentAdapter):
             if disk_result['returncode'] == 0:
                 try:
                     disk_percent = float(disk_result['stdout'].strip())
-                except Exception:
-                    pass
+                except Exception as _exc:  # noqa
+                    pass  # noqa: silenced - _exc
 
             return self._create_response({
                 'cpu_percent': cpu_percent,

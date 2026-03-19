@@ -94,7 +94,6 @@ from typing import Any, Dict, Optional
 from synapse.skills.base import BaseSkill
 from synapse.observability.logger import audit
 
-PROTOCOL_VERSION: str = "1.0"
 
 
 class {class_name}(BaseSkill):

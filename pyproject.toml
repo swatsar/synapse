@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synapse-agent"
-version = "3.4.0"
+version = "3.4.1"
 description = "Universal Autonomous Agent Platform - Distributed Cognitive Platform for Autonomous Agents"
 readme = "README.md"
 requires-python = ">=3.11"

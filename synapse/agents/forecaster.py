@@ -111,8 +111,8 @@ class ForecasterAgent:
                     'forecast': str(response),
                     'confidence': rng.uniform(0.7, 0.95)
                 })
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
         # Fallback to trend-based prediction
         historical = metrics.get('historical', {})

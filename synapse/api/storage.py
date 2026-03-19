@@ -6,6 +6,8 @@ Specification: 3.1
 This module provides async-safe storage with proper locking
 to prevent race conditions in concurrent access scenarios.
 """
+
+PROTOCOL_VERSION: str = "1.0"
 import asyncio
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone

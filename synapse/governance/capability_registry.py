@@ -2,6 +2,8 @@
 Capability Registry for managing capabilities
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from datetime import datetime

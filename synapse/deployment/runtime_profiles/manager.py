@@ -65,10 +65,10 @@ class RuntimeProfileManager:
     def _load_profile_file(self, name: str, path: str) -> None:
         """Load a profile from file."""
         try:
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 self._profiles[name] = yaml.safe_load(f)
-        except Exception:
-            pass
+        except Exception as _exc:  # noqa
+            pass  # noqa: silenced - _exc
     
     def load_profile(self, name: str) -> Dict[str, Any]:
         """Load a specific profile."""

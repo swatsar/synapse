@@ -9,16 +9,9 @@ from abc import ABC, abstractmethod
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
-# Re-export RuntimeIsolationType from core
-from synapse.core.isolation_policy import RuntimeIsolationType
+# Re-export RuntimeIsolationType and SkillTrustLevel from core
+from synapse.core.isolation_policy import RuntimeIsolationType, SkillTrustLevel
 from synapse.observability.logger import audit
-
-
-class SkillTrustLevel(str):
-    """Trust levels for skills."""
-    TRUSTED = "trusted"
-    VERIFIED = "verified"
-    UNVERIFIED = "unverified"
 
 
 class BaseSkill(ABC):

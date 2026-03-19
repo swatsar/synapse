@@ -5,8 +5,6 @@ SPEC_VERSION: str = "3.1"
 from synapse.core.models import ExecutionContext
 
 
-PROTOCOL_VERSION: str = "1.0"
-SPEC_VERSION: str = "3.1"
 
 class WebSearchSkill:
     async def execute(self, ctx: ExecutionContext, query: str):

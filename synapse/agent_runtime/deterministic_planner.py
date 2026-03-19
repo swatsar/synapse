@@ -2,6 +2,8 @@
 Deterministic Planner - No Randomness Allowed
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Set
 import hashlib

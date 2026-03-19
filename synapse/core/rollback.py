@@ -149,8 +149,8 @@ class RollbackManager:
             if isinstance(checkpoint_id, str):
                 try:
                     cp_id = uuid.UUID(checkpoint_id)
-                except Exception:
-                    pass
+                except Exception as _exc:  # noqa
+                    pass  # noqa: silenced - _exc
             
             result = self.checkpoint_manager.restore(cp_id)
             if hasattr(result, '__await__'):

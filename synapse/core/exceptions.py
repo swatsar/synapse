@@ -3,6 +3,8 @@
 Protocol Version: 1.0
 Specification: 3.1
 """
+
+PROTOCOL_VERSION: str = "1.0"
 from typing import Optional, Dict, Any
 from enum import Enum
 

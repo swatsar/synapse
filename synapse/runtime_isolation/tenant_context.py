@@ -7,6 +7,8 @@ TenantContext provides:
 - Execution quota tracking
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import FrozenSet, Optional, Dict, Any
 import fnmatch

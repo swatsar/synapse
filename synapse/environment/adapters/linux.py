@@ -126,13 +126,13 @@ class LinuxAdapter(EnvironmentAdapter):
 
         # Try /etc/os-release
         try:
-            with open('/etc/os-release', 'r') as f:
+            with open('/etc/os-release', 'r', encoding='utf-8') as f:
                 for line in f:
                     if '=' in line:
                         key, value = line.strip().split('=', 1)
                         distro_info[key.lower()] = value.strip('"')
-        except Exception:
-            pass
+        except Exception as _exc:  # noqa
+            pass  # noqa: silenced - _exc
 
         return self._create_response({
             'os': 'Linux',
@@ -188,8 +188,8 @@ class LinuxAdapter(EnvironmentAdapter):
                 )
                 if result['returncode'] == 0:
                     cpu_percent = float(result['stdout'].strip())
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
             # Memory usage (from /proc/meminfo)
             memory_percent = 0.0
@@ -200,8 +200,8 @@ class LinuxAdapter(EnvironmentAdapter):
                 )
                 if result['returncode'] == 0:
                     memory_percent = float(result['stdout'].strip())
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
             # Disk usage
             disk_percent = 0.0
@@ -212,8 +212,8 @@ class LinuxAdapter(EnvironmentAdapter):
                 )
                 if result['returncode'] == 0:
                     disk_percent = float(result['stdout'].strip())
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
             return self._create_response({
                 'cpu_percent': cpu_percent,

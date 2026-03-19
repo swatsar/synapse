@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 from synapse.security.capability_manager import CapabilityManager
 from synapse.security.execution_guard import ExecutionGuard
 from synapse.core.models import ExecutionContext
-from synapse.orchestrator import Orchestrator
+from synapse.core.orchestrator import Orchestrator
 from synapse.distributed.node_runtime import NodeRuntime
 from synapse.policy.engine import PolicyEngine
 from synapse.network.transport import Transport

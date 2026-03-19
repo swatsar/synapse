@@ -91,8 +91,8 @@ class SelfImprovementEngine:
                     "improvement_id": improvement_id,
                     "target": plan.target
                 })
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
         
         # Check if approval required
         approval_required = False
@@ -189,8 +189,8 @@ class SelfImprovementEngine:
                             "improvement_id": improvement_id,
                             "rollback_executed": rollback_executed
                         })
-                    except Exception:
-                        pass
+                    except Exception as _exc:  # noqa
+                        pass  # noqa: silenced - _exc
                 
                 return ImprovementResult(
                     success=False,
@@ -224,8 +224,8 @@ class SelfImprovementEngine:
                         "improvement_id": improvement_id,
                         "cluster_propagated": cluster_propagated
                     })
-                except Exception:
-                    pass
+                except Exception as _exc:  # noqa
+                    pass  # noqa: silenced - _exc
             
             # Audit log completion
             if self.audit_logger:

@@ -7,7 +7,7 @@ FROM python:3.11-slim
 # Labels
 LABEL org.synapse.protocol_version="1.0"
 LABEL org.synapse.spec_version="3.1"
-LABEL org.synapse.version="3.1.0"
+LABEL org.synapse.version="3.4.1"
 LABEL org.synapse.description="Universal Autonomous Agent Platform"
 
 # Security: Create non-root user

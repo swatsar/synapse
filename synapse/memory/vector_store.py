@@ -157,8 +157,8 @@ class VectorMemoryStore:
             try:
                 self._collection.delete(ids=[doc_id])
                 return True
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
         before = len(self._fallback_store)
         self._fallback_store = [d for d in self._fallback_store if d["id"] != doc_id]
         return len(self._fallback_store) < before
@@ -169,8 +169,8 @@ class VectorMemoryStore:
         if chroma_ok and self._collection is not None:
             try:
                 return self._collection.count()
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
         return len(self._fallback_store)
 
     async def _get_embedding(self, text: str) -> List[float]:

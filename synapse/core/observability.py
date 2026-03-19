@@ -2,6 +2,8 @@
 Observability Core
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from typing import Dict, List, Any, Callable, Optional
 from dataclasses import dataclass, field
 from datetime import datetime, UTC

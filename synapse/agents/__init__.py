@@ -1,7 +1,6 @@
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
-PROTOCOL_VERSION: str = "1.0"
 """Synapse agents module."""
 from .developer import DeveloperAgent
 from .critic import CriticAgent

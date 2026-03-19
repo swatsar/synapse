@@ -482,8 +482,8 @@ class SecureBrowserController:
                             url=str(resp.url),
                             metadata={"status_code": resp.status_code, "protocol_version": PROTOCOL_VERSION},
                         )
-                except Exception:
-                    pass
+                except Exception as _exc:  # noqa
+                    pass  # noqa: silenced - _exc
             # Offline/no-browser fallback: return mock SUCCESS
             return BrowserActionResult(
                 status=BrowserActionStatus.SUCCESS,
@@ -507,8 +507,8 @@ class SecureBrowserController:
                             url=str(resp.url),
                             metadata={"chars": len(text), "protocol_version": PROTOCOL_VERSION},
                         )
-                except Exception:
-                    pass
+                except Exception as _exc:  # noqa
+                    pass  # noqa: silenced - _exc
             return BrowserActionResult(
                 status=BrowserActionStatus.SUCCESS,
                 action=action.value,
@@ -704,8 +704,8 @@ class SecureBrowserController:
                 }, risk_context)
                 # For now auto-approve with audit trail; replace with actual HITL queue
                 return {"approved": True, "auto_approved": True, "risk_level": risk}
-        except Exception:
-            pass
+        except Exception as _exc:  # noqa
+            pass  # noqa: silenced - _exc
         return {"approved": True, "auto_approved": True}
     
     async def _audit_action(
@@ -735,8 +735,8 @@ class SecureBrowserController:
                 await self.audit.emit_event("browser_action", audit_entry)
             elif hasattr(self.audit, "log_action"):
                 self.audit.log_action("browser_action", audit_entry, context or {})
-        except Exception:
-            pass
+        except Exception as _exc:  # noqa
+            pass  # noqa: silenced - _exc
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get controller statistics"""

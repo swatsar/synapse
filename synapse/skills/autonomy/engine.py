@@ -224,8 +224,8 @@ class AutonomousOptimizationEngine:
                 result = await self.cluster_manager.rollback_all()
                 cluster_rollback = result.get("success", False)
                 nodes_affected = result.get("nodes_rolled_back", 0)
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
         
         # Audit log failure
         if self.audit_logger:

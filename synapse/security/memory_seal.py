@@ -2,6 +2,8 @@
 Memory Seal - Cryptographic Sealing for Agent Memory
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Any
 from datetime import datetime, UTC

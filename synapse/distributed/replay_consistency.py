@@ -2,6 +2,8 @@
 Multi-Node Replay Consistency
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from datetime import datetime, UTC

@@ -6,6 +6,8 @@ CapabilityDomain limits the scope of capabilities and prevents:
 - Capability escalation across domain
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import FrozenSet, Optional, Dict, Any, Set
 import fnmatch

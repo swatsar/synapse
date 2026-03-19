@@ -2,6 +2,8 @@
 Deterministic behavior for reproducible execution
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 import random
 import hashlib
 import uuid

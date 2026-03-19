@@ -2,6 +2,8 @@
 Orchestrator Agent for task execution
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional
 import time

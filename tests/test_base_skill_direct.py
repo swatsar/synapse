@@ -163,6 +163,11 @@ class TestSkillTrustLevel:
         from synapse.skills.base import SkillTrustLevel
         assert SkillTrustLevel.UNVERIFIED == "unverified"
 
+    def test_trust_level_human_approved(self):
+        """Test HUMAN_APPROVED trust level per 4-level Execution Trust Model."""
+        from synapse.skills.base import SkillTrustLevel
+        assert SkillTrustLevel.HUMAN_APPROVED == "human_approved"
+
 
 class TestModuleConstants:
     """Tests for module-level constants."""

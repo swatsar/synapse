@@ -23,7 +23,7 @@ PROTOCOL_VERSION: str = "1.0"
 app = FastAPI(
     title="Synapse Agent Platform",
     description="Universal Autonomous Agent Platform API",
-    version="3.1.0",
+    version="3.4.0",
 )
 
 # Phase 2 Middleware — registered as pure async functions (no BaseHTTPMiddleware)
@@ -55,9 +55,14 @@ async def api_key_auth(request, call_next):
 
     # Check API key from header or query parameter
     api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
-    expected_api_key = os.getenv("SYNAPSE_API_KEY")  # In production, this should be from environment variable
+    expected_api_key = os.getenv("SYNAPSE_API_KEY")
 
-    if api_key != expected_api_key:
+    # If no API key is configured, skip auth (development mode)
+    if expected_api_key is None:
+        response = await call_next(request)
+        return response
+
+    if not api_key or api_key != expected_api_key:
         return JSONResponse(
             status_code=401,
             content={
@@ -69,6 +74,7 @@ async def api_key_auth(request, call_next):
 
     response = await call_next(request)
     return response
+
 # Phase 2 Exception Handlers
 app.add_exception_handler(SynapseError, synapse_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
@@ -108,7 +114,7 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "version": "3.1.0",
+        "version": "3.4.0",
         "protocol_version": PROTOCOL_VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
@@ -570,7 +576,7 @@ def create_app(orchestrator=None, checkpoint_manager=None, rollback_manager=None
     # Create new app instance
     app = FastAPI(
         title="Synapse API",
-        version="3.1.0",
+        version="3.4.0",
         description="Synapse Agent Platform API"
     )
     
@@ -585,7 +591,7 @@ def create_app(orchestrator=None, checkpoint_manager=None, rollback_manager=None
     async def health():
         return {
             "status": "healthy",
-            "version": "3.1.0",
+            "version": "3.4.0",
             "protocol_version": PROTOCOL_VERSION
         }
     

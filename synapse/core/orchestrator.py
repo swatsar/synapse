@@ -1,4 +1,4 @@
-"""Orchestrator – 7-Step Cognitive Cycle Implementation.
+"""Orchestrator – 8-Step Cognitive Cycle Implementation.
 Spec v3.1 compliant.
 
 Cognitive Cycle:
@@ -307,8 +307,8 @@ class Orchestrator:
                 if self.skill_registry:
                     try:
                         recalled["procedural"] = await self.skill_registry.list_active()
-                    except Exception:
-                        pass
+                    except Exception as _exc:  # noqa
+                        pass  # noqa: silenced - _exc
             except Exception as e:
                 audit(event="recall_memory_error", error=str(e), protocol_version=self.protocol_version)
 

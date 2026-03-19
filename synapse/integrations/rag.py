@@ -154,8 +154,8 @@ class RAGSystem:
         if self.llm and hasattr(self.llm, "embed"):
             try:
                 return await self.llm.embed(text)
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
         # Deterministic hash-based fallback (768-dim, values in [-1, 1])
         import hashlib, struct

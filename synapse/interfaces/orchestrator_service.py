@@ -2,6 +2,8 @@
 Orchestrator Service API
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from typing import Dict, Any, Optional
 from datetime import datetime, UTC
 

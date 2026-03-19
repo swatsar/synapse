@@ -8,6 +8,8 @@ IsolationEnforcer provides:
 - Replay identity verification
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional
 import hashlib

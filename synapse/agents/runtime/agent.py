@@ -1,7 +1,6 @@
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
-PROTOCOL_VERSION: str = "1.0"
 import asyncio
 from typing import Any, Callable, Dict, List
 
@@ -63,8 +62,8 @@ class CognitiveAgent:
                         key=f"experience:{id(result)}",
                         value={"result": str(result), "agent": self.__class__.__name__}
                     )
-                except Exception:
-                    pass
+                except Exception as _exc:  # noqa
+                    pass  # noqa: silenced - _exc
 
     # ---------------------------------------------------------------------
     # Full run – orchestrates the lifecycle

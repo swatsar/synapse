@@ -2,6 +2,8 @@
 Transport Messages for orchestrator-node communication
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass
 from typing import Optional, List, Dict, Any
 import json

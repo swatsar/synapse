@@ -2,6 +2,8 @@
 Policy-Constrained Planning Engine
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Set
 from datetime import datetime, UTC

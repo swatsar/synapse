@@ -6,6 +6,8 @@ Specification: 3.1
 Uses pure functional @app.middleware("http") style for compatibility
 with all Starlette/FastAPI versions (avoids BaseHTTPMiddleware issues).
 """
+
+PROTOCOL_VERSION: str = "1.0"
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from typing import Callable, Dict, List

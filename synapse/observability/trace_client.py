@@ -80,8 +80,8 @@ class TraceSpan:
                 s = datetime.fromisoformat(self.start_time)
                 e = datetime.fromisoformat(self.end_time)
                 return (e - s).total_seconds() * 1000
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
         return None
 
     def to_dict(self) -> Dict[str, Any]:

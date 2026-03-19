@@ -2,6 +2,8 @@
 Replay Manager for execution trace recording and replay
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime, UTC

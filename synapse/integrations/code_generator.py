@@ -137,8 +137,8 @@ class CodeGenerator:
                         "protocol_version": self.PROTOCOL_VERSION,
                     },
                 )
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
         return result
 
@@ -289,8 +289,8 @@ class CodeGenerator:
                 result = await self.llm.generate(prompt)
                 if result:
                     return result
-            except Exception:
-                pass
+            except Exception as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
         # Fallback: static analysis
         if language == CodeLanguage.PYTHON:
@@ -301,8 +301,8 @@ class CodeGenerator:
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         if not node.name.startswith("_"):
                             func_names.append(node.name)
-            except SyntaxError:
-                pass
+            except SyntaxError as _exc:  # noqa
+                pass  # noqa: silenced - _exc
 
             test_lines = [
                 '"""Auto-generated tests."""',

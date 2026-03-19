@@ -2,6 +2,8 @@
 Deterministic Plan Hashing
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from typing import Dict, List, Any, Set
 import hashlib
 import json

@@ -2,6 +2,8 @@
 Task Model for orchestrator
 """
 
+PROTOCOL_VERSION: str = "1.0"
+
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime, UTC
