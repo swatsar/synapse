@@ -12,7 +12,7 @@ Cognitive Cycle:
 8. LEARN     - Обучение
 """
 from .determinism import DeterministicSeedManager, DeterministicIDGenerator
-from synapse.observability.logger import audit
+from synapse.observability.logger import audit, logger
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 import uuid
@@ -308,7 +308,7 @@ class Orchestrator:
                     try:
                         recalled["procedural"] = await self.skill_registry.list_active()
                     except Exception as _exc:  # noqa
-                        pass  # noqa: silenced - _exc
+                        logger.debug(f"Failed to list active skills: {_exc}")  # noqa: silenced - _exc
             except Exception as e:
                 audit(event="recall_memory_error", error=str(e), protocol_version=self.protocol_version)
 
@@ -684,8 +684,8 @@ class Orchestrator:
                         agent_id=event.get("agent_id", "orchestrator"),
                         session_id=checkpoint_id
                     )
-            except Exception:
-                pass  # Checkpoint failure is non-fatal
+            except Exception as e:
+                logger.debug(f"Checkpoint creation failed: {e}")  # Checkpoint failure is non-fatal
         
         return checkpoint_id
 
