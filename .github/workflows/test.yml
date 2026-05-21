@@ -67,4 +67,4 @@ jobs:
     - name: Run Bandit security scan
       run: bandit -r synapse/ -ll --skip B101 -c .bandit
     - name: Run Safety check
-      run: safety check -r requirements.txt --full-report
+      run: safety check -r requirements.txt --full-report --ignore-ids=""
