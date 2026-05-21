@@ -68,13 +68,13 @@ class IsolationEnforcementPolicy:
         Returns:
             Required RuntimeIsolationType
         """
+        # Rule: unverified always requires strict sandbox (highest priority)
+        if trust_level == SkillTrustLevel.UNVERIFIED or trust_level == "unverified":
+            return RuntimeIsolationType.CONTAINER
+
         # Rule: risk_level >= 3 always requires container minimum
         if risk_level >= 3:
             return RuntimeIsolationType.CONTAINER
-
-        # Rule: unverified always requires strict sandbox
-        if trust_level == SkillTrustLevel.UNVERIFIED or trust_level == "unverified":
-            return RuntimeIsolationType.SANDBOX
 
         # Rule: verified runs in isolated subprocess
         if trust_level == SkillTrustLevel.VERIFIED or trust_level == "verified":
