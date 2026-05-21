@@ -1,4 +1,15 @@
-```
-# Configuration and workflow files
-.github/
+```gitignore
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Pytest cache
+.pytest_cache/
 ```
