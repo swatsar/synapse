@@ -1,0 +1,101 @@
+# Pre-commit configuration for Synapse Agent
+# See https://pre-commit.com for more information
+
+repos:
+  # Core hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ['--maxkb=1024']
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: debug-statements
+  
+  # Python linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+  
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-python-dateutil
+          - types-PyYAML
+          - types-redis
+        args:
+          - --ignore-missing-imports
+          - --no-strict-optional
+          - --exclude=tests/
+          - --exclude=benchmarks/
+  
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: ['-r', '-ll', '-c', '.bandit']
+        exclude: ^tests/
+  
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            .secrets.baseline|
+            tests/.*|
+            docs/.*
+          )$
+  
+  # Dependency checks
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.23
+    hooks:
+      - id: validate-pyproject
+  
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        files: docker/Dockerfile$
+  
+  # GitHub Actions linting
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.31.0
+    hooks:
+      - id: check-github-actions
+      - id: check-github-workflows
+
+# Default language version
+default_language_version:
+  python: python3.11
+
+# Exclude patterns
+exclude: |
+  (?x)^(
+    .*migrations/.*|
+    .*venv/.*|
+    .*node_modules/.*|
+    .*\.egg-info/.*|
+    \.git/.*|
+    \.pytest_cache/.*|
+    htmlcov/.*|
+    coverage.xml|
+    .*\.min\.(js|css)$
+  )$
