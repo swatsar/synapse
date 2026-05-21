@@ -4,6 +4,8 @@ TDD per AGENT_ZERO_INTEGRATION.md §3.
 """
 import pytest
 import pytest_asyncio
+import tempfile
+import os
 from unittest.mock import AsyncMock, MagicMock
 
 PROTOCOL_VERSION = "1.0"
@@ -13,9 +15,20 @@ PROTOCOL_VERSION = "1.0"
 @pytest.mark.unit
 class TestLearningEngineEvaluate:
     @pytest.fixture
-    def memory(self):
+    def db_path(self):
+        """Create a temporary database file for testing."""
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        yield path
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+
+    @pytest.fixture
+    def memory(self, db_path):
         from synapse.memory.store import MemoryStore
-        return MemoryStore(db_path=":memory:")
+        return MemoryStore(db_path=db_path)
 
     @pytest.fixture
     def engine(self, memory):
@@ -70,9 +83,20 @@ class TestLearningEngineEvaluate:
 @pytest.mark.unit
 class TestLearningEngineMetacognition:
     @pytest.fixture
-    def memory(self):
+    def db_path(self):
+        """Create a temporary database file for testing."""
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        yield path
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+
+    @pytest.fixture
+    def memory(self, db_path):
         from synapse.memory.store import MemoryStore
-        return MemoryStore(db_path=":memory:")
+        return MemoryStore(db_path=db_path)
 
     @pytest.fixture
     def mock_developer(self):

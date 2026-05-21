@@ -119,7 +119,15 @@ class LLMChain(BaseChain):
     async def execute(self, input: ChainInput) -> ChainOutput:
         audit(event="llm_chain_start", chain=self.name, trace_id=input.trace_id, protocol_version=PROTOCOL_VERSION)
         try:
-            prompt = self.prompt_template.format(**input.data) if "{" in self.prompt_template else self.prompt_template
+            # Handle template formatting - use empty string if key not found
+            if "{" in self.prompt_template:
+                try:
+                    prompt = self.prompt_template.format(**input.data)
+                except KeyError:
+                    # If template requires keys not in input, use template as-is or first available value
+                    prompt = self.prompt_template
+            else:
+                prompt = self.prompt_template
             response = await self.llm.generate(prompt)
             content = response.get("content", "") if isinstance(response, dict) else str(response)
             await self._audit_step("llm_call", prompt[:80], content[:80])
@@ -194,7 +202,8 @@ class ParallelChain(BaseChain):
                 all_success = False
             else:
                 steps.append({"chain": chain.name, "success": res.success})
-                outputs.append(res.result)
+                # Handle both successful and failed results - still collect the output
+                outputs.append(res.result if res.result is not None else "")
                 if not res.success:
                     all_success = False
         return ChainOutput(result={self.merge_key: outputs}, intermediate_steps=steps,

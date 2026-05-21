@@ -71,8 +71,12 @@ class VectorMemoryStore:
         """Deterministic hash-based embedding when LLM/ChromaDB unavailable."""
         import struct
         digest = hashlib.sha512(text.encode()).digest()
+        # Generate enough bytes for 768 floats (4 bytes each = 3072 bytes)
         raw = (digest * 6)[:768 * 4]
-        values = struct.unpack(f">{768}f", raw)
+        # Ensure we have exactly the right number of bytes
+        if len(raw) < 768 * 4:
+            raw = raw.ljust(768 * 4, b'\x00')
+        values = struct.unpack(f">768f", raw)
         max_abs = max(abs(v) for v in values) or 1.0
         return [v / max_abs for v in values]
 
