@@ -2,6 +2,7 @@
 
 Manages capability tokens and access control with path traversal protection.
 """
+import re
 from pathlib import PurePath
 from typing import List, Optional, Set, Union
 from fnmatch import fnmatch
