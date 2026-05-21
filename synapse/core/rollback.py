@@ -6,6 +6,7 @@ from typing import Dict, Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 import uuid
+from synapse.observability.logger import logger
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -150,7 +151,7 @@ class RollbackManager:
                 try:
                     cp_id = uuid.UUID(checkpoint_id)
                 except Exception as _exc:  # noqa
-                    pass  # noqa: silenced - _exc
+                    logger.debug(f"Invalid checkpoint_id format: {_exc}")  # noqa: silenced - _exc
             
             result = self.checkpoint_manager.restore(cp_id)
             if hasattr(result, '__await__'):

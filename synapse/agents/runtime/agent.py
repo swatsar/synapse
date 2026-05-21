@@ -5,7 +5,7 @@ import asyncio
 from typing import Any, Callable, Dict, List
 
 from synapse.core.models import ExecutionContext, SkillManifest
-from synapse.observability.logger import trace, record_metric
+from synapse.observability.logger import trace, record_metric, logger
 
 class CognitiveAgent:
     """Base class for cognitive agents.
@@ -63,7 +63,7 @@ class CognitiveAgent:
                         value={"result": str(result), "agent": self.__class__.__name__}
                     )
                 except Exception as _exc:  # noqa
-                    pass  # noqa: silenced - _exc
+                    logger.debug(f"Failed to store experience: {_exc}")  # noqa: silenced - _exc
 
     # ---------------------------------------------------------------------
     # Full run – orchestrates the lifecycle

@@ -112,7 +112,7 @@ class ForecasterAgent:
                     'confidence': rng.uniform(0.7, 0.95)
                 })
             except Exception as _exc:  # noqa
-                pass  # noqa: silenced - _exc
+                logger.debug(f"LLM forecast failed for {request.target}: {_exc}")  # noqa: silenced - _exc
 
         # Fallback to trend-based prediction
         historical = metrics.get('historical', {})

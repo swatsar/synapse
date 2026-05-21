@@ -3,6 +3,7 @@ import os
 import yaml
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from synapse.observability.logger import logger
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -68,7 +69,7 @@ class RuntimeProfileManager:
             with open(path, "r", encoding="utf-8") as f:
                 self._profiles[name] = yaml.safe_load(f)
         except Exception as _exc:  # noqa
-            pass  # noqa: silenced - _exc
+            logger.debug(f"Failed to load profile from {path}: {_exc}")  # noqa: silenced - _exc
     
     def load_profile(self, name: str) -> Dict[str, Any]:
         """Load a specific profile."""

@@ -32,8 +32,8 @@ memory_settings: Dict[str, Any] = {
 }
 
 connector_settings: Dict[str, Any] = {
-    "telegram": {"enabled": False, "token": ""},
-    "discord": {"enabled": False, "token": ""},
+    "telegram": {"enabled": False, "token": os.getenv("TELEGRAM_TOKEN", "")},
+    "discord": {"enabled": False, "token": os.getenv("DISCORD_TOKEN", "")},
     "protocol_version": PROTOCOL_VERSION
 }
 
