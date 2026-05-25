@@ -1,4 +1,21 @@
-skips:
-  - B102
-targets:
-  - synapse
+[bandit]
+# Bandit security scanner configuration
+# See https://bandit.readthedocs.io/en/latest/config.html
+
+# Exclude test directories
+exclude_dirs = tests,venv,.venv,benchmarks
+
+# Skipped tests (B101 is assert statements which are fine in tests)
+skips = B101,B311,B312
+
+# Test level - show low, medium, high severity issues
+level = low
+
+# Aggregate output by vulnerability type
+aggregate = vuln
+
+# Format for CLI output
+format = screen
+
+# Include ID of skipped tests in reports
+show_skip_ids = true

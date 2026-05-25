@@ -1,0 +1,187 @@
+# Default values for Synapse
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ghcr.io
+  imagePullSecrets: []
+  storageClass: ""
+
+# Replica count
+replicaCount: 3
+
+# Image configuration
+image:
+  repository: synapse/synapse
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations and labels
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podLabels: {}
+
+# Security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Service configuration
+service:
+  type: ClusterIP
+  apiPort: 8000
+  metricsPort: 9090
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: synapse.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: synapse-tls
+      hosts:
+        - synapse.example.com
+
+# Resource limits and requests
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: synapse
+          topologyKey: kubernetes.io/hostname
+
+# Environment variables
+env:
+  PROTOCOL_VERSION: "1.0"
+  SPEC_VERSION: "3.4"
+  MODE: "kubernetes"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  ENABLE_METRICS: "true"
+  ENABLE_TRACING: "true"
+
+# Secret environment variables (reference existing secrets)
+secretEnv:
+  API_KEY:
+    secretName: synapse-secrets
+    secretKey: API_KEY
+  DATABASE_URL:
+    secretName: synapse-secrets
+    secretKey: DATABASE_URL
+  REDIS_URL:
+    secretName: synapse-secrets
+    secretKey: REDIS_URL
+
+# Probes
+livenessProbe:
+  httpGet:
+    path: /health
+    port: api
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: api
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+# Additional volumes
+volumes:
+  - name: tmp
+    emptyDir: {}
+
+volumeMounts:
+  - name: tmp
+    mountPath: /tmp
+
+# OpenTelemetry tracing
+tracing:
+  enabled: true
+  endpoint: "otel-collector:4317"
+  samplingRate: 0.1
+
+# Prometheus metrics
+metrics:
+  enabled: true
+  port: 9090
+  path: /metrics
+
+# Database configuration (external)
+database:
+  host: postgres
+  port: 5432
+  name: synapse
+  user: synapse
+  existingSecret: synapse-secrets
+  existingSecretKey: DATABASE_URL
+
+# Redis configuration (external)
+redis:
+  host: redis
+  port: 6379
+  existingSecret: synapse-secrets
+  existingSecretKey: REDIS_URL
+
+# LLM provider configuration
+llm:
+  provider: openai
+  model: gpt-4
+  apiKeySecret: synapse-secrets
+  apiKeySecretKey: LLM_API_KEY
