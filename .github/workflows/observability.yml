@@ -1,0 +1,135 @@
+name: Observability & Performance
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: synapse_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - uses: actions/checkout@v5
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        pip install locust
+    
+    - name: Run Locust load test
+      run: |
+        locust -f tests/load/locustfile.py \
+          --headless \
+          --users 100 \
+          --spawn-rate 10 \
+          --run-time 5m \
+          --stop-timeout 30 \
+          --csv=load-test \
+          --html=load-report.html || true
+      env:
+        DATABASE_URL: postgresql://postgres:test@localhost:5432/synapse_test
+        REDIS_URL: redis://localhost:6379/0
+    
+    - name: Upload load test results
+      uses: actions/upload-artifact@v5
+      if: always()
+      with:
+        name: load-test-results
+        path: |
+          load-test*.csv
+          load-report.html
+        retention-days: 30
+
+  memory-profile:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install memray pytest-memray
+    
+    - name: Run memory profiling
+      run: |
+        pytest tests/ -v --memray --memray-bin-path=memray-bins/ || true
+    
+    - name: Upload memory profiles
+      uses: actions/upload-artifact@v5
+      if: always()
+      with:
+        name: memory-profiles
+        path: memray-bins/
+        retention-days: 7
+
+  async-profiler:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install py-spy
+    
+    - name: Profile async performance
+      run: |
+        timeout 60 py-spy record -o profile.svg -- python -m synapse.main --mode test || true
+    
+    - name: Upload flame graph
+      uses: actions/upload-artifact@v5
+      if: always()
+      with:
+        name: flame-graph
+        path: profile.svg
+        retention-days: 7

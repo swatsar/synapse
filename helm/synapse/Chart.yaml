@@ -1,0 +1,31 @@
+apiVersion: v1
+appVersion: "3.4.1"
+description: A Helm chart for Synapse Distributed Cognitive Agent Platform
+name: synapse
+version: 1.0.0
+keywords:
+  - ai
+  - agent
+  - cognitive
+  - distributed
+  - autonomous
+home: https://github.com/synapse/synapse
+sources:
+  - https://github.com/synapse/synapse
+maintainers:
+  - name: Evgenii Savchenko
+    email: evgeniisav@example.com
+icon: https://raw.githubusercontent.com/synapse/synapse/main/docs/logo.png
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial Helm chart release
+      links:
+        - name: GitHub Release
+          url: https://github.com/synapse/synapse/releases/tag/v3.4.1
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://github.com/synapse/synapse/tree/main/docs
+    - name: Security Policy
+      url: https://github.com/synapse/synapse/blob/main/SECURITY.md
