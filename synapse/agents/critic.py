@@ -164,7 +164,7 @@ class CriticAgent:
                 should_create_skill=bool(data.get("should_create_skill", False)),
                 suggested_skill_task=str(data.get("suggested_skill_task", "")),
             )
-        except Exception as e:
+        except (_json.JSONDecodeError, ValueError, TypeError) as e:
             logger.warning("LLM evaluation failed: %s", e)
             return None
 

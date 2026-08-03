@@ -317,7 +317,7 @@ class DeveloperAgent:
 
             return {"status": "registered", "skill_id": skill.skill_id, "protocol_version": PROTOCOL_VERSION}
 
-        except Exception as e:
+        except (ValueError, TypeError, OSError) as e:
             audit(event="skill_registration_failed", error=str(e), protocol_version=self.protocol_version)
             return {"status": "error", "error": str(e), "protocol_version": PROTOCOL_VERSION}
 
@@ -337,7 +337,7 @@ class DeveloperAgent:
                 extracted = self._extract_python_body(content)
                 if extracted:
                     return extracted
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError) as e:
                 logger.warning("LLM generation failed: %s", e)
 
         # Structured fallback based on task keywords
@@ -546,7 +546,7 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
             if cls:
                 instance = cls()
                 return instance.execute
-        except Exception as e:
+        except (SyntaxError, ValueError, TypeError, AttributeError) as e:
             logger.warning("Could not compile skill %s: %s", skill.name, e)
 
         async def noop_handler(**kwargs):

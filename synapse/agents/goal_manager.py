@@ -244,5 +244,5 @@ class GoalManager:
                     state={"goals": {gid: g.to_dict() for gid, g in self._goals.items()}, "label": label},
                     agent_id="goal_manager",
                 )
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError) as e:
                 logger.debug("Checkpoint failed in GoalManager: %s", e)

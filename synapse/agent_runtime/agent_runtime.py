@@ -112,7 +112,7 @@ class AgentRuntime:
                 timestamp=datetime.now(UTC).isoformat()
             )
             
-        except Exception as e:
+        except RuntimeError as e:
             return AgentResult(
                 success=False,
                 plan_hash=plan_hash,
