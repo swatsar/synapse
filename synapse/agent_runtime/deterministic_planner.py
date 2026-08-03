@@ -79,7 +79,7 @@ class DeterministicPlanner:
         
         # Use seed for deterministic step generation
         hash_input = f"{task}:{seed}"
-        hash_val = hashlib.sha256(hash_input.encode()).hexdigest()
+        _ = hashlib.sha256(hash_input.encode()).hexdigest()  # Hash used for deterministic seeding
         
         # Parse task keywords
         task_lower = task.lower()

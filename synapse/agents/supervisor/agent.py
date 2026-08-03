@@ -24,11 +24,10 @@ class SupervisorAgent:
         """Run a high‑level goal through the orchestrator, evaluate the result,
         and possibly register a new skill based on the outcome.
         """
-        async with asyncio.TaskGroup() as tg:
-            # Run the goal – orchestrator returns a result dict
-            result = await self.orchestrator.run_goal(goal)
-            # Evaluate via learning engine (feedback loop)
-            await self.learner.process(result)
-            # If the result suggests a new capability, we could auto‑register a skill
-            # Here we simply log the event – real implementation would be more complex
-            return result
+        # Run the goal – orchestrator returns a result dict
+        result = await self.orchestrator.run_goal(goal)
+        # Evaluate via learning engine (feedback loop)
+        await self.learner.process(result)
+        # If the result suggests a new capability, we could auto‑register a skill
+        # Here we simply log the event – real implementation would be more complex
+        return result

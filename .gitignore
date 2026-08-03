@@ -1,4 +1,19 @@
-```
-# Configuration and workflow files
-.github/
+```gitignore
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Compiled Python files
+*.cpython-*.pyc
+*.pyc.*
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*
 ```
