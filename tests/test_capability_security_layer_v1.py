@@ -394,7 +394,7 @@ class TestConcurrencySafety:
         tokens = await asyncio.gather(*tasks)
         
         # All tokens should be unique
-        token_ids = [t.id for t in tokens]
+        token_ids = [t.token_id for t in tokens]
         assert len(set(token_ids)) == 100
 
 
@@ -444,7 +444,7 @@ class TestAgentIsolation:
         assert result1.approved == True
         
         # Revoke token
-        await manager.revoke_token(token.id, "agent_001")
+        await manager.revoke_token(token.token_id, "agent_001")
         
         # Should fail now
         result2 = await manager.check_capabilities(

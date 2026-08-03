@@ -136,7 +136,11 @@ class CapabilityManager:
                 if datetime.now(UTC) > expires:
                     continue
 
-            if self._match_capability(token.capability, capability):
+            # Get the capability string from the token
+            # CapabilityToken from capability_scope has 'scope' (CapabilityScope enum) and 'full_scope' property
+            token_capability = token.full_scope if hasattr(token, 'full_scope') else str(token.scope)
+            
+            if self._match_capability(token_capability, capability):
                 return True
 
         return False
