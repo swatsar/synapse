@@ -109,7 +109,7 @@ class CapabilityToken:
     Has optional path constraint and TTL.
     """
     token_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    scope: CapabilityScope = CapabilityScope.FILESYSTEM_READ
+    scope: CapabilityScope | str = CapabilityScope.FILESYSTEM_READ
     path_constraint: str | None = None   # e.g. "/workspace/**"
     issued_to: str = "agent"
     issued_by: str = "system"
@@ -118,11 +118,26 @@ class CapabilityToken:
     protocol_version: str = PROTOCOL_VERSION
 
     @property
+    def id(self) -> str:
+        """Alias for token_id for backward compatibility."""
+        return self.token_id
+
+    @property
+    def capability(self) -> str:
+        """Alias for full_scope for backward compatibility."""
+        return self.full_scope
+
+    @property
     def full_scope(self) -> str:
         """Return full scoped capability string."""
+        if isinstance(self.scope, CapabilityScope):
+            scope_value = self.scope.value
+        else:
+            scope_value = str(self.scope)
+        
         if self.path_constraint:
-            return f"{self.scope.value}:{self.path_constraint}"
-        return self.scope.value
+            return f"{scope_value}:{self.path_constraint}"
+        return scope_value
 
     @property
     def risk_level(self) -> int:
