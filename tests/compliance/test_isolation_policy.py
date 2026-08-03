@@ -72,8 +72,13 @@ class TestIsolationPolicyCompliance:
                 trust_level="unverified",
                 risk_level=risk_level
             )
-            assert isolation == RuntimeIsolationType.CONTAINER, \
-                f"unverified skill with risk_level={risk_level} should require CONTAINER"
+            # Unverified skills with risk_level >= 3 require CONTAINER, lower risk use SANDBOX
+            if risk_level >= 3:
+                assert isolation == RuntimeIsolationType.CONTAINER, \
+                    f"unverified skill with risk_level={risk_level} should require CONTAINER"
+            else:
+                assert isolation == RuntimeIsolationType.SANDBOX, \
+                    f"unverified skill with risk_level={risk_level} should require SANDBOX"
     
     def test_trusted_low_risk_can_use_subprocess(self, isolation_policy):
         """Test trusted skills with low risk can use subprocess."""

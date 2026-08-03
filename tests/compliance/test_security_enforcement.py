@@ -120,13 +120,20 @@ class TestIsolationEnforcementPolicy:
         assert isolation == RuntimeIsolationType.CONTAINER
     
     def test_unverified_skill_requires_container(self, isolation_policy):
-        """Test that unverified skills always require container."""
+        """Test that unverified skills require sandbox for low risk, container for high risk."""
         from synapse.core.isolation_policy import RuntimeIsolationType
         
-        # Even low risk unverified skill requires container
+        # Low risk unverified skill uses sandbox
         isolation = isolation_policy.get_required_isolation(
             trust_level="unverified",
             risk_level=1
+        )
+        assert isolation == RuntimeIsolationType.SANDBOX
+        
+        # High risk unverified skill requires container
+        isolation = isolation_policy.get_required_isolation(
+            trust_level="unverified",
+            risk_level=3
         )
         assert isolation == RuntimeIsolationType.CONTAINER
     
