@@ -46,6 +46,86 @@ class ExecutionContract:
     contract_hash: str
     protocol_version: str = "1.0"
 
+    @classmethod
+    def create(
+        cls,
+        tenant_id: str,
+        capability_set: list[str],
+        execution_domain: str,
+        resource_limits: dict[str, int],
+        deterministic_seed: int
+    ) -> "ExecutionContract":
+        """Create new execution contract"""
+        import hashlib
+        import json
+        from datetime import UTC, datetime
+        
+        contract_id = cls._generate_contract_id(
+            tenant_id, capability_set, deterministic_seed
+        )
+
+        contract = cls(
+            contract_id=contract_id,
+            tenant_id=tenant_id,
+            capability_set=sorted(capability_set),
+            execution_domain=execution_domain,
+            resource_limits=resource_limits,
+            deterministic_seed=deterministic_seed,
+            timestamp=datetime.now(UTC).isoformat(),
+            contract_hash="",  # Will be calculated
+            protocol_version="1.0"
+        )
+
+        # Calculate hash
+        contract.contract_hash = contract._calculate_hash()
+
+        return contract
+
+    def validate(self) -> bool:
+        """Validate contract integrity"""
+        # Verify hash
+        expected_hash = self._calculate_hash()
+        if self.contract_hash != expected_hash:
+            return False
+
+        # Verify required fields
+        if not self.tenant_id:
+            return False
+        if not self.capability_set:
+            return False
+        return not self.deterministic_seed < 0
+
+    def _calculate_hash(self) -> str:
+        """Calculate contract hash"""
+        import hashlib
+        import json
+        
+        data = {
+            "contract_id": self.contract_id,
+            "tenant_id": self.tenant_id,
+            "capability_set": self.capability_set,
+            "execution_domain": self.execution_domain,
+            "resource_limits": self.resource_limits,
+            "deterministic_seed": self.deterministic_seed,
+            "protocol_version": self.protocol_version
+        }
+        return hashlib.sha256(
+            json.dumps(data, sort_keys=True).encode()
+        ).hexdigest()
+
+    @classmethod
+    def _generate_contract_id(
+        cls,
+        tenant_id: str,
+        capability_set: list[str],
+        seed: int
+    ) -> str:
+        """Generate deterministic contract ID"""
+        import hashlib
+        data = f"{tenant_id}:{sorted(capability_set)}:{seed}:1.0"
+        hash_part = hashlib.sha256(data.encode()).hexdigest()[:16]
+        return f"contract_{hash_part}"
+
 
 @dataclass
 class ExecutionResult:
