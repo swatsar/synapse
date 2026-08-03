@@ -1,99 +1,24 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.venv.bak/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-*.pot
-*.pyc
-*.pyo
-*.pyd
-.MF
-.TemporaryItems
-.Trashes
-*
-!*~
-.libs/
+```yaml
+name: CI
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
-# Distribution / packaging
-.Python
-.build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Pytest
-.pytest_cache/
-htmlcov/
-.coverage
-
-# VSCode
-.vscode/
-
-# Environment variables
-.env
-.env.local
-.env.*
-
-# MyPy
-.mypy_cache/
-
-# IDE
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Temporary files
-*.tmp
-*.swp
-*~
-
-# Coverage
-coverage/
-
-# HTML
-htmlcov/
-
-# Gradle
-.gradle/
-build/
-
-# Node
-node_modules/
-
-# Julia
-julia-*/
-
-# Zig
-zig*/
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.9'
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    - name: Run tests
+      run: |
+        python -m pytest tests/
+```
