@@ -5,9 +5,9 @@ Sandbox interface and registry for pluggable backends
 PROTOCOL_VERSION = "1.0"
 """
 
+import asyncio
 import hashlib
 import json
-import threading
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Protocol
@@ -217,9 +217,8 @@ class SandboxRegistry:
     def __init__(self):
         self._sandboxes: dict[SandboxType, SandboxInterface] = {}
         self._default_type: SandboxType | None = None
-        self._lock = threading.Lock()
 
-    def register(
+    async def register(
         self,
         sandbox: SandboxInterface,
         is_default: bool = False
@@ -234,13 +233,12 @@ class SandboxRegistry:
         Returns:
             True if successful
         """
-        with self._lock:
-            self._sandboxes[sandbox.sandbox_type] = sandbox
+        self._sandboxes[sandbox.sandbox_type] = sandbox
 
-            if is_default or self._default_type is None:
-                self._default_type = sandbox.sandbox_type
+        if is_default or self._default_type is None:
+            self._default_type = sandbox.sandbox_type
 
-            return True
+        return True
 
     def get_sandbox(
         self,
@@ -265,29 +263,27 @@ class SandboxRegistry:
         Raises:
             ValueError: If no suitable sandbox found
         """
-        with self._lock:
-            # Explicit type
-            if sandbox_type is not None:
-                if sandbox_type not in self._sandboxes:
-                    raise ValueError(f"Sandbox type {sandbox_type} not registered")
-                return self._sandboxes[sandbox_type]
+        # Explicit type
+        if sandbox_type is not None:
+            if sandbox_type not in self._sandboxes:
+                raise ValueError(f"Sandbox type {sandbox_type} not registered")
+            return self._sandboxes[sandbox_type]
 
-            # Contract-based selection
-            if contract is not None:
-                selected = self._select_for_contract(contract)
-                if selected is not None:
-                    return selected
+        # Contract-based selection
+        if contract is not None:
+            selected = self._select_for_contract(contract)
+            if selected is not None:
+                return selected
 
-            # Default
-            if self._default_type is None:
-                raise ValueError("No sandbox registered")
+        # Default
+        if self._default_type is None:
+            raise ValueError("No sandbox registered")
 
-            return self._sandboxes[self._default_type]
+        return self._sandboxes[self._default_type]
 
     def list_sandboxes(self) -> list[SandboxType]:
         """List registered sandbox types"""
-        with self._lock:
-            return list(self._sandboxes.keys())
+        return list(self._sandboxes.keys())
 
     def get_capabilities(
         self,

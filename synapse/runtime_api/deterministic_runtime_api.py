@@ -7,7 +7,7 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-import threading
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -177,9 +177,9 @@ class DeterministicRuntimeAPI:
         self._calls: dict[str, RuntimeCall] = {}
         self._results: dict[str, RuntimeResult] = {}
         self._functions: dict[str, Callable] = {}
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
-    def register_function(
+    async def register_function(
         self,
         name: str,
         func: Callable,
@@ -196,7 +196,7 @@ class DeterministicRuntimeAPI:
         Returns:
             True if successful
         """
-        with self._lock:
+        async with self._lock:
             self._functions[name] = {
                 "func": func,
                 "required_capabilities": required_capabilities
@@ -232,8 +232,7 @@ class DeterministicRuntimeAPI:
             deterministic_seed=deterministic_seed
         )
 
-        with self._lock:
-            self._contracts[contract.contract_id] = contract
+        self._contracts[contract.contract_id] = contract
 
         return contract
 
@@ -264,8 +263,7 @@ class DeterministicRuntimeAPI:
         start = time.perf_counter()
 
         # Get contract
-        with self._lock:
-            contract = self._contracts.get(contract_id)
+        contract = self._contracts.get(contract_id)
 
         if contract is None:
             raise ValueError(f"Contract {contract_id} not found")
@@ -274,8 +272,7 @@ class DeterministicRuntimeAPI:
             raise ValueError(f"Contract {contract_id} invalid")
 
         # Get function
-        with self._lock:
-            func_info = self._functions.get(function_name)
+        func_info = self._functions.get(function_name)
 
         if func_info is None:
             raise ValueError(f"Function {function_name} not registered")
@@ -299,8 +296,7 @@ class DeterministicRuntimeAPI:
             protocol_version=self.PROTOCOL_VERSION
         )
 
-        with self._lock:
-            self._calls[call_id] = call
+        self._calls[call_id] = call
 
         # Execute
         try:
@@ -336,22 +332,19 @@ class DeterministicRuntimeAPI:
                 protocol_version=self.PROTOCOL_VERSION
             )
 
-        with self._lock:
-            self._results[call_id] = result
+        self._results[call_id] = result
 
         return result
 
     def get_contract(self, contract_id: str) -> ExecutionContract | None:
         """Get contract by ID"""
-        with self._lock:
-            return self._contracts.get(contract_id)
+        return self._contracts.get(contract_id)
 
     def get_result(self, call_id: str) -> RuntimeResult | None:
         """Get result by call ID"""
-        with self._lock:
-            return self._results.get(call_id)
+        return self._results.get(call_id)
 
-    def verify_replay(
+    async def verify_replay(
         self,
         contract_id: str,
         function_name: str,
@@ -370,9 +363,7 @@ class DeterministicRuntimeAPI:
         Returns:
             True if replay matches
         """
-        import asyncio
-
-        result = asyncio.run(self.call(contract_id, function_name, arguments))
+        result = await self.call(contract_id, function_name, arguments)
         return result.result_hash == expected_hash
 
     def _generate_call_id(
@@ -412,8 +403,6 @@ class DeterministicRuntimeAPI:
             json.dumps(data, sort_keys=True).encode()
         ).hexdigest()
 
-
-import asyncio
 
 __all__ = [
     "DeterministicRuntimeAPI",
