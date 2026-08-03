@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Synapse Agent Platform - Main Entry Point.
 
+from __future__ import annotations
+
 Protocol Version: 1.0
 Spec Version: 3.1
 """
@@ -9,9 +11,10 @@ import asyncio
 import logging
 import os
 import sys
+from typing import Final, Optional
 
-PROTOCOL_VERSION: str = "1.0"
-SPEC_VERSION: str = "3.1"
+PROTOCOL_VERSION: Final[str] = "1.0"
+SPEC_VERSION: Final[str] = "3.1"
 
 # Configure logging
 logging.basicConfig(
@@ -21,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger("synapse")
 
 
-def print_banner():
+def print_banner() -> None:
     """Print startup banner."""
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
@@ -40,7 +43,7 @@ def print_banner():
 """)
 
 
-async def run_web_ui(host: str = "0.0.0.0", port: int = 8080):  # nosec B104
+async def run_web_ui(host: str = "0.0.0.0", port: int = 8080) -> None:  # nosec B104
     """Run the Web UI server."""
     import uvicorn
 
@@ -57,7 +60,7 @@ async def run_web_ui(host: str = "0.0.0.0", port: int = 8080):  # nosec B104
     await server.serve()
 
 
-async def run_agent(mode: str = "local"):
+async def run_agent(mode: str = "local") -> None:
     """Run the agent in specified mode."""
     from synapse.core.determinism import (
         DeterministicIDGenerator,
@@ -84,7 +87,7 @@ async def run_agent(mode: str = "local"):
         await asyncio.sleep(1)
 
 
-async def run_full(host: str = "0.0.0.0", api_port: int = 8000, web_port: int = 8080):  # nosec B104
+async def run_full(host: str = "0.0.0.0", api_port: int = 8000, web_port: int = 8080) -> None:  # nosec B104
     """Run both API and Web UI."""
     import uvicorn
 
@@ -107,7 +110,7 @@ async def run_full(host: str = "0.0.0.0", api_port: int = 8000, web_port: int = 
     await server.serve()
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Synapse Agent Platform",

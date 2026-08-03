@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 PROTOCOL_VERSION: str = "1.0"
 """
 Capability Revoker for revoking capabilities
 """
 
 from synapse.governance.issuance import CapabilityIssuer
+from typing import Any, Dict, List, Optional
 
 
 class CapabilityRevoker:

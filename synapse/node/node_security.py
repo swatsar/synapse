@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 PROTOCOL_VERSION: str = "1.0"
 """
 Node Security for capability validation
@@ -5,6 +7,7 @@ Node Security for capability validation
 
 from synapse.governance.issuance import CapabilityIssuer
 from synapse.transport.message import CapabilityError
+from typing import Any, Dict, List, Optional
 
 
 class NodeSecurity:
