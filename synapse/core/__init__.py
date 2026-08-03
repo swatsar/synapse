@@ -21,4 +21,23 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 # Export only the models (typing, dataclasses, etc.)
-from .models import *
+# Explicit exports to avoid wildcard import
+from .models import (
+    ResourceLimits,
+    ExecutionContext,
+    SkillManifest,
+    ActionPlan,
+    MemoryEntry,
+    MemoryQuery,
+)
+
+__all__ = [
+    "PROTOCOL_VERSION",
+    "SPEC_VERSION",
+    "ResourceLimits",
+    "ExecutionContext",
+    "SkillManifest",
+    "ActionPlan",
+    "MemoryEntry",
+    "MemoryQuery",
+]
