@@ -5,21 +5,21 @@ PolicyEngine and the new network layer.
 """
 import asyncio
 import uuid
-from typing import Any, Dict, List
+from typing import Any
 
-from synapse.security.capability_manager import CapabilityManager
-from synapse.security.execution_guard import ExecutionGuard
-from synapse.core.models import ExecutionContext
 from synapse.core.orchestrator import Orchestrator
 from synapse.distributed.node_runtime import NodeRuntime
-from synapse.policy.engine import PolicyEngine
-from synapse.network.transport import Transport
 from synapse.network.security import MessageSecurity
+from synapse.network.transport import Transport
+from synapse.policy.engine import PolicyEngine
+from synapse.security.capability_manager import CapabilityManager
+from synapse.security.execution_guard import ExecutionGuard
+
 
 class ExecutionFabric:
     protocol_version: str = "1.0"
 
-    def __init__(self, caps: CapabilityManager, orchestrator: Orchestrator, nodes: List[NodeRuntime], policy: PolicyEngine):
+    def __init__(self, caps: CapabilityManager, orchestrator: Orchestrator, nodes: list[NodeRuntime], policy: PolicyEngine):
         self._caps = caps
         self._orchestrator = orchestrator
         self._nodes = sorted(nodes, key=lambda n: getattr(n, "node_id", uuid.uuid4().hex))
@@ -29,7 +29,7 @@ class ExecutionFabric:
         self._transports = {node: Transport(caps, self._guard) for node in self._nodes}
         self._security = MessageSecurity(caps)
 
-    async def place_task(self, task_payload: Any, required_caps: List[str]) -> str:
+    async def place_task(self, task_payload: Any, required_caps: list[str]) -> str:
         """Deterministically select a node that satisfies the required capabilities,
         send the task via its transport and return the node identifier.
         """
@@ -52,13 +52,13 @@ class ExecutionFabric:
             try:
                 await transport.send_message(envelope, required_caps=required_caps)
                 break
-            except Exception as e:
+            except Exception:
                 if attempt == 2:
                     raise
                 await asyncio.sleep(0.1 * (attempt + 1))
         return envelope["node_id"]
 
-    async def route_message(self, envelope: Dict[str, Any]) -> None:
+    async def route_message(self, envelope: dict[str, Any]) -> None:
         """Validate, authorize and forward a received envelope to the appropriate node runtime."""
         # Security checks first
         await self._security.authorize_message(envelope)

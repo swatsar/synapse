@@ -6,14 +6,13 @@ Track full execution lineage.
 Records tenant_id, contract_hash, node_id, cluster_schedule_hash, audit_root, execution_proof.
 """
 
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
 import hashlib
 import json
+from dataclasses import dataclass
 
 from synapse.orchestrator_control.models import (
+    PROTOCOL_VERSION,
     ExecutionProvenanceRecord,
-    PROTOCOL_VERSION
 )
 
 
@@ -21,7 +20,7 @@ from synapse.orchestrator_control.models import (
 class ProvenanceChain:
     """Chain of provenance records"""
     execution_id: str
-    records: List[ExecutionProvenanceRecord]
+    records: list[ExecutionProvenanceRecord]
     chain_hash: str
     protocol_version: str = PROTOCOL_VERSION
 
@@ -47,9 +46,9 @@ class ExecutionProvenanceRegistry:
     PROTOCOL_VERSION = PROTOCOL_VERSION
     
     def __init__(self):
-        self._records: Dict[str, ExecutionProvenanceRecord] = {}
-        self._chains: Dict[str, ProvenanceChain] = {}
-        self._audit_roots: Dict[str, str] = {}
+        self._records: dict[str, ExecutionProvenanceRecord] = {}
+        self._chains: dict[str, ProvenanceChain] = {}
+        self._audit_roots: dict[str, str] = {}
     
     def record_execution_provenance(
         self,
@@ -89,7 +88,7 @@ class ExecutionProvenanceRegistry:
     def get_execution_provenance(
         self,
         execution_id: str
-    ) -> Optional[ExecutionProvenanceRecord]:
+    ) -> ExecutionProvenanceRecord | None:
         """
         Get execution provenance.
         
@@ -120,7 +119,7 @@ class ExecutionProvenanceRegistry:
         record = self._records[execution_id]
         
         # Verify record hash
-        computed_hash = record.compute_provenance_hash()
+        record.compute_provenance_hash()
         
         # Verify audit root exists
         if execution_id not in self._audit_roots:
@@ -134,15 +133,12 @@ class ExecutionProvenanceRegistry:
         
         # Verify chain hash
         expected_chain_hash = self._compute_chain_hash(chain.records)
-        if chain.chain_hash != expected_chain_hash:
-            return False
-        
-        return True
+        return chain.chain_hash == expected_chain_hash
     
     def get_provenance_chain(
         self,
         execution_id: str
-    ) -> Optional[ProvenanceChain]:
+    ) -> ProvenanceChain | None:
         """
         Get full provenance chain.
         
@@ -154,22 +150,22 @@ class ExecutionProvenanceRegistry:
         """
         return self._chains.get(execution_id)
     
-    def get_audit_root(self, execution_id: str) -> Optional[str]:
+    def get_audit_root(self, execution_id: str) -> str | None:
         """Get audit root for execution"""
         return self._audit_roots.get(execution_id)
     
-    def list_executions(self) -> List[str]:
+    def list_executions(self) -> list[str]:
         """List all execution IDs"""
         return list(self._records.keys())
     
-    def get_executions_by_tenant(self, tenant_id: str) -> List[str]:
+    def get_executions_by_tenant(self, tenant_id: str) -> list[str]:
         """Get all executions for a tenant"""
         return [
             exec_id for exec_id, record in self._records.items()
             if record.tenant_id == tenant_id
         ]
     
-    def get_executions_by_node(self, node_id: str) -> List[str]:
+    def get_executions_by_node(self, node_id: str) -> list[str]:
         """Get all executions for a node"""
         return [
             exec_id for exec_id, record in self._records.items()
@@ -178,7 +174,7 @@ class ExecutionProvenanceRegistry:
     
     def _compute_chain_hash(
         self,
-        records: List[ExecutionProvenanceRecord]
+        records: list[ExecutionProvenanceRecord]
     ) -> str:
         """Compute deterministic hash of provenance chain"""
         data = {

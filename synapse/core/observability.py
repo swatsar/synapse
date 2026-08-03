@@ -4,15 +4,17 @@ Observability Core
 
 PROTOCOL_VERSION: str = "1.0"
 
-from typing import Dict, List, Any, Callable, Optional
-from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
 
 @dataclass
 class ExecutionEvent:
     """Execution event for traceability"""
     event_type: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
     timestamp: str = ""
     protocol_version: str = "1.0"
     
@@ -24,10 +26,10 @@ class ObservabilityCore:
     """Core observability engine for events"""
     
     def __init__(self):
-        self._subscribers: List[Callable] = []
-        self._event_subscribers: Dict[str, List[Callable]] = {}
+        self._subscribers: list[Callable] = []
+        self._event_subscribers: dict[str, list[Callable]] = {}
     
-    async def subscribe(self, event_type_or_callback, callback: Optional[Callable] = None):
+    async def subscribe(self, event_type_or_callback, callback: Callable | None = None):
         """Subscribe to events - supports both subscribe(callback) and subscribe(event_type, callback)"""
         if callback is None:
             # subscribe(callback) - subscribe to all events
@@ -48,7 +50,7 @@ class ObservabilityCore:
                 self._event_subscribers[event_type].remove(callback)
         return self
     
-    async def emit(self, event_type: str, data: Dict[str, Any]):
+    async def emit(self, event_type: str, data: dict[str, Any]):
         """Publish event"""
         event = ExecutionEvent(event_type=event_type, data=data)
         
@@ -77,7 +79,7 @@ class ObservabilityCore:
         """Publish event (synchronous wrapper)"""
         import asyncio
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             asyncio.create_task(self.emit(event.event_type, event.data))
         except RuntimeError:
             asyncio.run(self.emit(event.event_type, event.data))

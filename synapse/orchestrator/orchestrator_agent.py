@@ -4,27 +4,29 @@ Orchestrator Agent for task execution
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional
 import time
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
+from synapse.core.binding import BindingManager
+from synapse.core.execution import SecureExecutionContext, SecureWorkflowExecutor
+from synapse.core.workflow_engine import WorkflowDefinition
+from synapse.orchestrator.planning import TaskPlanner
+from synapse.orchestrator.policy import PolicyEngine
 
 # Local imports
 from synapse.orchestrator.task_model import Task
-from synapse.orchestrator.planning import TaskPlanner
-from synapse.orchestrator.policy import PolicyEngine
-from synapse.core.binding import BindingManager
-from synapse.core.workflow_engine import WorkflowDefinition
-from synapse.core.execution import SecureExecutionContext, SecureWorkflowExecutor
+
 
 @dataclass
 class OrchestratorAgent:
     binding_manager: BindingManager
-    task_planner: Optional[TaskPlanner] = None
-    policy_engine: Optional[PolicyEngine] = None
-    observability: Optional[Any] = None
+    task_planner: TaskPlanner | None = None
+    policy_engine: PolicyEngine | None = None
+    observability: Any | None = None
     
-    async def plan_workflow(self, task: Task) -> Optional[WorkflowDefinition]:
+    async def plan_workflow(self, task: Task) -> WorkflowDefinition | None:
         """
         Convert task to executable workflow
         """
@@ -33,7 +35,7 @@ class OrchestratorAgent:
         
         return self.task_planner.plan(task, self.binding_manager)
     
-    async def execute_task(self, task: Task) -> Dict[str, Any]:
+    async def execute_task(self, task: Task) -> dict[str, Any]:
         """
         Execute task through orchestrator pipeline
         """
@@ -46,7 +48,7 @@ class OrchestratorAgent:
                 return {
                     "success": False,
                     "error": "Task validation failed",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "protocol_version": "1.0"
                 }
             
@@ -56,7 +58,7 @@ class OrchestratorAgent:
                 return {
                     "success": False,
                     "error": "Workflow planning failed",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "protocol_version": "1.0"
                 }
             
@@ -87,7 +89,7 @@ class OrchestratorAgent:
                 "success": False,
                 "error": str(e),
                 "duration": duration,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "protocol_version": "1.0"
             }
     
@@ -100,15 +102,15 @@ class OrchestratorAgent:
             
         return True
     
-    async def _get_agent_capabilities(self, agent_id: str) -> List[str]:
+    async def _get_agent_capabilities(self, agent_id: str) -> list[str]:
         return list(self.binding_manager.get_agent_capabilities(agent_id))
     
-    async def _record_execution(self, task: Task, result: Dict, duration: float):
+    async def _record_execution(self, task: Task, result: dict, duration: float):
         if self.observability:
             await self.observability.emit("task_executed", {
                 "task_id": task.id,
                 "agent_id": task.agent_id,
                 "result": result,
                 "duration": duration,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             })

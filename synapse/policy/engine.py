@@ -1,8 +1,8 @@
 PROTOCOL_VERSION: str = "1.0"
-from typing import List
 
 from synapse.core.models import SkillManifest
 from synapse.security.capability_manager import CapabilityManager
+
 
 class PolicyEngine:
     """Simple policy engine that decides whether a skill may be executed.
@@ -12,7 +12,7 @@ class PolicyEngine:
 
     def __init__(self, capability_manager: CapabilityManager):
         self.capability_manager = capability_manager
-        self._rules: List[callable] = []
+        self._rules: list[callable] = []
         self._register_default_rules()
 
     def _register_default_rules(self):

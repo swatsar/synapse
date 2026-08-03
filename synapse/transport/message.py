@@ -4,20 +4,20 @@ Transport Messages for orchestrator-node communication
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
 import json
+from dataclasses import dataclass
+from typing import Any
+
 
 class CapabilityError(Exception):
     """Raised when capability check fails"""
-    pass
 
 @dataclass
 class ExecutionTrace:
     """Execution trace"""
     trace_id: str
     workflow_id: str
-    steps: List[Dict[str, Any]]
+    steps: list[dict[str, Any]]
     execution_time_ms: int
     protocol_version: str = "1.0"
     
@@ -48,8 +48,8 @@ class ExecutionResult:
     """Execution result"""
     success: bool
     steps_executed: int = 0
-    trace: Optional[ExecutionTrace] = None
-    error: Optional[str] = None
+    trace: ExecutionTrace | None = None
+    error: str | None = None
     protocol_version: str = "1.0"
     
     def serialize(self) -> str:

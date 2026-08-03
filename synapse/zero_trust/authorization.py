@@ -4,9 +4,8 @@ Execution Authorization Token - Deterministic Authorization Chain
 
 import hashlib
 import json
-from typing import Dict, Optional, List
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION = "1.0"
 
@@ -16,7 +15,7 @@ class AuthorizationRequest:
     """Request for execution authorization"""
     tenant_id: str
     node_id: str
-    capabilities: List[str]
+    capabilities: list[str]
     execution_seed: int
     protocol_version: str = PROTOCOL_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -28,7 +27,7 @@ class ExecutionAuthorizationToken:
     token_id: str
     tenant_id: str
     node_id: str
-    capabilities: List[str]
+    capabilities: list[str]
     execution_seed: int
     token_hash: str
     audit_root: str
@@ -81,8 +80,8 @@ class AuthorizationChain:
     PROTOCOL_VERSION = PROTOCOL_VERSION
 
     def __init__(self):
-        self._tokens: List[ExecutionAuthorizationToken] = []
-        self._root_hash: Optional[str] = None
+        self._tokens: list[ExecutionAuthorizationToken] = []
+        self._root_hash: str | None = None
 
     def add_token(self, token: ExecutionAuthorizationToken):
         """Add token to chain"""
@@ -132,7 +131,7 @@ class AuthorizationChain:
         import json
 
         if not self._tokens:
-            return hashlib.sha256("empty_chain".encode()).hexdigest()
+            return hashlib.sha256(b"empty_chain").hexdigest()
 
         # Collect all token hashes in order
         token_hashes = [token.token_hash for token in self._tokens]

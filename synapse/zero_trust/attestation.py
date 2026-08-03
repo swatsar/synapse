@@ -4,9 +4,8 @@ Remote Attestation Verification
 
 import hashlib
 import json
-from typing import Dict, Optional
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION = "1.0"
 

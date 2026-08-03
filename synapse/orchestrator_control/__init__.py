@@ -12,14 +12,18 @@ Components:
 Protocol Version: 1.0
 """
 
+from synapse.orchestrator_control.cluster_membership_authority import (
+    ClusterMembershipAuthority,
+)
+from synapse.orchestrator_control.execution_provenance_registry import (
+    ExecutionProvenanceRegistry,
+)
 from synapse.orchestrator_control.orchestrator_control_api import OrchestratorControlAPI
-from synapse.orchestrator_control.execution_provenance_registry import ExecutionProvenanceRegistry
-from synapse.orchestrator_control.cluster_membership_authority import ClusterMembershipAuthority
 
 __all__ = [
-    'OrchestratorControlAPI',
+    'ClusterMembershipAuthority',
     'ExecutionProvenanceRegistry',
-    'ClusterMembershipAuthority'
+    'OrchestratorControlAPI'
 ]
 
 PROTOCOL_VERSION = "1.0"

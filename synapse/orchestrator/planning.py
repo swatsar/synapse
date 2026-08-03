@@ -3,9 +3,10 @@ PROTOCOL_VERSION: str = "1.0"
 Task Planner for creating workflows from tasks
 """
 
+
+from synapse.core.workflow_engine import Step, WorkflowDefinition
 from synapse.orchestrator.task_model import Task
-from synapse.core.workflow_engine import WorkflowDefinition, Step
-from typing import List, Dict, Any
+
 
 class TaskPlanner:
     """Plans tasks into workflows"""

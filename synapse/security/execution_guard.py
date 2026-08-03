@@ -2,15 +2,18 @@
 
 Enforces security policies before skill execution.
 """
-from typing import List, Optional, Dict, Any, Type
 from dataclasses import dataclass, field
 from types import TracebackType
+from typing import Any, Self
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
+from synapse.core.isolation_policy import (
+    IsolationEnforcementPolicy,
+    RuntimeIsolationType,
+)
 from synapse.observability.logger import audit
-from synapse.core.isolation_policy import IsolationEnforcementPolicy, RuntimeIsolationType
 
 
 @dataclass
@@ -20,8 +23,8 @@ class ExecutionCheckResult:
     requires_approval: bool = False
     approval_granted: bool = False
     reason: str = ""
-    required_isolation: Optional[RuntimeIsolationType] = None
-    blocked_capabilities: List[str] = field(default_factory=list)
+    required_isolation: RuntimeIsolationType | None = None
+    blocked_capabilities: list[str] = field(default_factory=list)
 
 
 class ExecutionGuard:
@@ -60,11 +63,11 @@ class ExecutionGuard:
         return self._isolation_policy
     
     @property
-    def limits(self) -> Dict[str, Any]:
+    def limits(self) -> dict[str, Any]:
         """Get resource limits."""
         return self._limits
     
-    async def __aenter__(self) -> 'ExecutionGuard':
+    async def __aenter__(self) -> Self:
         """Enter async context.
         
         Validates capabilities and resource limits.
@@ -78,9 +81,9 @@ class ExecutionGuard:
     
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType]
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None
     ) -> bool:
         """Exit async context.
         
@@ -140,7 +143,7 @@ class ExecutionGuard:
             "skill": getattr(self._skill, "name", "unknown") if self._skill else "unknown"
         })
     
-    async def _audit_failure(self, error: Optional[BaseException]):
+    async def _audit_failure(self, error: BaseException | None):
         """Audit failed execution."""
         audit({
             "event": "execution_guard_failure",

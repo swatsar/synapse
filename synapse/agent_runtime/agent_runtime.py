@@ -4,15 +4,17 @@ Secure Agent Runtime
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, UTC
+import asyncio
 import hashlib
 import json
-import asyncio
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
-from synapse.planning.plan_model import Plan
-from synapse.planning.policy_constrained_planner import PolicyConstrainedPlanner, PlanningConstraints
+from synapse.planning.policy_constrained_planner import (
+    PlanningConstraints,
+    PolicyConstrainedPlanner,
+)
 
 
 @dataclass
@@ -20,10 +22,10 @@ class AgentResult:
     """Result of agent execution"""
     success: bool
     plan_hash: str
-    execution_trace: List[Dict[str, Any]]
-    used_capabilities: Set[str]
+    execution_trace: list[dict[str, Any]]
+    used_capabilities: set[str]
     deterministic_state_hash: str
-    error: Optional[str] = None
+    error: str | None = None
     timestamp: str = ""
     protocol_version: str = "1.0"
 
@@ -33,7 +35,7 @@ class AgentContext:
     """Capability-bound context for agent"""
     agent_id: str
     task_id: str
-    capabilities: Set[str]
+    capabilities: set[str]
     execution_seed: int
     max_steps: int = 10
     max_time_ms: int = 30000
@@ -45,8 +47,8 @@ class AgentRuntime:
     
     def __init__(self, planner: PolicyConstrainedPlanner):
         self.planner = planner
-        self._execution_trace: List[Dict[str, Any]] = []
-        self._used_capabilities: Set[str] = set()
+        self._execution_trace: list[dict[str, Any]] = []
+        self._used_capabilities: set[str] = set()
     
     async def run(self, task: str, context: AgentContext) -> AgentResult:
         """Run agent with capability-bound context"""
@@ -121,7 +123,7 @@ class AgentRuntime:
                 timestamp=datetime.now(UTC).isoformat()
             )
     
-    async def _execute_step(self, step, context: AgentContext) -> Dict[str, Any]:
+    async def _execute_step(self, step, context: AgentContext) -> dict[str, Any]:
         """Execute a single step"""
         # Check capabilities
         if not step.required_capabilities.issubset(context.capabilities):
@@ -150,7 +152,7 @@ class AgentRuntime:
                 {"step_id": t.get("step_id"), "success": t.get("success")}
                 for t in self._execution_trace
             ],
-            "capabilities": sorted(list(self._used_capabilities))
+            "capabilities": sorted(self._used_capabilities)
         }
         canonical = json.dumps(data, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(canonical.encode()).hexdigest()

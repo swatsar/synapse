@@ -1,8 +1,8 @@
 """Runtime Profile Manager - Production deployment configuration."""
 import os
+from typing import Any
+
 import yaml
-from typing import Dict, Any, List, Optional
-from pathlib import Path
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -11,9 +11,9 @@ class RuntimeProfileManager:
     """Manages runtime profiles for different deployment modes."""
     protocol_version: str = PROTOCOL_VERSION
     
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str | None = None):
         self._config_path = config_path or self._get_default_config_path()
-        self._profiles: Dict[str, Dict[str, Any]] = {}
+        self._profiles: dict[str, dict[str, Any]] = {}
         self._load_all_profiles()
     
     def _get_default_config_path(self) -> str:
@@ -28,7 +28,7 @@ class RuntimeProfileManager:
             return
         
         for filename in os.listdir(self._config_path):
-            if filename.endswith(".yaml") or filename.endswith(".yml"):
+            if filename.endswith((".yaml", ".yml")):
                 profile_name = filename.rsplit(".", 1)[0]
                 self._load_profile_file(profile_name, os.path.join(self._config_path, filename))
     
@@ -70,17 +70,17 @@ class RuntimeProfileManager:
         except Exception as _exc:  # noqa
             pass  # noqa: silenced - _exc
     
-    def load_profile(self, name: str) -> Dict[str, Any]:
+    def load_profile(self, name: str) -> dict[str, Any]:
         """Load a specific profile."""
         if name not in self._profiles:
             raise ValueError(f"Profile '{name}' not found")
         return self._profiles[name]
     
-    def list_profiles(self) -> List[str]:
+    def list_profiles(self) -> list[str]:
         """List all available profiles."""
         return list(self._profiles.keys())
     
-    def get_bootstrap_config(self, name: str) -> Dict[str, Any]:
+    def get_bootstrap_config(self, name: str) -> dict[str, Any]:
         """Get bootstrap configuration for a profile."""
         profile = self.load_profile(name)
         return {

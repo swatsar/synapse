@@ -7,11 +7,11 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Set
-from dataclasses import dataclass, field
-from enum import Enum
 import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 
 class CapabilityStatus(str, Enum):
@@ -45,9 +45,9 @@ class CapabilityDescriptor:
     version: str
     domain: str
     description: str
-    permissions: List[str]
-    dependencies: Dict[str, DependencyType]
-    policies: Dict[str, Any]
+    permissions: list[str]
+    dependencies: dict[str, DependencyType]
+    policies: dict[str, Any]
     status: CapabilityStatus
     created_at: str
     updated_at: str
@@ -61,14 +61,14 @@ class CapabilityDescriptor:
         version: str,
         domain: str,
         description: str,
-        permissions: List[str],
-        dependencies: Optional[Dict[str, DependencyType]] = None,
-        policies: Optional[Dict[str, Any]] = None
+        permissions: list[str],
+        dependencies: dict[str, DependencyType] | None = None,
+        policies: dict[str, Any] | None = None
     ) -> "CapabilityDescriptor":
         """Create new capability descriptor"""
         capability_id = cls._generate_id(name, version, domain)
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
 
         descriptor = cls(
             capability_id=capability_id,
@@ -102,10 +102,7 @@ class CapabilityDescriptor:
             return False
 
         # Verify status
-        if self.status == CapabilityStatus.REVOKED:
-            return False
-
-        return True
+        return self.status != CapabilityStatus.REVOKED
 
     def check_dependency(
         self,
@@ -116,7 +113,7 @@ class CapabilityDescriptor:
 
     def is_compatible_with(
         self,
-        other_capabilities: List["CapabilityDescriptor"]
+        other_capabilities: list["CapabilityDescriptor"]
     ) -> bool:
         """Check if compatible with other capabilities"""
         for other in other_capabilities:
@@ -174,9 +171,9 @@ class DomainRegistry:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._capabilities: Dict[str, CapabilityDescriptor] = {}
-        self._domains: Dict[str, Set[str]] = {}  # domain -> capability_ids
-        self._dependency_graph: Dict[str, Set[str]] = {}  # capability_id -> dependency_ids
+        self._capabilities: dict[str, CapabilityDescriptor] = {}
+        self._domains: dict[str, set[str]] = {}  # domain -> capability_ids
+        self._dependency_graph: dict[str, set[str]] = {}  # capability_id -> dependency_ids
         self._lock = threading.Lock()
         self._sealed: bool = False
 
@@ -223,10 +220,10 @@ class DomainRegistry:
             self._domains[descriptor.domain].add(descriptor.capability_id)
 
             # Update dependency graph
-            self._dependency_graph[descriptor.capability_id] = set(
+            self._dependency_graph[descriptor.capability_id] = {
                 dep_id for dep_id, dep_type in descriptor.dependencies.items()
                 if dep_type != DependencyType.CONFLICT
-            )
+            }
 
             return True
 
@@ -246,12 +243,12 @@ class DomainRegistry:
         with self._lock:
             return self._sealed
 
-    def get_capability(self, capability_id: str) -> Optional[CapabilityDescriptor]:
+    def get_capability(self, capability_id: str) -> CapabilityDescriptor | None:
         """Get capability by ID"""
         with self._lock:
             return self._capabilities.get(capability_id)
 
-    def get_capabilities_by_domain(self, domain: str) -> List[CapabilityDescriptor]:
+    def get_capabilities_by_domain(self, domain: str) -> list[CapabilityDescriptor]:
         """Get all capabilities in a domain"""
         with self._lock:
             if domain not in self._domains:
@@ -264,8 +261,8 @@ class DomainRegistry:
 
     def resolve_capabilities(
         self,
-        requested: List[str]
-    ) -> List[CapabilityDescriptor]:
+        requested: list[str]
+    ) -> list[CapabilityDescriptor]:
         """
         Deterministically resolve capability set.
 
@@ -279,7 +276,7 @@ class DomainRegistry:
             ValueError: If resolution fails
         """
         with self._lock:
-            resolved: Dict[str, CapabilityDescriptor] = {}
+            resolved: dict[str, CapabilityDescriptor] = {}
 
             # Sort for deterministic order
             sorted_requested = sorted(requested)
@@ -336,7 +333,7 @@ class DomainRegistry:
 
     def check_compatibility(
         self,
-        capability_ids: List[str]
+        capability_ids: list[str]
     ) -> bool:
         """
         Check if capabilities are compatible.
@@ -361,17 +358,17 @@ class DomainRegistry:
 
             return True
 
-    def list_domains(self) -> List[str]:
+    def list_domains(self) -> list[str]:
         """List all domains"""
         with self._lock:
             return sorted(self._domains.keys())
 
-    def list_capabilities(self) -> List[str]:
+    def list_capabilities(self) -> list[str]:
         """List all capability IDs"""
         with self._lock:
             return sorted(self._capabilities.keys())
 
-    def get_dependency_graph(self) -> Dict[str, Set[str]]:
+    def get_dependency_graph(self) -> dict[str, set[str]]:
         """Get dependency graph"""
         with self._lock:
             return {k: v.copy() for k, v in self._dependency_graph.items()}
@@ -379,8 +376,8 @@ class DomainRegistry:
     def _resolve_dependencies(
         self,
         capability_id: str,
-        already_resolved: Dict[str, CapabilityDescriptor]
-    ) -> Dict[str, CapabilityDescriptor]:
+        already_resolved: dict[str, CapabilityDescriptor]
+    ) -> dict[str, CapabilityDescriptor]:
         """Recursively resolve dependencies"""
         resolved = {}
 
@@ -410,8 +407,8 @@ class DomainRegistry:
 
 
 __all__ = [
+    "CapabilityDescriptor",
     "CapabilityStatus",
     "DependencyType",
-    "CapabilityDescriptor",
     "DomainRegistry"
 ]

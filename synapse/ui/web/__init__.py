@@ -1,6 +1,6 @@
 """Web UI Components."""
-from .server import WebServer
 from .dashboard import Dashboard
+from .server import WebServer
 
-__all__ = ["WebServer", "Dashboard"]
+__all__ = ["Dashboard", "WebServer"]
 PROTOCOL_VERSION: str = "1.0"

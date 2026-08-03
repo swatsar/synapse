@@ -9,13 +9,13 @@ Components:
 
 PROTOCOL_VERSION: str = "1.0"
 
-from synapse.ecosystem.domain_packs import DomainPack
-from synapse.ecosystem.capability_marketplace import CapabilityMarketplace
 from synapse.ecosystem.api_gateway import ExternalAPIGateway
+from synapse.ecosystem.capability_marketplace import CapabilityMarketplace
+from synapse.ecosystem.domain_packs import DomainPack
 
 __all__ = [
-    'DomainPack',
+    'PROTOCOL_VERSION',
     'CapabilityMarketplace',
-    'ExternalAPIGateway',
-    'PROTOCOL_VERSION'
+    'DomainPack',
+    'ExternalAPIGateway'
 ]

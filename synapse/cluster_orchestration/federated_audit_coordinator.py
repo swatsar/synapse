@@ -11,9 +11,8 @@ Aggregates audit roots from multiple nodes with:
 
 import hashlib
 import json
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -21,7 +20,7 @@ class FederatedAuditRoot:
     """Aggregated audit root from multiple nodes"""
     aggregation_id: str
     timestamp: str
-    node_roots: Dict[str, str]  # node_id -> merkle_root
+    node_roots: dict[str, str]  # node_id -> merkle_root
     global_root: str
     protocol_version: str = "1.0"
 
@@ -40,8 +39,8 @@ class FederatedAuditCoordinator:
     PROTOCOL_VERSION: str = "1.0"
     
     def __init__(self):
-        self._node_roots: Dict[str, str] = {}  # node_id -> merkle_root
-        self._aggregation_history: List[FederatedAuditRoot] = []
+        self._node_roots: dict[str, str] = {}  # node_id -> merkle_root
+        self._aggregation_history: list[FederatedAuditRoot] = []
         self._aggregation_counter = 0
     
     def collect_node_root(self, node_id: str, audit_root: str) -> None:
@@ -91,7 +90,7 @@ class FederatedAuditCoordinator:
             return True  # Empty cluster is valid
         
         # Verify all roots are valid SHA-256 hashes
-        for node_id, root in self._node_roots.items():
+        for root in self._node_roots.values():
             if not self._is_valid_hash(root):
                 return False
         
@@ -108,7 +107,7 @@ class FederatedAuditCoordinator:
         
         federated_root = FederatedAuditRoot(
             aggregation_id=f"federation_{self._aggregation_counter}",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             node_roots=dict(self._node_roots),
             global_root=self.compute_cluster_root()
         )
@@ -116,15 +115,15 @@ class FederatedAuditCoordinator:
         self._aggregation_history.append(federated_root)
         return federated_root
     
-    def get_node_root(self, node_id: str) -> Optional[str]:
+    def get_node_root(self, node_id: str) -> str | None:
         """Get audit root for a specific node"""
         return self._node_roots.get(node_id)
     
-    def get_all_node_roots(self) -> Dict[str, str]:
+    def get_all_node_roots(self) -> dict[str, str]:
         """Get all node roots"""
         return dict(self._node_roots)
     
-    def get_aggregation_history(self) -> List[FederatedAuditRoot]:
+    def get_aggregation_history(self) -> list[FederatedAuditRoot]:
         """Get history of all federations"""
         return list(self._aggregation_history)
     
@@ -152,7 +151,7 @@ class FederatedAuditCoordinator:
             return False
     
     def verify_cross_node_replay(self, 
-                                  expected_roots: Dict[str, str]) -> bool:
+                                  expected_roots: dict[str, str]) -> bool:
         """
         Verify that current roots match expected roots.
         

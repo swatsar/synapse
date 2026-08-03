@@ -2,23 +2,23 @@
 
 Protocol Version: 1.0
 """
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Optional, Any
-from datetime import datetime, timezone
 
 PROTOCOL_VERSION: str = "1.0"
 
 router = APIRouter()
 
 # In-memory storage
-agents_db: Dict[str, Dict] = {
+agents_db: dict[str, dict] = {
     "planner": {
         "id": "planner",
         "name": "Planner Agent",
         "status": "idle",
         "type": "planner",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     },
     "critic": {
@@ -26,7 +26,7 @@ agents_db: Dict[str, Dict] = {
         "name": "Critic Agent",
         "status": "idle",
         "type": "critic",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     },
     "developer": {
@@ -34,7 +34,7 @@ agents_db: Dict[str, Dict] = {
         "name": "Developer Agent",
         "status": "idle",
         "type": "developer",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     },
     "guardian": {
@@ -42,20 +42,20 @@ agents_db: Dict[str, Dict] = {
         "name": "Guardian Agent",
         "status": "idle",
         "type": "guardian",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     }
 }
 
-agents_logs: Dict[str, List[Dict]] = {k: [] for k in agents_db}
-agents_config: Dict[str, Dict] = {k: {"max_retries": 3, "timeout": 30} for k in agents_db}
+agents_logs: dict[str, list[dict]] = {k: [] for k in agents_db}
+agents_config: dict[str, dict] = {k: {"max_retries": 3, "timeout": 30} for k in agents_db}
 
 
 # === Models ===
 
 class AgentConfigUpdate(BaseModel):
-    max_retries: Optional[int] = None
-    timeout: Optional[int] = None
+    max_retries: int | None = None
+    timeout: int | None = None
 
 
 # === Routes ===
@@ -94,7 +94,7 @@ async def start_agent(agent_id: str):
     if agent_id not in agents_db:
         raise HTTPException(status_code=404, detail="Agent not found")
     agents_db[agent_id]["status"] = "running"
-    agents_db[agent_id]["started_at"] = datetime.now(timezone.utc).isoformat()
+    agents_db[agent_id]["started_at"] = datetime.now(UTC).isoformat()
     return agents_db[agent_id]
 
 
@@ -104,7 +104,7 @@ async def stop_agent(agent_id: str):
     if agent_id not in agents_db:
         raise HTTPException(status_code=404, detail="Agent not found")
     agents_db[agent_id]["status"] = "stopped"
-    agents_db[agent_id]["stopped_at"] = datetime.now(timezone.utc).isoformat()
+    agents_db[agent_id]["stopped_at"] = datetime.now(UTC).isoformat()
     return agents_db[agent_id]
 
 

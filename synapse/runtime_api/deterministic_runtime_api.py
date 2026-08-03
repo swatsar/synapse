@@ -7,11 +7,12 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, field
-from enum import Enum
 import threading
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 
 class ExecutionDomain(str, Enum):
@@ -45,9 +46,9 @@ class ExecutionContract:
     """
     contract_id: str
     tenant_id: str
-    capability_set: List[str]
+    capability_set: list[str]
     execution_domain: ExecutionDomain
-    resource_limits: Dict[str, int]
+    resource_limits: dict[str, int]
     deterministic_seed: int
     created_at: str
     contract_hash: str
@@ -57,9 +58,9 @@ class ExecutionContract:
     def create(
         cls,
         tenant_id: str,
-        capability_set: List[str],
+        capability_set: list[str],
         execution_domain: ExecutionDomain,
-        resource_limits: Dict[str, int],
+        resource_limits: dict[str, int],
         deterministic_seed: int
     ) -> "ExecutionContract":
         """Create new execution contract"""
@@ -74,7 +75,7 @@ class ExecutionContract:
             execution_domain=execution_domain,
             resource_limits=resource_limits,
             deterministic_seed=deterministic_seed,
-            created_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             contract_hash="",  # Will be calculated
             protocol_version="1.0"
         )
@@ -96,16 +97,13 @@ class ExecutionContract:
             return False
         if not self.capability_set:
             return False
-        if self.deterministic_seed < 0:
-            return False
-
-        return True
+        return not self.deterministic_seed < 0
 
     def verify_capability(self, capability: str) -> bool:
         """Check if capability is in contract"""
         return capability in self.capability_set
 
-    def verify_capabilities(self, capabilities: List[str]) -> bool:
+    def verify_capabilities(self, capabilities: list[str]) -> bool:
         """Check if all capabilities are in contract"""
         return all(cap in self.capability_set for cap in capabilities)
 
@@ -128,7 +126,7 @@ class ExecutionContract:
     def _generate_contract_id(
         cls,
         tenant_id: str,
-        capability_set: List[str],
+        capability_set: list[str],
         seed: int
     ) -> str:
         """Generate deterministic contract ID"""
@@ -143,7 +141,7 @@ class RuntimeCall:
     call_id: str
     contract: ExecutionContract
     function_name: str
-    arguments: Dict[str, Any]
+    arguments: dict[str, Any]
     timestamp: str
     call_hash: str
     protocol_version: str = "1.0"
@@ -155,7 +153,7 @@ class RuntimeResult:
     call_id: str
     success: bool
     output: Any
-    error: Optional[str]
+    error: str | None
     execution_time_ms: int
     result_hash: str
     protocol_version: str = "1.0"
@@ -175,17 +173,17 @@ class DeterministicRuntimeAPI:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._contracts: Dict[str, ExecutionContract] = {}
-        self._calls: Dict[str, RuntimeCall] = {}
-        self._results: Dict[str, RuntimeResult] = {}
-        self._functions: Dict[str, Callable] = {}
+        self._contracts: dict[str, ExecutionContract] = {}
+        self._calls: dict[str, RuntimeCall] = {}
+        self._results: dict[str, RuntimeResult] = {}
+        self._functions: dict[str, Callable] = {}
         self._lock = threading.Lock()
 
     def register_function(
         self,
         name: str,
         func: Callable,
-        required_capabilities: List[str]
+        required_capabilities: list[str]
     ) -> bool:
         """
         Register function with required capabilities.
@@ -208,9 +206,9 @@ class DeterministicRuntimeAPI:
     def create_contract(
         self,
         tenant_id: str,
-        capability_set: List[str],
+        capability_set: list[str],
         execution_domain: ExecutionDomain,
-        resource_limits: Dict[str, int],
+        resource_limits: dict[str, int],
         deterministic_seed: int
     ) -> ExecutionContract:
         """
@@ -243,7 +241,7 @@ class DeterministicRuntimeAPI:
         self,
         contract_id: str,
         function_name: str,
-        arguments: Dict[str, Any]
+        arguments: dict[str, Any]
     ) -> RuntimeResult:
         """
         Execute runtime call.
@@ -296,7 +294,7 @@ class DeterministicRuntimeAPI:
             contract=contract,
             function_name=function_name,
             arguments=arguments,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             call_hash=self._hash_call(call_id, contract_id, function_name, arguments),
             protocol_version=self.PROTOCOL_VERSION
         )
@@ -343,12 +341,12 @@ class DeterministicRuntimeAPI:
 
         return result
 
-    def get_contract(self, contract_id: str) -> Optional[ExecutionContract]:
+    def get_contract(self, contract_id: str) -> ExecutionContract | None:
         """Get contract by ID"""
         with self._lock:
             return self._contracts.get(contract_id)
 
-    def get_result(self, call_id: str) -> Optional[RuntimeResult]:
+    def get_result(self, call_id: str) -> RuntimeResult | None:
         """Get result by call ID"""
         with self._lock:
             return self._results.get(call_id)
@@ -357,7 +355,7 @@ class DeterministicRuntimeAPI:
         self,
         contract_id: str,
         function_name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
         expected_hash: str
     ) -> bool:
         """
@@ -381,7 +379,7 @@ class DeterministicRuntimeAPI:
         self,
         contract_id: str,
         function_name: str,
-        arguments: Dict[str, Any]
+        arguments: dict[str, Any]
     ) -> str:
         """Generate deterministic call ID"""
         data = f"{contract_id}:{function_name}:{json.dumps(arguments, sort_keys=True)}"
@@ -393,7 +391,7 @@ class DeterministicRuntimeAPI:
         call_id: str,
         contract_id: str,
         function_name: str,
-        arguments: Dict[str, Any]
+        arguments: dict[str, Any]
     ) -> str:
         """Hash call data"""
         data = {
@@ -417,12 +415,11 @@ class DeterministicRuntimeAPI:
 
 import asyncio
 
-
 __all__ = [
+    "DeterministicRuntimeAPI",
+    "ExecutionContract",
     "ExecutionDomain",
     "ExecutionStatus",
-    "ExecutionContract",
     "RuntimeCall",
-    "RuntimeResult",
-    "DeterministicRuntimeAPI"
+    "RuntimeResult"
 ]

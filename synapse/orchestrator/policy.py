@@ -3,8 +3,9 @@ PROTOCOL_VERSION: str = "1.0"
 Policy engine for validation
 """
 
-from synapse.orchestrator.task_model import Task
 from synapse.governance.capability_policy import CapabilityPolicyEngine
+from synapse.orchestrator.task_model import Task
+
 
 class PolicyEngine:
     """Policy engine for task validation"""

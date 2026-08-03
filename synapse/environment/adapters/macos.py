@@ -7,11 +7,10 @@ Spec Version: 3.1
 
 import asyncio
 import platform
-import subprocess
-from typing import Dict, List, Optional, Any
 from pathlib import Path
+from typing import Any
 
-from synapse.environment.adapters.base import EnvironmentAdapter, PROTOCOL_VERSION
+from synapse.environment.adapters.base import EnvironmentAdapter
 
 
 class MacOSAdapter(EnvironmentAdapter):
@@ -31,7 +30,6 @@ class MacOSAdapter(EnvironmentAdapter):
         Returns:
             Path: User home directory (e.g., /Users/username)
         """
-        import os
         return Path.home()
 
     async def get_config_dir(self) -> Path:
@@ -40,7 +38,6 @@ class MacOSAdapter(EnvironmentAdapter):
         Returns:
             Path: ~/Library/Application Support/Synapse directory
         """
-        import os
         return Path.home() / 'Library' / 'Application Support' / 'Synapse'
 
     async def get_data_dir(self) -> Path:
@@ -49,7 +46,6 @@ class MacOSAdapter(EnvironmentAdapter):
         Returns:
             Path: ~/Library/Application Support/Synapse/Data directory
         """
-        import os
         return Path.home() / 'Library' / 'Application Support' / 'Synapse' / 'Data'
 
     async def get_temp_dir(self) -> Path:
@@ -65,9 +61,9 @@ class MacOSAdapter(EnvironmentAdapter):
         self, 
         command: str, 
         timeout: int = 60,
-        cwd: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        cwd: str | None = None,
+        env: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """Execute command using zsh.
 
         Args:
@@ -100,7 +96,7 @@ class MacOSAdapter(EnvironmentAdapter):
                 'returncode': process.returncode
             })
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return self._create_response({
                 'stdout': '',
                 'stderr': f'Command timed out after {timeout} seconds',
@@ -113,7 +109,7 @@ class MacOSAdapter(EnvironmentAdapter):
                 'returncode': -1
             })
 
-    async def get_os_info(self) -> Dict[str, Any]:
+    async def get_os_info(self) -> dict[str, Any]:
         """Get macOS system information.
 
         Returns:
@@ -139,7 +135,7 @@ class MacOSAdapter(EnvironmentAdapter):
             'hostname': platform.node()
         })
 
-    async def get_network_info(self) -> Dict[str, Any]:
+    async def get_network_info(self) -> dict[str, Any]:
         """Get macOS network information.
 
         Returns:
@@ -167,7 +163,7 @@ class MacOSAdapter(EnvironmentAdapter):
             'ip_addresses': ip_addresses
         })
 
-    async def get_resource_usage(self) -> Dict[str, Any]:
+    async def get_resource_usage(self) -> dict[str, Any]:
         """Get macOS resource usage.
 
         Returns:
@@ -269,7 +265,7 @@ class MacOSAdapter(EnvironmentAdapter):
         except Exception:
             return False
 
-    async def get_environment_variables(self) -> Dict[str, str]:
+    async def get_environment_variables(self) -> dict[str, str]:
         """Get all macOS environment variables.
 
         Returns:
@@ -311,7 +307,7 @@ class MacOSAdapter(EnvironmentAdapter):
 
         return True
 
-    async def get_process_list(self) -> List[Dict[str, Any]]:
+    async def get_process_list(self) -> list[dict[str, Any]]:
         """Get list of running processes on macOS.
 
         Returns:

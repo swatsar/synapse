@@ -12,11 +12,11 @@ Copyright (c) 2024 LangChain, Inc.
 Copyright (c) 2026 Synapse Contributors
 """
 
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from enum import Enum
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from enum import Enum
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -36,15 +36,15 @@ class HumanApprovalRequest:
     graph_id: str
     node_id: str
     node_name: str
-    state_snapshot: Dict[str, Any]
+    state_snapshot: dict[str, Any]
     risk_level: int
     required_action: str
     created_at: str
     expires_at: str
     status: ApprovalStatus = ApprovalStatus.PENDING
-    approved_by: Optional[str] = None
-    approved_at: Optional[str] = None
-    reason: Optional[str] = None
+    approved_by: str | None = None
+    approved_at: str | None = None
+    reason: str | None = None
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
@@ -73,28 +73,28 @@ class HumanLoopManager:
         security_manager: Any = None,
         audit_logger: Any = None,
         notification_service: Any = None,
-        config: Dict[str, Any] = None
+        config: dict[str, Any] | None = None
     ):
         self.storage = storage
         self.security = security_manager
         self.audit = audit_logger
         self.notifications = notification_service
         self.config = config or {}
-        self.pending_requests: Dict[str, HumanApprovalRequest] = {}
+        self.pending_requests: dict[str, HumanApprovalRequest] = {}
         self.approval_ttl_hours = self.config.get("approval_ttl_hours", 24)
     
     async def create_interrupt(
         self,
         graph_id: str,
         node_id: str,
-        state: Dict[str, Any],
+        state: dict[str, Any],
         risk_level: int,
         trace_id: str,
         session_id: str
     ) -> HumanApprovalRequest:
         """Create an interrupt for human approval"""
         request_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         
         request = HumanApprovalRequest(
             id=request_id,
@@ -130,7 +130,7 @@ class HumanLoopManager:
         request_id: str,
         approved: bool,
         user_id: str,
-        reason: str = None
+        reason: str | None = None
     ) -> bool:
         """Submit approval decision"""
         request = self.pending_requests.get(request_id)
@@ -138,14 +138,14 @@ class HumanLoopManager:
             raise KeyError(f"Approval request {request_id} not found")
         
         # Check expiration
-        if datetime.fromisoformat(request.expires_at) < datetime.now(timezone.utc):
+        if datetime.fromisoformat(request.expires_at) < datetime.now(UTC):
             request.status = ApprovalStatus.EXPIRED
             raise ValueError(f"Approval request {request_id} has expired")
         
         # Update status
         request.status = ApprovalStatus.APPROVED if approved else ApprovalStatus.DENIED
         request.approved_by = user_id
-        request.approved_at = datetime.now(timezone.utc).isoformat()
+        request.approved_at = datetime.now(UTC).isoformat()
         request.reason = reason
         
         if self.storage:
@@ -165,14 +165,14 @@ class HumanLoopManager:
         
         return True
     
-    async def get_pending_approvals(self, user_id: str = None) -> List[HumanApprovalRequest]:
+    async def get_pending_approvals(self, user_id: str | None = None) -> list[HumanApprovalRequest]:
         """Get pending approval requests"""
         return [
             r for r in self.pending_requests.values()
             if r.status == ApprovalStatus.PENDING
         ]
     
-    def _sanitize_state(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_state(self, state: dict[str, Any]) -> dict[str, Any]:
         """Sanitize state for storage"""
         sensitive_keys = ["password", "token", "secret", "key", "api_key"]
         

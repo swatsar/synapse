@@ -4,20 +4,19 @@ Policy-Constrained Planning Engine
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, UTC
 import hashlib
-import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
-from synapse.planning.plan_model import Plan, PlanStep, PlanBuilder
 from synapse.planning.plan_hashing import PlanHasher
+from synapse.planning.plan_model import Plan, PlanBuilder
 
 
 @dataclass
 class PlanningConstraints:
     """Constraints for deterministic planning"""
-    allowed_capabilities: Set[str]
+    allowed_capabilities: set[str]
     max_steps: int = 10
     max_depth: int = 5
     policy_hash: str = ""
@@ -28,9 +27,9 @@ class PlanningConstraints:
 class PlanningResult:
     """Result of planning attempt"""
     success: bool
-    plan: Optional[Plan]
-    violations: List[str]
-    plan_hash: Optional[str]
+    plan: Plan | None
+    violations: list[str]
+    plan_hash: str | None
     timestamp: str
     protocol_version: str = "1.0"
 
@@ -38,7 +37,7 @@ class PlanningResult:
 class PolicyConstrainedPlanner:
     """Planner that enforces policy constraints"""
     
-    def __init__(self, policy_rules: Dict[str, Any]):
+    def __init__(self, policy_rules: dict[str, Any]):
         self.policy_rules = policy_rules
         self.policy_hash = PlanHasher.compute_policy_hash(policy_rules)
     
@@ -113,14 +112,13 @@ class PolicyConstrainedPlanner:
             timestamp=datetime.now(UTC).isoformat()
         )
     
-    def _parse_task(self, task_description: str, seed: int) -> List[Dict[str, Any]]:
+    def _parse_task(self, task_description: str, seed: int) -> list[dict[str, Any]]:
         """Parse task into candidate steps deterministically"""
         # Deterministic parsing based on seed
-        import hashlib
         
         # Create deterministic step generation
         hash_input = f"{task_description}:{seed}"
-        hash_val = hashlib.sha256(hash_input.encode()).hexdigest()
+        hashlib.sha256(hash_input.encode()).hexdigest()
         
         # Generate steps based on task keywords
         steps = []
@@ -169,7 +167,7 @@ class PolicyConstrainedPlanner:
         
         return steps
     
-    def _validate_step_policy(self, step: Dict[str, Any]) -> bool:
+    def _validate_step_policy(self, step: dict[str, Any]) -> bool:
         """Validate step against policy rules"""
         # Check forbidden actions
         forbidden = self.policy_rules.get("forbidden_actions", [])
@@ -180,12 +178,9 @@ class PolicyConstrainedPlanner:
         required_caps = set(step.get("capabilities", set()))
         allowed_caps = set(self.policy_rules.get("allowed_capabilities", []))
         
-        if allowed_caps and not required_caps.issubset(allowed_caps):
-            return False
-        
-        return True
+        return not (allowed_caps and not required_caps.issubset(allowed_caps))
     
-    def validate_plan(self, plan: Plan, capabilities: Set[str]) -> bool:
+    def validate_plan(self, plan: Plan, capabilities: set[str]) -> bool:
         """Validate an existing plan against capabilities"""
         plan_caps = plan.get_all_capabilities()
         return plan_caps.issubset(capabilities)

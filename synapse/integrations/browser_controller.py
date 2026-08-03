@@ -12,14 +12,11 @@ Copyright (c) 2024 browser-use Contributors
 Copyright (c) 2026 Synapse Contributors
 """
 
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
 import asyncio
-import hashlib
-import json
-import re
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 from urllib.parse import urlparse
 
 # Protocol versioning
@@ -51,18 +48,18 @@ class BrowserActionResult:
     """Result of a browser action"""
     status: BrowserActionStatus
     action: str
-    url: Optional[str] = None
-    content: Optional[str] = None
-    screenshot: Optional[str] = None
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    url: str | None = None
+    content: str | None = None
+    screenshot: str | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION
 
 
 @dataclass
 class BrowserSecurityConfig:
     """Security configuration for browser controller"""
-    allowed_domains: List[str] = field(default_factory=lambda: [
+    allowed_domains: list[str] = field(default_factory=lambda: [
         'localhost',
         '127.0.0.1',
         'example.com',
@@ -70,13 +67,13 @@ class BrowserSecurityConfig:
         'pypi.org',
         'docs.python.org'
     ])
-    blocked_domains: List[str] = field(default_factory=lambda: [
+    blocked_domains: list[str] = field(default_factory=lambda: [
         'malware',
         'phishing',
         'hack',
         'exploit'
     ])
-    blocked_actions: List[str] = field(default_factory=lambda: [
+    blocked_actions: list[str] = field(default_factory=lambda: [
         'download_executable',
         'upload_sensitive',
         'bypass_captcha',
@@ -109,7 +106,7 @@ class SecureBrowserController:
     RISK_LEVEL: int = 4  # High risk - web access
     
     # Required capabilities
-    REQUIRED_CAPABILITIES: List[str] = [
+    REQUIRED_CAPABILITIES: list[str] = [
         "network:http",
         "browser:automation"
     ]
@@ -124,7 +121,7 @@ class SecureBrowserController:
         self,
         security_manager: Any = None,
         audit_logger: Any = None,
-        config: Optional[BrowserSecurityConfig] = None
+        config: BrowserSecurityConfig | None = None
     ):
         """
         Initialize the browser controller.
@@ -151,11 +148,11 @@ class SecureBrowserController:
     async def execute(
         self,
         action: str,
-        url: Optional[str] = None,
-        selector: Optional[str] = None,
-        value: Optional[str] = None,
-        timeout: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None
+        url: str | None = None,
+        selector: str | None = None,
+        value: str | None = None,
+        timeout: int | None = None,
+        context: dict[str, Any] | None = None
     ) -> BrowserActionResult:
         """
         Execute a browser action with security checks.
@@ -171,7 +168,7 @@ class SecureBrowserController:
         Returns:
             BrowserActionResult with status and data
         """
-        action_start = datetime.now(timezone.utc)
+        datetime.now(UTC)
         
         # 1. Check for blocked actions FIRST (before enum validation)
         for blocked in self.config.blocked_actions:
@@ -296,7 +293,7 @@ class SecureBrowserController:
             
             return result
             
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await self._audit_action(
                 action=action,
                 status=BrowserActionStatus.TIMEOUT,
@@ -325,7 +322,7 @@ class SecureBrowserController:
                 error=str(e)
             )
     
-    async def _validate_url(self, url: str) -> Dict[str, Any]:
+    async def _validate_url(self, url: str) -> dict[str, Any]:
         """
         Validate URL against security policies.
         
@@ -378,15 +375,15 @@ class SecureBrowserController:
         except Exception as e:
             return {
                 "allowed": False,
-                "reason": f"URL validation error: {str(e)}"
+                "reason": f"URL validation error: {e!s}"
             }
     
     async def _validate_action(
         self,
         action: str,
-        selector: Optional[str],
-        value: Optional[str]
-    ) -> Dict[str, Any]:
+        selector: str | None,
+        value: str | None
+    ) -> dict[str, Any]:
         """
         Validate action against security policies.
         
@@ -431,9 +428,9 @@ class SecureBrowserController:
     async def _execute_action(
         self,
         action: BrowserAction,
-        url: Optional[str],
-        selector: Optional[str],
-        value: Optional[str],
+        url: str | None,
+        selector: str | None,
+        value: str | None,
         timeout: int
     ) -> BrowserActionResult:
         """Execute browser action via Playwright if available, else httpx fallback."""
@@ -459,9 +456,9 @@ class SecureBrowserController:
     async def _execute_with_httpx(
         self,
         action: BrowserAction,
-        url: Optional[str],
-        selector: Optional[str],
-        value: Optional[str],
+        url: str | None,
+        selector: str | None,
+        value: str | None,
         timeout: int,
     ) -> BrowserActionResult:
         """Best-effort fallback when Playwright browsers are unavailable.
@@ -495,7 +492,9 @@ class SecureBrowserController:
         elif action == BrowserAction.SCRAPE:
             if url:
                 try:
-                    import httpx, re as _re
+                    import re as _re
+
+                    import httpx
                     async with httpx.AsyncClient(timeout=min(timeout, 10), follow_redirects=True) as client:
                         resp = await client.get(url)
                         text = _re.sub(r"<[^>]+>", " ", resp.text)
@@ -535,9 +534,9 @@ class SecureBrowserController:
     async def _execute_with_playwright(
         self,
         action: BrowserAction,
-        url: Optional[str],
-        selector: Optional[str],
-        value: Optional[str],
+        url: str | None,
+        selector: str | None,
+        value: str | None,
         timeout: int,
     ) -> BrowserActionResult:
         """Execute via Playwright (requires chromium to be installed)."""
@@ -662,7 +661,7 @@ class SecureBrowserController:
                 error=str(e)
             )
     
-    async def _check_capabilities(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _check_capabilities(self, context: dict[str, Any]) -> dict[str, Any]:
         """Check if context has required capabilities via SecurityManager."""
         if not self.security:
             return {"approved": True}
@@ -678,10 +677,10 @@ class SecureBrowserController:
     async def _request_human_approval(
         self,
         action: str,
-        url: Optional[str],
-        selector: Optional[str],
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        url: str | None,
+        selector: str | None,
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Request human approval for high-risk browser action."""
         if not self.security:
             return {"approved": True, "auto_approved": True}
@@ -712,10 +711,10 @@ class SecureBrowserController:
         self,
         action: str,
         status: BrowserActionStatus,
-        reason: str = None,
-        url: str = None,
-        error: str = None,
-        context: Dict[str, Any] = None
+        reason: str | None = None,
+        url: str | None = None,
+        error: str | None = None,
+        context: dict[str, Any] | None = None
     ):
         """Log browser action to audit system."""
         if not self.audit:
@@ -727,7 +726,7 @@ class SecureBrowserController:
             "url": url,
             "reason": reason,
             "error": error,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "protocol_version": PROTOCOL_VERSION,
         }
         try:
@@ -738,7 +737,7 @@ class SecureBrowserController:
         except Exception as _exc:  # noqa
             pass  # noqa: silenced - _exc
     
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get controller statistics"""
         return {
             "actions_executed": self._actions_executed,

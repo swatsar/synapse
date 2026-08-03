@@ -1,8 +1,8 @@
 """Connector Runtime - Event processing pipeline."""
-from typing import Dict, Any, Optional, Callable, List
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-import asyncio
+from datetime import UTC, datetime
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -14,8 +14,8 @@ class NormalizedEvent:
     message: str
     user_id: str
     timestamp: str
-    raw: Dict[str, Any] = field(default_factory=dict)
-    required_capabilities: List[str] = field(default_factory=list)
+    raw: dict[str, Any] = field(default_factory=dict)
+    required_capabilities: list[str] = field(default_factory=list)
     risk_level: int = 0
     protocol_version: str = PROTOCOL_VERSION
 
@@ -26,7 +26,7 @@ class RateLimiter:
     def __init__(self, max_requests: int = 100, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self._requests: Dict[str, List[float]] = {}
+        self._requests: dict[str, list[float]] = {}
     
     def check(self, user_id: str) -> bool:
         """Check if user is within rate limit."""
@@ -56,7 +56,7 @@ class ConnectorRuntime:
     def __init__(
         self,
         orchestrator: Any = None,
-        rate_limiter: Optional[RateLimiter] = None,
+        rate_limiter: RateLimiter | None = None,
         capability_manager: Any = None,
         audit_logger: Any = None
     ):
@@ -64,13 +64,13 @@ class ConnectorRuntime:
         self.rate_limiter = rate_limiter or RateLimiter()
         self.capability_manager = capability_manager
         self.audit_logger = audit_logger
-        self._approval_check: Optional[Callable] = None
+        self._approval_check: Callable | None = None
     
     def set_approval_required(self, check_fn: Callable):
         """Set function to check if approval is required."""
         self._approval_check = check_fn
     
-    async def process_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_event(self, event: dict[str, Any]) -> dict[str, Any]:
         """Process incoming event through the pipeline."""
         # Rate limiting
         user_id = event.get("user_id", "unknown")
@@ -94,7 +94,7 @@ class ConnectorRuntime:
         
         return {"status": "completed", "response": "processed"}
     
-    def normalize_event(self, event: Dict[str, Any]) -> NormalizedEvent:
+    def normalize_event(self, event: dict[str, Any]) -> NormalizedEvent:
         """Normalize event from any source to standard format."""
         source = event.get("source", "unknown")
         
@@ -103,7 +103,7 @@ class ConnectorRuntime:
                 source="telegram",
                 message=event.get("text", ""),
                 user_id=str(event.get("from", {}).get("id", "unknown")),
-                timestamp=event.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                timestamp=event.get("timestamp", datetime.now(UTC).isoformat()),
                 raw=event
             )
         elif source == "discord":
@@ -111,7 +111,7 @@ class ConnectorRuntime:
                 source="discord",
                 message=event.get("content", ""),
                 user_id=str(event.get("author", {}).get("id", "unknown")),
-                timestamp=event.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                timestamp=event.get("timestamp", datetime.now(UTC).isoformat()),
                 raw=event
             )
         else:
@@ -119,10 +119,10 @@ class ConnectorRuntime:
                 source=source,
                 message=event.get("message", ""),
                 user_id=event.get("user_id", "unknown"),
-                timestamp=event.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                timestamp=event.get("timestamp", datetime.now(UTC).isoformat()),
                 raw=event
             )
     
-    def order_events(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def order_events(self, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Order events deterministically by timestamp."""
         return sorted(events, key=lambda e: e.get("timestamp", ""))

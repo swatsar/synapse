@@ -8,18 +8,18 @@ with all Starlette/FastAPI versions (avoids BaseHTTPMiddleware issues).
 """
 
 PROTOCOL_VERSION: str = "1.0"
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from typing import Callable, Dict, List
-from datetime import datetime, timezone
 import logging
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
-_rate_limit_counts: Dict[str, List[float]] = defaultdict(list)
+_rate_limit_counts: dict[str, list[float]] = defaultdict(list)
 _rate_limit_last_cleanup: float = time.time()
 _CLEANUP_INTERVAL = 300
 
@@ -119,6 +119,10 @@ class RateLimitMiddleware:
 
 
 __all__ = [
-    "RequestLoggingMiddleware", "SecurityHeadersMiddleware", "RateLimitMiddleware",
-    "make_request_logging_middleware", "make_security_headers_middleware", "make_rate_limit_middleware",
+    "RateLimitMiddleware",
+    "RequestLoggingMiddleware",
+    "SecurityHeadersMiddleware",
+    "make_rate_limit_middleware",
+    "make_request_logging_middleware",
+    "make_security_headers_middleware",
 ]

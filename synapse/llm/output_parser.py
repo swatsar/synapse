@@ -7,10 +7,10 @@ Adapted from LangChain output parser patterns (LANGCHAIN_INTEGRATION.md §4).
 Synapse additions: security validation, protocol versioning, audit logging.
 """
 import json
-import re
 import logging
+import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Any, Generic, TypeVar
 
 from synapse.observability.logger import audit
 
@@ -22,7 +22,6 @@ T = TypeVar("T")
 
 class ParseError(Exception):
     """Raised when output parsing fails."""
-    pass
 
 
 class BaseOutputParser(ABC, Generic[T]):
@@ -42,10 +41,10 @@ class BaseOutputParser(ABC, Generic[T]):
         return "Provide a well-structured response."
 
 
-class JsonOutputParser(BaseOutputParser[Dict[str, Any]]):
+class JsonOutputParser(BaseOutputParser[dict[str, Any]]):
     """Parse JSON from LLM output, stripping markdown fences."""
 
-    def parse(self, text: str) -> Dict[str, Any]:
+    def parse(self, text: str) -> dict[str, Any]:
         # Strip markdown fences
         cleaned = text.strip()
         cleaned = re.sub(r"```json\s*", "", cleaned)
@@ -73,7 +72,7 @@ class PydanticOutputParser(BaseOutputParser[T]):
     Adapted from LangChain PydanticOutputParser (LANGCHAIN_INTEGRATION.md §4.1).
     """
 
-    def __init__(self, pydantic_class: Type[T]):
+    def __init__(self, pydantic_class: type[T]):
         self.pydantic_class = pydantic_class
         self._json_parser = JsonOutputParser()
 
@@ -95,12 +94,12 @@ class PydanticOutputParser(BaseOutputParser[T]):
             return f"Return JSON matching the {self.pydantic_class.__name__} schema."
 
 
-class ListOutputParser(BaseOutputParser[List[str]]):
+class ListOutputParser(BaseOutputParser[list[str]]):
     """Parse a numbered or bulleted list from LLM output."""
 
-    def parse(self, text: str) -> List[str]:
+    def parse(self, text: str) -> list[str]:
         lines = text.strip().split("\n")
-        items: List[str] = []
+        items: list[str] = []
         for line in lines:
             line = line.strip()
             # Remove common list prefixes
@@ -130,17 +129,17 @@ class BooleanOutputParser(BaseOutputParser[bool]):
         return "Answer with exactly 'yes' or 'no'."
 
 
-class StructuredOutputParser(BaseOutputParser[Dict[str, Any]]):
+class StructuredOutputParser(BaseOutputParser[dict[str, Any]]):
     """Parse structured key:value output with schema validation.
 
     Adapted from LangChain StructuredOutputParser (LANGCHAIN_INTEGRATION.md §4.1).
     """
 
-    def __init__(self, required_keys: Optional[List[str]] = None):
+    def __init__(self, required_keys: list[str] | None = None):
         self.required_keys = required_keys or []
         self._json_parser = JsonOutputParser()
 
-    def parse(self, text: str) -> Dict[str, Any]:
+    def parse(self, text: str) -> dict[str, Any]:
         # Try JSON first
         try:
             data = self._json_parser.parse(text)

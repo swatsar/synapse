@@ -4,9 +4,8 @@ Trust Policy Engine - Deterministic Policy Evaluation
 
 import hashlib
 import json
-from typing import Dict, List, Optional
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION = "1.0"
 
@@ -18,7 +17,7 @@ class PolicyRequest:
     node_id: str
     action: str
     resource: str
-    capabilities: List[str]
+    capabilities: list[str]
     execution_seed: int
     protocol_version: str = PROTOCOL_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -30,8 +29,8 @@ class PolicyResult:
     approved: bool
     evaluation_hash: str
     reason: str
-    required_capabilities: List[str]
-    provided_capabilities: List[str]
+    required_capabilities: list[str]
+    provided_capabilities: list[str]
     protocol_version: str = PROTOCOL_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 

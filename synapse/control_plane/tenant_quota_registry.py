@@ -7,10 +7,9 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
 import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -34,7 +33,7 @@ class ExecutionQuota:
     network_kb: int = 0
     protocol_version: str = "1.0"
     
-    def to_dict(self) -> Dict[str, int]:
+    def to_dict(self) -> dict[str, int]:
         return {
             "cpu_seconds": self.cpu_seconds,
             "memory_mb": self.memory_mb,
@@ -73,9 +72,9 @@ class TenantQuotaRegistry:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._quotas: Dict[str, ExecutionQuota] = {}
-        self._usage: Dict[str, Dict[str, int]] = {}
-        self._usage_history: Dict[str, List[QuotaUsage]] = {}
+        self._quotas: dict[str, ExecutionQuota] = {}
+        self._usage: dict[str, dict[str, int]] = {}
+        self._usage_history: dict[str, list[QuotaUsage]] = {}
         self._lock = threading.Lock()
 
     def register_tenant_quota(
@@ -102,7 +101,7 @@ class TenantQuotaRegistry:
     def register_tenant(
         self,
         tenant_id: str,
-        quotas: Dict[str, int]
+        quotas: dict[str, int]
     ) -> bool:
         """
         Register tenant quota limits.
@@ -125,7 +124,7 @@ class TenantQuotaRegistry:
         self.register_tenant_quota(tenant_id, quota)
         return True
 
-    def get_quota(self, tenant_id: str) -> Optional[ExecutionQuota]:
+    def get_quota(self, tenant_id: str) -> ExecutionQuota | None:
         """
         Get quota for a tenant.
         
@@ -187,8 +186,8 @@ class TenantQuotaRegistry:
     def register_quota(
         self,
         tenant_id: str,
-        quotas: Dict[str, int],
-        requesting_tenant: Optional[str] = None
+        quotas: dict[str, int],
+        requesting_tenant: str | None = None
     ) -> bool:
         """
         Legacy method - redirects to register_tenant.
@@ -274,13 +273,13 @@ class TenantQuotaRegistry:
                     tenant_id, resource_type,
                     self._usage[tenant_id][resource_type]
                 ),
-                timestamp=datetime.utcnow().isoformat()
+                timestamp=datetime.now(UTC).isoformat()
             )
 
             self._usage_history[tenant_id].append(usage)
             return usage
 
-    def get_usage(self, tenant_id: str) -> Dict[str, int]:
+    def get_usage(self, tenant_id: str) -> dict[str, int]:
         """Get current usage for tenant"""
         with self._lock:
             return self._usage.get(tenant_id, {}).copy()
@@ -288,7 +287,7 @@ class TenantQuotaRegistry:
     def get_usage_history(
         self,
         tenant_id: str
-    ) -> List[QuotaUsage]:
+    ) -> list[QuotaUsage]:
         """Get usage history for tenant"""
         with self._lock:
             return self._usage_history.get(tenant_id, []).copy()

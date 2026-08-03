@@ -7,10 +7,10 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
 import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -19,7 +19,7 @@ class AuditEntry:
     entry_id: str
     tenant_id: str
     event_type: str
-    event_data: Dict[str, Any]
+    event_data: dict[str, Any]
     timestamp: str
     previous_hash: str
     entry_hash: str
@@ -40,15 +40,15 @@ class TenantAuditChain:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._chains: Dict[str, List[AuditEntry]] = {}
-        self._chain_roots: Dict[str, str] = {}
+        self._chains: dict[str, list[AuditEntry]] = {}
+        self._chain_roots: dict[str, str] = {}
         self._lock = threading.Lock()
 
     def append(
         self,
         tenant_id: str,
         event_type: str,
-        event_data: Dict[str, Any]
+        event_data: dict[str, Any]
     ) -> AuditEntry:
         """
         Append entry to tenant audit chain.
@@ -80,7 +80,7 @@ class TenantAuditChain:
                 tenant_id=tenant_id,
                 event_type=event_type,
                 event_data=event_data,
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 previous_hash=previous_hash,
                 entry_hash="",  # Will be calculated
                 protocol_version=self.PROTOCOL_VERSION
@@ -94,7 +94,7 @@ class TenantAuditChain:
 
             return entry
 
-    def get_chain(self, tenant_id: str) -> List[AuditEntry]:
+    def get_chain(self, tenant_id: str) -> list[AuditEntry]:
         """Get audit chain for tenant"""
         with self._lock:
             return self._chains.get(tenant_id, []).copy()
@@ -138,7 +138,7 @@ class TenantAuditChain:
                 return self._generate_genesis_hash(tenant_id)
             return self._chain_roots[tenant_id]
 
-    def get_chain_tail(self, tenant_id: str) -> Optional[str]:
+    def get_chain_tail(self, tenant_id: str) -> str | None:
         """Get latest hash in chain"""
         with self._lock:
             if tenant_id not in self._chains or not self._chains[tenant_id]:
@@ -184,8 +184,8 @@ class AuditHashTree:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._tree_roots: Dict[str, str] = {}  # cluster_id -> root_hash
-        self._tenant_leaves: Dict[str, Dict[str, str]] = {}  # cluster_id -> {tenant_id -> leaf_hash}
+        self._tree_roots: dict[str, str] = {}  # cluster_id -> root_hash
+        self._tenant_leaves: dict[str, dict[str, str]] = {}  # cluster_id -> {tenant_id -> leaf_hash}
         self._lock = threading.Lock()
 
     def add_tenant_leaf(
@@ -273,4 +273,4 @@ class AuditHashTree:
         return hashlib.sha256(data.encode()).hexdigest()
 
 
-__all__ = ["TenantAuditChain", "AuditHashTree", "AuditEntry"]
+__all__ = ["AuditEntry", "AuditHashTree", "TenantAuditChain"]

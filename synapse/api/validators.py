@@ -8,9 +8,9 @@ Provides Pydantic models with built-in protection against:
 - Other OWASP Top 10 vulnerabilities
 """
 import re
-from typing import Optional, List, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator, model_validator
-from datetime import datetime
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -107,9 +107,7 @@ class InputValidator:
             return False
         if not re.match(r'^sk_(test|live)_[a-zA-Z0-9]+$', api_key):
             return False
-        if len(api_key) < 20:
-            return False
-        return True
+        return not len(api_key) < 20
 
 
 class ApprovalRequest(BaseModel):
@@ -117,8 +115,8 @@ class ApprovalRequest(BaseModel):
 
     action: str = Field(..., min_length=1, max_length=256)
     risk_level: int = Field(..., ge=1, le=5)
-    details: Optional[Dict[str, Any]] = Field(default=None)
-    reason: Optional[str] = Field(default=None, max_length=1024)
+    details: dict[str, Any] | None = Field(default=None)
+    reason: str | None = Field(default=None, max_length=1024)
 
     @field_validator('action')
     @classmethod
@@ -131,7 +129,7 @@ class ApprovalRequest(BaseModel):
 
     @field_validator('reason')
     @classmethod
-    def validate_reason(cls, v: Optional[str]) -> Optional[str]:
+    def validate_reason(cls, v: str | None) -> str | None:
         """Validate reason field for injection attacks."""
         if v:
             InputValidator.check_sql_injection(v, "reason")
@@ -141,7 +139,7 @@ class ApprovalRequest(BaseModel):
 
     @field_validator('details')
     @classmethod
-    def validate_details(cls, v: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def validate_details(cls, v: dict[str, Any] | None) -> dict[str, Any] | None:
         """Validate details field for injection attacks."""
         if v:
             for key, value in v.items():
@@ -212,7 +210,7 @@ class MessageRequest(BaseModel):
     """Request model for message operations."""
 
     content: str = Field(..., min_length=1, max_length=10000)
-    recipient: Optional[str] = Field(default=None, max_length=256)
+    recipient: str | None = Field(default=None, max_length=256)
 
     @field_validator('content')
     @classmethod
@@ -225,7 +223,7 @@ class MessageRequest(BaseModel):
 
     @field_validator('recipient')
     @classmethod
-    def validate_recipient(cls, v: Optional[str]) -> Optional[str]:
+    def validate_recipient(cls, v: str | None) -> str | None:
         """Validate recipient for injection attacks."""
         if v:
             InputValidator.check_sql_injection(v, "recipient")
@@ -234,11 +232,11 @@ class MessageRequest(BaseModel):
 
 
 __all__ = [
-    'InputValidator',
-    'ValidationError',
-    'ApprovalRequest',
     'APIKeyRequest',
+    'ApprovalRequest',
     'FileRequest',
-    'SearchRequest',
+    'InputValidator',
     'MessageRequest',
+    'SearchRequest',
+    'ValidationError',
 ]

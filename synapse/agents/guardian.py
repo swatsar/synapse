@@ -3,7 +3,6 @@
 Implements SYSTEM_SPEC_v3.1 - Guardian Agent.
 With comprehensive audit logging.
 """
-from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 PROTOCOL_VERSION: str = "1.0"
@@ -18,7 +17,7 @@ class SecurityCheckResult:
     """Result of security check."""
     approved: bool
     reason: str
-    blocked_capabilities: List[str]
+    blocked_capabilities: list[str]
     requires_human_approval: bool
     protocol_version: str = "1.0"
 
@@ -39,7 +38,7 @@ class GuardianAgent:
             protocol_version=self.protocol_version
         )
 
-    async def validate_plan(self, plan: Dict, context: Dict = None) -> SecurityCheckResult:
+    async def validate_plan(self, plan: dict, context: dict | None = None) -> SecurityCheckResult:
         """Validate plan before execution with audit logging.
 
         Args:
@@ -104,7 +103,7 @@ class GuardianAgent:
             protocol_version=self.protocol_version
         )
 
-    async def _check_capabilities(self, plan: Dict, context: Dict) -> SecurityCheckResult:
+    async def _check_capabilities(self, plan: dict, context: dict) -> SecurityCheckResult:
         """Check required capabilities."""
         required_caps = plan.get("required_capabilities", [])
 
@@ -142,7 +141,7 @@ class GuardianAgent:
             protocol_version=self.protocol_version
         )
 
-    async def _request_human_approval(self, plan: Dict, context: Dict) -> SecurityCheckResult:
+    async def _request_human_approval(self, plan: dict, context: dict) -> SecurityCheckResult:
         """Request human approval for high-risk plan."""
         # Audit: human approval requested
         audit(
@@ -174,7 +173,7 @@ class GuardianAgent:
             protocol_version=self.protocol_version
         )
 
-    async def check_execution_safety(self, skill_name: str, params: Dict) -> SecurityCheckResult:
+    async def check_execution_safety(self, skill_name: str, params: dict) -> SecurityCheckResult:
         """Check if skill execution is safe with audit logging."""
         # Audit: execution safety check started
         audit(
@@ -218,7 +217,7 @@ class GuardianAgent:
             protocol_version=self.protocol_version
         )
 
-    def _check_dangerous_params(self, params: Dict) -> List[str]:
+    def _check_dangerous_params(self, params: dict) -> list[str]:
         """Check for dangerous parameters."""
         dangerous = []
         dangerous_patterns = ['rm -rf', 'format', 'delete', 'drop', 'truncate']

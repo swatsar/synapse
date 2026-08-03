@@ -2,8 +2,7 @@
 
 Provides authoritative core time normalization for distributed execution.
 """
-from datetime import datetime, timezone, timedelta
-from typing import Union, Optional, Dict
+from datetime import UTC, datetime, timedelta
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -22,15 +21,15 @@ class TimeSyncManager:
     
     protocol_version: str = "1.0"
     _global_offset_ms: float = 0.0
-    _node_offsets: Dict[str, float] = {}  # Per-node offsets at class level
-    _last_timestamp: Optional[float] = None
+    _node_offsets: dict[str, float] = {}  # Per-node offsets at class level
+    _last_timestamp: float | None = None
     
     def __init__(self):
         self.protocol_version = "1.0"
         self._node_offsets_instance: dict = {}
     
     @classmethod
-    def set_offset(cls, offset_ms: float, node_id: Optional[str] = None) -> None:
+    def set_offset(cls, offset_ms: float, node_id: str | None = None) -> None:
         """Set time offset for testing.
         
         Args:
@@ -43,7 +42,7 @@ class TimeSyncManager:
             cls._global_offset_ms = offset_ms
     
     @classmethod
-    def now(cls, node_id: Optional[str] = None) -> datetime:
+    def now(cls, node_id: str | None = None) -> datetime:
         """Get current normalized time.
         
         Args:
@@ -52,7 +51,7 @@ class TimeSyncManager:
         Returns:
             Current UTC datetime with offset applied
         """
-        base_time = datetime.now(timezone.utc)
+        base_time = datetime.now(UTC)
         
         # Apply per-node offset if available
         if node_id is not None and node_id in cls._node_offsets:
@@ -64,7 +63,7 @@ class TimeSyncManager:
         return base_time - timedelta(milliseconds=offset)
     
     @classmethod
-    def normalize(cls, timestamp: Union[datetime, float], offset_ms: float = 0) -> float:
+    def normalize(cls, timestamp: datetime | float, offset_ms: float = 0) -> float:
         """Normalize timestamp to UTC float.
         
         Args:
@@ -76,7 +75,7 @@ class TimeSyncManager:
         """
         if isinstance(timestamp, datetime):
             if timestamp.tzinfo is None:
-                timestamp = timestamp.replace(tzinfo=timezone.utc)
+                timestamp = timestamp.replace(tzinfo=UTC)
             result = timestamp.timestamp()
         else:
             result = float(timestamp)

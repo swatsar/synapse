@@ -3,14 +3,13 @@
 Provides base classes and types for skills with audit logging.
 Spec v3.1 compliant.
 """
-from typing import Any, Dict, Optional
 from abc import ABC, abstractmethod
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 # Re-export RuntimeIsolationType and SkillTrustLevel from core
-from synapse.core.isolation_policy import RuntimeIsolationType, SkillTrustLevel
 from synapse.observability.logger import audit
 
 
@@ -32,7 +31,7 @@ class BaseSkill(ABC):
         )
 
     @abstractmethod
-    async def execute(self, context, **kwargs) -> Dict[str, Any]:
+    async def execute(self, context, **kwargs) -> dict[str, Any]:
         """Execute the skill with audit logging.
 
         Args:
@@ -42,9 +41,8 @@ class BaseSkill(ABC):
         Returns:
             Execution result
         """
-        pass
 
-    async def _execute_with_audit(self, context, **kwargs) -> Dict[str, Any]:
+    async def _execute_with_audit(self, context, **kwargs) -> dict[str, Any]:
         """Execute skill with automatic audit logging.
 
         This method wraps execute() with audit logging.

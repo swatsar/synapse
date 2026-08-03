@@ -9,11 +9,11 @@ still function correctly.
 """
 import asyncio
 import logging
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
 
 from synapse.connectors.base.connector import BaseConnector
-from synapse.security.capability_manager import CapabilityManager
 from synapse.observability.logger import audit
+from synapse.security.capability_manager import CapabilityManager
 
 PROTOCOL_VERSION: str = "1.0"
 logger = logging.getLogger(__name__)
@@ -30,9 +30,9 @@ class DiscordConnector(BaseConnector):
     def __init__(
         self,
         caps: CapabilityManager,
-        token: Optional[str] = None,
+        token: str | None = None,
         command_prefix: str = "!",
-        authorized_guild_ids: Optional[list] = None,
+        authorized_guild_ids: list | None = None,
     ):
         self._caps = caps
         self._token = token
@@ -47,7 +47,7 @@ class DiscordConnector(BaseConnector):
         self._client = None
         self._bot = None
         self._running = False
-        self._message_handler: Optional[Callable] = None
+        self._message_handler: Callable | None = None
 
         audit(
             event="discord_connector_init",
@@ -59,7 +59,7 @@ class DiscordConnector(BaseConnector):
     # BaseConnector interface
     # ------------------------------------------------------------------
 
-    async def receive_message(self) -> Dict:
+    async def receive_message(self) -> dict:
         """Wait for next incoming Discord message."""
         return await self._incoming.get()
 
@@ -82,11 +82,11 @@ class DiscordConnector(BaseConnector):
         # Fallback to queue
         await self._outgoing.put({"channel_id": channel_id, "text": text})
 
-    async def start(self, message_handler: Optional[Callable] = None) -> None:
+    async def start(self, message_handler: Callable | None = None) -> None:
         """Start the Discord bot."""
         self._message_handler = message_handler
         try:
-            import discord  # noqa: PLC0415
+            import discord
 
             intents = discord.Intents.default()
             intents.message_content = True
@@ -159,7 +159,7 @@ class DiscordConnector(BaseConnector):
     # Test helpers (queue injection)
     # ------------------------------------------------------------------
 
-    async def _inject(self, message: Dict) -> None:
+    async def _inject(self, message: dict) -> None:
         """Inject a message directly (for testing)."""
         await self._incoming.put(message)
 

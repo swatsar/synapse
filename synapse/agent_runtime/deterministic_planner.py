@@ -4,20 +4,20 @@ Deterministic Planner - No Randomness Allowed
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Set
 import hashlib
 import json
+from dataclasses import dataclass
+from typing import Any
 
-from synapse.planning.plan_model import Plan, PlanStep, PlanBuilder
+from synapse.planning.plan_model import Plan, PlanBuilder
 
 
 @dataclass
 class PlanningInput:
     """Deterministic input for planning"""
     task: str
-    capabilities: Set[str]
-    constraints: Dict[str, Any]
+    capabilities: set[str]
+    constraints: dict[str, Any]
     execution_seed: int
     policy_hash: str
     protocol_version: str = "1.0"
@@ -27,13 +27,13 @@ class DeterministicPlanner:
     """Planner that produces identical output for identical input"""
     
     def __init__(self):
-        self._plan_cache: Dict[str, Plan] = {}
+        self._plan_cache: dict[str, Plan] = {}
     
     def generate_plan(
         self,
         task: str,
-        constraints: Dict[str, Any],
-        capabilities: Set[str],
+        constraints: dict[str, Any],
+        capabilities: set[str],
         seed: int
     ) -> Plan:
         """Generate deterministic plan"""
@@ -71,15 +71,15 @@ class DeterministicPlanner:
     def _generate_steps(
         self,
         task: str,
-        capabilities: Set[str],
+        capabilities: set[str],
         seed: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Generate steps deterministically based on task and seed"""
         steps = []
         
         # Use seed for deterministic step generation
         hash_input = f"{task}:{seed}"
-        hash_val = hashlib.sha256(hash_input.encode()).hexdigest()
+        hashlib.sha256(hash_input.encode()).hexdigest()
         
         # Parse task keywords
         task_lower = task.lower()
@@ -126,15 +126,15 @@ class DeterministicPlanner:
     def _compute_cache_key(
         self,
         task: str,
-        constraints: Dict[str, Any],
-        capabilities: Set[str],
+        constraints: dict[str, Any],
+        capabilities: set[str],
         seed: int
     ) -> str:
         """Compute deterministic cache key"""
         data = {
             "task": task,
             "constraints": constraints,
-            "capabilities": sorted(list(capabilities)),
+            "capabilities": sorted(capabilities),
             "seed": seed
         }
         canonical = json.dumps(data, sort_keys=True, separators=(',', ':'))

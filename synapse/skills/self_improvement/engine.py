@@ -3,9 +3,9 @@
 Phase 11 - Continuous Self-Improvement & Adaptive Governance.
 """
 import hashlib
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -18,7 +18,7 @@ class ImprovementPlan:
     risk_level: int
     seed: int
     cluster_wide: bool = False
-    checkpoint_id: Optional[str] = None
+    checkpoint_id: str | None = None
     protocol_version: str = "1.0"
 
 
@@ -29,13 +29,13 @@ class ImprovementResult:
     improvement_id: str
     status: str
     approval_required: bool = False
-    analysis: Optional[Dict[str, Any]] = None
-    bottlenecks: Optional[list] = None
-    actions_taken: Optional[list] = None
+    analysis: dict[str, Any] | None = None
+    bottlenecks: list | None = None
+    actions_taken: list | None = None
     cluster_propagated: bool = False
     nodes_affected: int = 0
     rollback_executed: bool = False
-    restored_checkpoint_id: Optional[str] = None
+    restored_checkpoint_id: str | None = None
     cluster_rollback: bool = False
     error: str = ""
     protocol_version: str = "1.0"
@@ -81,7 +81,7 @@ class SelfImprovementEngine:
                 "improvement_id": improvement_id,
                 "target": plan.target,
                 "type": plan.improvement_type,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             })
         
         # Record telemetry event
@@ -233,7 +233,7 @@ class SelfImprovementEngine:
                     "event": "improvement_completed",
                     "improvement_id": improvement_id,
                     "success": True,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 })
             
             return ImprovementResult(
@@ -290,7 +290,7 @@ class SelfImprovementEngine:
                 error=str(e)
             )
     
-    def _detect_bottlenecks(self, analysis: Dict[str, Any]) -> list:
+    def _detect_bottlenecks(self, analysis: dict[str, Any]) -> list:
         """Detect performance bottlenecks from analysis."""
         bottlenecks = []
         
@@ -337,7 +337,7 @@ class SelfImprovementEngine:
     
     def _generate_actions(
         self,
-        analysis: Dict[str, Any],
+        analysis: dict[str, Any],
         bottlenecks: list,
         plan: ImprovementPlan
     ) -> list:

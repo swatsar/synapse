@@ -4,13 +4,13 @@ Signed Capability Token System for Cryptographic Governance
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC
 import hashlib
 import hmac
-import secrets
 import json
+import secrets
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
 
 @dataclass(frozen=True)
 class CapabilityToken:
@@ -53,10 +53,10 @@ class CapabilityToken:
 class TokenIssuer:
     """Issues signed capability tokens"""
     
-    def __init__(self, issuer_id: str, secret_key: Optional[bytes] = None):
+    def __init__(self, issuer_id: str, secret_key: bytes | None = None):
         self.issuer_id = issuer_id
         self.secret_key = secret_key or secrets.token_bytes(32)
-        self._issued_tokens: Dict[str, CapabilityToken] = {}
+        self._issued_tokens: dict[str, CapabilityToken] = {}
     
     def issue_token(
         self,
@@ -110,7 +110,7 @@ class TokenIssuer:
         self._issued_tokens[token_id] = token
         return token
     
-    def get_issued_token(self, token_id: str) -> Optional[CapabilityToken]:
+    def get_issued_token(self, token_id: str) -> CapabilityToken | None:
         """Get issued token by ID"""
         return self._issued_tokens.get(token_id)
 
@@ -158,7 +158,7 @@ class TokenRevocationList:
     """Manages revoked tokens"""
     
     def __init__(self):
-        self._revoked: Dict[str, str] = {}  # token_id -> revocation_reason
+        self._revoked: dict[str, str] = {}  # token_id -> revocation_reason
     
     def revoke(self, token_id: str, reason: str = "revoked"):
         """Revoke a token"""
@@ -168,6 +168,6 @@ class TokenRevocationList:
         """Check if token is revoked"""
         return token_id in self._revoked
     
-    def get_revocation_reason(self, token_id: str) -> Optional[str]:
+    def get_revocation_reason(self, token_id: str) -> str | None:
         """Get revocation reason"""
         return self._revoked.get(token_id)

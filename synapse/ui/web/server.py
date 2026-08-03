@@ -1,6 +1,6 @@
 """Web Server - Minimal control plane."""
-from typing import Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -35,7 +35,7 @@ class WebServer:
         """Check if server is running."""
         return self._running
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get server status."""
         return {
             "running": self._running,

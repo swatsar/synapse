@@ -3,12 +3,11 @@
 Implements SYSTEM_SPEC_v3.1 - Environment Abstraction.
 With comprehensive audit logging.
 """
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict, Optional
-from enum import Enum
 import platform
 import subprocess
+from abc import ABC, abstractmethod
+from enum import Enum
+from pathlib import Path
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -30,22 +29,18 @@ class EnvironmentAdapter(ABC):
     @abstractmethod
     async def get_home_dir(self) -> Path:
         """Get user home directory."""
-        pass
 
     @abstractmethod
     async def get_config_dir(self) -> Path:
         """Get configuration directory."""
-        pass
 
     @abstractmethod
-    async def execute_command(self, command: str, timeout: int = 60) -> Dict:
+    async def execute_command(self, command: str, timeout: int = 60) -> dict:
         """Execute shell command safely."""
-        pass
 
     @abstractmethod
-    async def get_os_info(self) -> Dict:
+    async def get_os_info(self) -> dict:
         """Get operating system information."""
-        pass
 
 
 class LinuxAdapter(EnvironmentAdapter):
@@ -59,7 +54,7 @@ class LinuxAdapter(EnvironmentAdapter):
         """Get Linux config directory."""
         return Path.home() / ".config" / "synapse"
 
-    async def execute_command(self, command: str, timeout: int = 60) -> Dict:
+    async def execute_command(self, command: str, timeout: int = 60) -> dict:
         """Execute command on Linux with audit logging."""
         # Audit: command execution started
         audit(
@@ -105,7 +100,7 @@ class LinuxAdapter(EnvironmentAdapter):
                 "protocol_version": PROTOCOL_VERSION
             }
 
-    async def get_os_info(self) -> Dict:
+    async def get_os_info(self) -> dict:
         """Get Linux OS information."""
         return {
             "os_type": OSType.LINUX.value,
@@ -119,7 +114,7 @@ class LinuxAdapter(EnvironmentAdapter):
 class MacOSAdapter(LinuxAdapter):
     """macOS environment adapter (inherits from Linux)."""
 
-    async def get_os_info(self) -> Dict:
+    async def get_os_info(self) -> dict:
         """Get macOS OS information."""
         return {
             "os_type": OSType.MACOS.value,
@@ -141,7 +136,7 @@ class WindowsAdapter(EnvironmentAdapter):
         """Get Windows config directory."""
         return Path.home() / "AppData" / "Local" / "Synapse"
 
-    async def execute_command(self, command: str, timeout: int = 60) -> Dict:
+    async def execute_command(self, command: str, timeout: int = 60) -> dict:
         """Execute command on Windows with audit logging."""
         # Audit: command execution started
         audit(
@@ -187,7 +182,7 @@ class WindowsAdapter(EnvironmentAdapter):
                 "protocol_version": PROTOCOL_VERSION
             }
 
-    async def get_os_info(self) -> Dict:
+    async def get_os_info(self) -> dict:
         """Get Windows OS information."""
         return {
             "os_type": OSType.WINDOWS.value,

@@ -5,13 +5,10 @@ Predictive Autonomy & Proactive Risk Management.
 from __future__ import annotations
 
 import hashlib
-import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-import asyncio
 import random
-
+import uuid
+from dataclasses import dataclass
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -30,8 +27,8 @@ class ForecastRequest:
 class ForecastResult:
     """Result of forecast."""
     forecast_id: str
-    predictions: List[Dict[str, Any]]
-    recommendations: List[Dict[str, Any]]
+    predictions: list[dict[str, Any]]
+    recommendations: list[dict[str, Any]]
     confidence: float
     risk_level: int
     protocol_version: str = "1.0"
@@ -44,10 +41,10 @@ class ForecasterAgent:
 
     def __init__(
         self,
-        llm: Optional[Any] = None,
-        telemetry: Optional[Any] = None,
-        resource_manager: Optional[Any] = None,
-        policy_engine: Optional[Any] = None
+        llm: Any | None = None,
+        telemetry: Any | None = None,
+        resource_manager: Any | None = None,
+        policy_engine: Any | None = None
     ):
         self.llm = llm
         self.telemetry = telemetry
@@ -93,8 +90,8 @@ class ForecasterAgent:
     async def _generate_predictions(
         self,
         request: ForecastRequest,
-        metrics: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        metrics: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Generate predictions using LLM or ML models."""
         predictions = []
         rng = random.Random(request.seed)
@@ -160,8 +157,8 @@ class ForecasterAgent:
 
     def _generate_recommendations(
         self,
-        predictions: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        predictions: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Generate recommendations based on predictions."""
         recommendations = []
 
@@ -190,7 +187,7 @@ class ForecasterAgent:
 
         return recommendations
 
-    def _calculate_confidence(self, predictions: List[Dict[str, Any]]) -> float:
+    def _calculate_confidence(self, predictions: list[dict[str, Any]]) -> float:
         """Calculate overall confidence."""
         if not predictions:
             return 0.5
@@ -198,7 +195,7 @@ class ForecasterAgent:
         confidences = [p.get('confidence', p.get('probability', 0.5)) for p in predictions]
         return sum(confidences) / len(confidences)
 
-    def _calculate_risk_level(self, predictions: List[Dict[str, Any]]) -> int:
+    def _calculate_risk_level(self, predictions: list[dict[str, Any]]) -> int:
         """Calculate overall risk level."""
         if not predictions:
             return 0

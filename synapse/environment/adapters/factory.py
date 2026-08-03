@@ -6,12 +6,12 @@ Spec Version: 3.1
 """
 
 import platform
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from synapse.environment.adapters.base import EnvironmentAdapter, PROTOCOL_VERSION
+from synapse.environment.adapters.base import PROTOCOL_VERSION, EnvironmentAdapter
 
 # Global adapter instance (singleton pattern)
-_adapter_instance: Optional[EnvironmentAdapter] = None
+_adapter_instance: EnvironmentAdapter | None = None
 
 
 def get_environment_adapter() -> EnvironmentAdapter:
@@ -51,7 +51,7 @@ def reset_adapter():
     _adapter_instance = None
 
 
-def get_supported_systems() -> List[str]:
+def get_supported_systems() -> list[str]:
     """Get list of supported operating systems.
 
     Returns:
@@ -60,7 +60,7 @@ def get_supported_systems() -> List[str]:
     return ["Windows", "Darwin", "Linux"]
 
 
-def is_supported(system: Optional[str] = None) -> bool:
+def is_supported(system: str | None = None) -> bool:
     """Check if a system is supported.
 
     Args:
@@ -74,7 +74,7 @@ def is_supported(system: Optional[str] = None) -> bool:
     return system in get_supported_systems()
 
 
-def get_system_info() -> Dict[str, Any]:
+def get_system_info() -> dict[str, Any]:
     """Get current system information.
 
     Returns:

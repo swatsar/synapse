@@ -3,10 +3,11 @@ PROTOCOL_VERSION: str = "1.0"
 capability federation, replay protection and logs audit events.
 """
 import hashlib
-from typing import Any, Dict, List, Set
+from typing import Any
 
-from synapse.security.capability_manager import CapabilityManager
 from synapse.observability.logger import audit
+from synapse.security.capability_manager import CapabilityManager
+
 
 class MessageSecurity:
     protocol_version: str = "1.0"
@@ -14,9 +15,9 @@ class MessageSecurity:
     def __init__(self, caps: CapabilityManager):
         self._caps = caps
         # Simple replay protection – store hashes of recent messages
-        self._seen_hashes: Set[str] = set()
+        self._seen_hashes: set[str] = set()
 
-    async def authorize_message(self, envelope: Dict[str, Any]) -> None:
+    async def authorize_message(self, envelope: dict[str, Any]) -> None:
         # Protocol version check
         if envelope.get("protocol_version") != self.protocol_version:
             audit(event="network_security", result="protocol_version_mismatch")

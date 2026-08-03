@@ -2,12 +2,11 @@
 
 Protocol Version: 1.0
 """
-from typing import Dict, Any, Optional, List
-from enum import IntEnum
 import asyncio
 import hashlib
-import json
 import os
+from enum import IntEnum
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -25,10 +24,10 @@ class LiteLLMProvider:
         self,
         name: str,
         model: str,
-        api_key: Optional[str] = None,
-        api_base: Optional[str] = None,
+        api_key: str | None = None,
+        api_base: str | None = None,
         priority: int = LLMPriority.PRIMARY,
-        capabilities: Optional[List[str]] = None,
+        capabilities: list[str] | None = None,
     ):
         self.name = name
         self.model = model
@@ -39,7 +38,7 @@ class LiteLLMProvider:
         self.is_active = True
         self.protocol_version = PROTOCOL_VERSION
 
-    async def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate response via litellm."""
         try:
             import litellm
@@ -73,7 +72,7 @@ class LiteLLMProvider:
         except Exception as e:
             raise RuntimeError(f"LLM call failed ({self.model}): {e}") from e
 
-    async def embed(self, text: str) -> List[float]:
+    async def embed(self, text: str) -> list[float]:
         """Generate embeddings via litellm."""
         try:
             import litellm
@@ -89,7 +88,8 @@ class LiteLLMProvider:
             return response.data[0]["embedding"]
         except Exception:
             # Deterministic fallback embedding
-            import struct, hashlib as _h
+            import hashlib as _h
+            import struct
             digest = _h.sha512(text.encode()).digest()
             raw = (digest * ((768 * 4 // len(digest)) + 1))[: 768 * 4]
             values = struct.unpack(f">{768}f", raw)
@@ -103,14 +103,14 @@ class LLMRouter:
     protocol_version: str = PROTOCOL_VERSION
 
     def __init__(self):
-        self._providers: Dict[str, LiteLLMProvider] = {}
-        self._safe_provider_name: Optional[str] = None
+        self._providers: dict[str, LiteLLMProvider] = {}
+        self._safe_provider_name: str | None = None
         self._timeout: float = 30.0
 
     def register(self, provider: LiteLLMProvider) -> None:
         self._providers[provider.name] = provider
 
-    def list_providers(self) -> List[str]:
+    def list_providers(self) -> list[str]:
         return list(self._providers.keys())
 
     def set_safe_provider(self, name: str) -> None:
@@ -119,7 +119,7 @@ class LLMRouter:
     def set_timeout(self, seconds: float) -> None:
         self._timeout = seconds
 
-    def select_provider(self, required_capability: Optional[str] = None) -> LiteLLMProvider:
+    def select_provider(self, required_capability: str | None = None) -> LiteLLMProvider:
         sorted_providers = sorted(self._providers.values(), key=lambda p: p.priority)
         for provider in sorted_providers:
             if not provider.is_active:
@@ -129,7 +129,7 @@ class LLMRouter:
             return provider
         raise RuntimeError("No available LLM provider")
 
-    async def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate with automatic fallback across providers."""
         sorted_providers = sorted(self._providers.values(), key=lambda p: p.priority)
         last_error = None
@@ -141,7 +141,7 @@ class LLMRouter:
                     provider.generate(prompt, **kwargs),
                     timeout=self._timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = TimeoutError(f"Provider {provider.name} timed out")
             except Exception as e:
                 last_error = e
@@ -149,7 +149,7 @@ class LLMRouter:
             return await self._providers[self._safe_provider_name].generate(prompt, **kwargs)
         raise last_error or RuntimeError("No available provider")
 
-    def create_prompt_envelope(self, prompt: str) -> Dict[str, Any]:
+    def create_prompt_envelope(self, prompt: str) -> dict[str, Any]:
         prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
         return {"prompt": prompt, "hash": prompt_hash, "protocol_version": self.protocol_version}
 

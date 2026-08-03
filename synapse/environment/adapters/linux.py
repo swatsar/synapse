@@ -7,11 +7,10 @@ Spec Version: 3.1
 
 import asyncio
 import platform
-import subprocess
-from typing import Dict, List, Optional, Any
 from pathlib import Path
+from typing import Any
 
-from synapse.environment.adapters.base import EnvironmentAdapter, PROTOCOL_VERSION
+from synapse.environment.adapters.base import EnvironmentAdapter
 
 
 class LinuxAdapter(EnvironmentAdapter):
@@ -31,7 +30,6 @@ class LinuxAdapter(EnvironmentAdapter):
         Returns:
             Path: User home directory (e.g., /home/username)
         """
-        import os
         return Path.home()
 
     async def get_config_dir(self) -> Path:
@@ -67,9 +65,9 @@ class LinuxAdapter(EnvironmentAdapter):
         self, 
         command: str, 
         timeout: int = 60,
-        cwd: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        cwd: str | None = None,
+        env: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """Execute command using bash.
 
         Args:
@@ -102,7 +100,7 @@ class LinuxAdapter(EnvironmentAdapter):
                 'returncode': process.returncode
             })
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return self._create_response({
                 'stdout': '',
                 'stderr': f'timeout: command timed out after {timeout} seconds',
@@ -115,7 +113,7 @@ class LinuxAdapter(EnvironmentAdapter):
                 'returncode': -1
             })
 
-    async def get_os_info(self) -> Dict[str, Any]:
+    async def get_os_info(self) -> dict[str, Any]:
         """Get Linux system information.
 
         Returns:
@@ -144,7 +142,7 @@ class LinuxAdapter(EnvironmentAdapter):
             'hostname': platform.node()
         })
 
-    async def get_network_info(self) -> Dict[str, Any]:
+    async def get_network_info(self) -> dict[str, Any]:
         """Get Linux network information.
 
         Returns:
@@ -172,7 +170,7 @@ class LinuxAdapter(EnvironmentAdapter):
             'ip_addresses': ip_addresses
         })
 
-    async def get_resource_usage(self) -> Dict[str, Any]:
+    async def get_resource_usage(self) -> dict[str, Any]:
         """Get Linux resource usage.
 
         Returns:
@@ -266,7 +264,7 @@ class LinuxAdapter(EnvironmentAdapter):
         except Exception:
             return False
 
-    async def get_environment_variables(self) -> Dict[str, str]:
+    async def get_environment_variables(self) -> dict[str, str]:
         """Get all Linux environment variables.
 
         Returns:
@@ -308,7 +306,7 @@ class LinuxAdapter(EnvironmentAdapter):
 
         return True
 
-    async def get_process_list(self) -> List[Dict[str, Any]]:
+    async def get_process_list(self) -> list[dict[str, Any]]:
         """Get list of running processes on Linux.
 
         Returns:

@@ -12,8 +12,16 @@ __license__ = "MIT"
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
-from synapse.core.models import *
-from synapse.core.security import CapabilityManager, SecurityManager
-from synapse.core.rollback import RollbackManager
+__all__ = [
+    "CheckpointManager",
+    "RollbackManager",
+    "CapabilityManager",
+    "SecurityManager",
+    "BaseSkill",
+]
+
 from synapse.core.checkpoint import CheckpointManager
+from synapse.core.models import *
+from synapse.core.rollback import RollbackManager
+from synapse.core.security import CapabilityManager, SecurityManager
 from synapse.skills.base import BaseSkill

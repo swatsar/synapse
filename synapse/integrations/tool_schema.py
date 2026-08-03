@@ -12,11 +12,8 @@ Copyright (c) 2024 Anthropic, PBC
 Copyright (c) 2026 Synapse Contributors
 """
 
-from typing import Dict, List, Optional, Any, Literal
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-import json
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -28,8 +25,8 @@ class ToolParameter:
     type: str
     description: str
     required: bool = True
-    enum: Optional[List[str]] = None
-    default: Optional[Any] = None
+    enum: list[str] | None = None
+    default: Any | None = None
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
@@ -40,15 +37,15 @@ class ToolSchema:
     """Schema for a tool"""
     name: str
     description: str
-    parameters: List[ToolParameter]
-    required_capabilities: List[str] = field(default_factory=list)
+    parameters: list[ToolParameter]
+    required_capabilities: list[str] = field(default_factory=list)
     risk_level: int = 1
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
     isolation_type: str = "subprocess"
     
-    def to_anthropic_format(self) -> Dict[str, Any]:
+    def to_anthropic_format(self) -> dict[str, Any]:
         """Convert to Anthropic tool format"""
         properties = {}
         required = []
@@ -73,7 +70,7 @@ class ToolSchema:
             }
         }
     
-    def to_openai_format(self) -> Dict[str, Any]:
+    def to_openai_format(self) -> dict[str, Any]:
         """Convert to OpenAI function format"""
         return {
             "type": "function",
@@ -107,26 +104,26 @@ class ToolSchemaRegistry:
     ):
         self.security = security_manager
         self.audit = audit_logger
-        self.tools: Dict[str, ToolSchema] = {}
+        self.tools: dict[str, ToolSchema] = {}
     
     def register(self, schema: ToolSchema) -> None:
         """Register a tool schema"""
         self._validate_schema(schema)
         self.tools[schema.name] = schema
     
-    def get(self, name: str) -> Optional[ToolSchema]:
+    def get(self, name: str) -> ToolSchema | None:
         """Get tool schema by name"""
         return self.tools.get(name)
     
-    def list_tools(self) -> List[str]:
+    def list_tools(self) -> list[str]:
         """List all registered tools"""
         return list(self.tools.keys())
     
-    def to_anthropic_tools(self) -> List[Dict[str, Any]]:
+    def to_anthropic_tools(self) -> list[dict[str, Any]]:
         """Export all tools in Anthropic format"""
         return [t.to_anthropic_format() for t in self.tools.values()]
     
-    def to_openai_tools(self) -> List[Dict[str, Any]]:
+    def to_openai_tools(self) -> list[dict[str, Any]]:
         """Export all tools in OpenAI format"""
         return [t.to_openai_format() for t in self.tools.values()]
     

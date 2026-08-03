@@ -11,9 +11,9 @@ Deterministic scheduling across nodes with:
 
 import hashlib
 import json
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -21,7 +21,7 @@ class ClusterSchedule:
     """Schedule for cluster-wide execution"""
     schedule_id: str
     tenant_id: str
-    node_assignments: Dict[str, List[str]]  # node_id -> task_ids
+    node_assignments: dict[str, list[str]]  # node_id -> task_ids
     execution_seed: int
     created_at: str
     protocol_version: str = "1.0"
@@ -32,7 +32,7 @@ class Task:
     """Task for scheduling"""
     task_id: str
     action: str
-    input: Dict[str, Any]
+    input: dict[str, Any]
     priority: int = 0
     protocol_version: str = "1.0"
 
@@ -53,11 +53,11 @@ class ClusterScheduler:
     # Default node pool for scheduling
     DEFAULT_NODES = ["node_0", "node_1", "node_2"]
     
-    def __init__(self, nodes: List[str] = None):
+    def __init__(self, nodes: list[str] | None = None):
         self._nodes = nodes or self.DEFAULT_NODES.copy()
         self._schedule_counter = 0
     
-    def schedule_cluster_execution(self, tenant_id: str, task: Dict[str, Any]) -> str:
+    def schedule_cluster_execution(self, tenant_id: str, task: dict[str, Any]) -> str:
         """
         Schedule execution on a cluster node.
         
@@ -107,8 +107,8 @@ class ClusterScheduler:
     
     def create_schedule(self, 
                         tenant_id: str, 
-                        tasks: List[Dict[str, Any]],
-                        execution_seed: int = None) -> ClusterSchedule:
+                        tasks: list[dict[str, Any]],
+                        execution_seed: int | None = None) -> ClusterSchedule:
         """
         Create a cluster schedule for multiple tasks.
         
@@ -124,7 +124,7 @@ class ClusterScheduler:
             execution_seed = self._generate_seed(tenant_id, tasks)
         
         # Assign tasks to nodes
-        node_assignments: Dict[str, List[str]] = {node: [] for node in self._nodes}
+        node_assignments: dict[str, list[str]] = {node: [] for node in self._nodes}
         
         for task in tasks:
             node_id = self.schedule_cluster_execution(tenant_id, task)
@@ -138,12 +138,12 @@ class ClusterScheduler:
             tenant_id=tenant_id,
             node_assignments=node_assignments,
             execution_seed=execution_seed,
-            created_at=datetime.utcnow().isoformat()
+            created_at=datetime.now(UTC).isoformat()
         )
         
         return schedule
     
-    def _generate_seed(self, tenant_id: str, tasks: List[Dict[str, Any]]) -> int:
+    def _generate_seed(self, tenant_id: str, tasks: list[dict[str, Any]]) -> int:
         """Generate deterministic seed from tenant and tasks"""
         data = {
             "tenant_id": tenant_id,
@@ -163,6 +163,6 @@ class ClusterScheduler:
         if node_id in self._nodes:
             self._nodes.remove(node_id)
     
-    def get_nodes(self) -> List[str]:
+    def get_nodes(self) -> list[str]:
         """Get all nodes in the scheduler pool"""
         return self._nodes.copy()

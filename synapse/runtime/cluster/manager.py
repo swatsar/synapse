@@ -1,11 +1,9 @@
 PROTOCOL_VERSION: str = "1.0"
-import asyncio
-from typing import List, Dict
 
-from synapse.distributed.node_runtime import NodeRuntime
-from synapse.reliability.snapshot_manager import SnapshotManager
 from synapse.reliability.rollback_manager import RollbackManager
+from synapse.reliability.snapshot_manager import SnapshotManager
 from synapse.security.capability_manager import CapabilityManager
+
 
 class ClusterManager:
     """Manages a set of NodeRuntime instances and provides cluster‑wide
@@ -16,7 +14,7 @@ class ClusterManager:
     """
     protocol_version: str = "1.0"
 
-    def __init__(self, caps: CapabilityManager, nodes: List = None):
+    def __init__(self, caps: CapabilityManager, nodes: list | None = None):
         self._caps = caps
         self._nodes = nodes or []
         # One SnapshotManager per node – they share the same capability manager.
@@ -37,7 +35,7 @@ class ClusterManager:
         except Exception as e:
             return {"success": False, "error": str(e), "nodes_rolled_back": 0}
 
-    async def create_cluster_snapshot(self) -> List[str]:
+    async def create_cluster_snapshot(self) -> list[str]:
         """Create a snapshot on every node and return the list of snapshot paths."""
         await self._caps.check_capability(["cluster:snapshot"])
         paths = []
@@ -48,7 +46,7 @@ class ClusterManager:
             paths.append(path)
         return paths
 
-    async def rollback_cluster(self, snapshot_paths: List[str]) -> List[Dict]:
+    async def rollback_cluster(self, snapshot_paths: list[str]) -> list[dict]:
         """Rollback each node using the corresponding snapshot path and return the loaded states."""
         await self._caps.check_capability(["cluster:rollback"])
         states = []

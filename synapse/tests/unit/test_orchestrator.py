@@ -1,11 +1,13 @@
 PROTOCOL_VERSION: str = "1.0"
+
 import pytest
-import asyncio
+
 from synapse.core.models import ExecutionContext, ResourceLimits
 from synapse.core.orchestrator import Orchestrator
 from synapse.security.capability_manager import CapabilityManager
 from synapse.security.execution_guard import ExecutionGuard
 from synapse.skills.system.file_ops import read_file, write_file
+
 
 @pytest.fixture
 def test_context(tmp_path):

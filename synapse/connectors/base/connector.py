@@ -12,7 +12,8 @@ projectwide requirement that every public model expose a protocol version.
 """
 
 import abc
-from typing import Dict, Any
+from typing import Any
+
 
 class BaseConnector(abc.ABC):
     """Abstract base class for all messenger connectors.
@@ -24,7 +25,7 @@ class BaseConnector(abc.ABC):
     protocol_version: str = "1.0"
 
     @abc.abstractmethod
-    async def receive_message(self) -> Dict[str, Any]:
+    async def receive_message(self) -> dict[str, Any]:
         """Wait for the next inbound message and return it as a dictionary."""
         ...
 

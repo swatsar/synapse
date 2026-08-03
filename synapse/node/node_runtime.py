@@ -3,12 +3,16 @@ PROTOCOL_VERSION: str = "1.0"
 Local Execution Node Runtime
 """
 
-from synapse.core.execution import SecureWorkflowExecutor
-from synapse.node.node_security import NodeSecurity
-from synapse.transport.message import ExecutionRequest, ExecutionResult, ExecutionTrace, CapabilityError
-from synapse.core.workflow_engine import WorkflowDefinition
-from synapse.core.execution import SecureExecutionContext
 import time
+
+from synapse.core.execution import SecureExecutionContext, SecureWorkflowExecutor
+from synapse.core.workflow_engine import WorkflowDefinition
+from synapse.node.node_security import NodeSecurity
+from synapse.transport.message import (
+    ExecutionResult,
+    ExecutionTrace,
+)
+
 
 class ExecutionNode:
     """Local execution node"""
@@ -27,7 +31,7 @@ class ExecutionNode:
         # Execute workflow
         start_time = time.time()
         try:
-            result = await self.executor.execute(workflow, context)
+            await self.executor.execute(workflow, context)
         except Exception as e:
             return ExecutionResult(success=False, error=str(e))
         

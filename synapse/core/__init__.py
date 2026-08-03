@@ -21,4 +21,4 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 # Export only the models (typing, dataclasses, etc.)
-from .models import *  # noqa: F401,F403
+from .models import *

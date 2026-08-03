@@ -2,8 +2,7 @@
 
 Manages capability tokens and access control with path traversal protection.
 """
-from pathlib import PurePath
-from typing import List, Optional, Set, Union
+import re
 from fnmatch import fnmatch
 
 PROTOCOL_VERSION: str = "1.0"
@@ -15,7 +14,7 @@ from synapse.observability.logger import audit
 class CapabilityError(Exception):
     """Exception raised when capability check fails."""
     
-    def __init__(self, required: str = None, message: str = None):
+    def __init__(self, required: str | None = None, message: str | None = None):
         self.required = required
         self.message = message or f"Missing required capability: {required}"
         super().__init__(self.message)
@@ -24,7 +23,7 @@ class CapabilityError(Exception):
 class CapabilityCheckResult:
     """Result of capability check."""
     
-    def __init__(self, approved: bool, granted: List[str], denied: List[str]):
+    def __init__(self, approved: bool, granted: list[str], denied: list[str]):
         self.approved = approved
         self.granted = granted
         self.denied = denied
@@ -34,7 +33,7 @@ class CapabilityCheckResult:
 class SecurityCheckResult:
     """Result of security check (alias for compatibility)."""
     
-    def __init__(self, approved: bool, granted: List[str] = None, denied: List[str] = None):
+    def __init__(self, approved: bool, granted: list[str] | None = None, denied: list[str] | None = None):
         self.approved = approved
         self.granted = granted or []
         self.denied = denied or []
@@ -48,7 +47,7 @@ class CapabilityManager:
     
     def __init__(self):
         self.protocol_version = "1.0"
-        self._granted_capabilities: Set[str] = set()
+        self._granted_capabilities: set[str] = set()
     
     def grant(self, capability: str) -> None:
         """Grant a capability."""
@@ -130,7 +129,7 @@ class CapabilityManager:
         audit({"event": "capability_check", "required": required, "result": "denied"})
         return False
     
-    def _check_capabilities_list(self, capabilities: List[str]) -> SecurityCheckResult:
+    def _check_capabilities_list(self, capabilities: list[str]) -> SecurityCheckResult:
         """Check a list of capabilities."""
         granted = []
         denied = []
@@ -226,12 +225,9 @@ class CapabilityManager:
                 return self._safe_wildcard_match(normalized_pattern, normalized_value)
         
         # Prefix match
-        if normalized_value.startswith(normalized_pattern):
-            return True
-        
-        return False
+        return bool(normalized_value.startswith(normalized_pattern))
     
-    def check_capabilities(self, context, required: List[str]) -> CapabilityCheckResult:
+    def check_capabilities(self, context, required: list[str]) -> CapabilityCheckResult:
         """Check multiple capabilities."""
         audit(event="capabilities_check_started", required_count=len(required) if required else 0, protocol_version=PROTOCOL_VERSION)
         granted = []
@@ -257,7 +253,7 @@ class CapabilityManager:
                 return True
         return False
     
-    async def validate_capabilities(self, skill_name: str, required_capabilities: List[str]) -> bool:
+    async def validate_capabilities(self, skill_name: str, required_capabilities: list[str]) -> bool:
         """Validate that all required capabilities are available."""
         audit(event="capabilities_validation_started", skill_name=skill_name, capabilities_count=len(required_capabilities), protocol_version=PROTOCOL_VERSION)
         for cap in required_capabilities:
@@ -271,6 +267,4 @@ class CapabilityManager:
         """Check if a capability string is valid."""
         if ":" not in capability:
             return False
-        if self._is_path_traversal_attempt(capability):
-            return False
-        return True
+        return not self._is_path_traversal_attempt(capability)

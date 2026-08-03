@@ -1,9 +1,10 @@
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
-import os
 import pytest
+
 from synapse.memory.store import MemoryStore
+
 
 # Sync fixture that creates a temporary SQLite DB for each test
 @pytest.fixture

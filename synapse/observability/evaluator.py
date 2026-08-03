@@ -8,9 +8,10 @@ Adapted from LangSmith evaluation patterns (LANGSMITH_SDK_INTEGRATION.md §3).
 import json
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -21,15 +22,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EvalExample:
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    input: Dict[str, Any] = field(default_factory=dict)
+    input: dict[str, Any] = field(default_factory=dict)
     expected_output: Any = None
     actual_output: Any = None
-    score: Optional[float] = None
-    pass_fail: Optional[bool] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    score: float | None = None
+    pass_fail: bool | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "expected_output": self.expected_output,
@@ -44,16 +45,16 @@ class EvalExample:
 class EvalDataset:
     name: str
     version: str = "1.0"
-    examples: List[EvalExample] = field(default_factory=list)
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    examples: list[EvalExample] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     protocol_version: str = PROTOCOL_VERSION
 
-    def add(self, input_data: Dict, expected: Any, metadata: Optional[Dict] = None) -> EvalExample:
+    def add(self, input_data: dict, expected: Any, metadata: dict | None = None) -> EvalExample:
         ex = EvalExample(input=input_data, expected_output=expected, metadata=metadata or {})
         self.examples.append(ex)
         return ex
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "version": self.version,
@@ -71,15 +72,15 @@ class EvalResult:
     passed: int = 0
     failed: int = 0
     avg_score: float = 0.0
-    examples: List[EvalExample] = field(default_factory=list)
-    ran_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    examples: list[EvalExample] = field(default_factory=list)
+    ran_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     protocol_version: str = PROTOCOL_VERSION
 
     @property
     def pass_rate(self) -> float:
         return self.passed / self.total if self.total > 0 else 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "run_id": self.run_id,
             "dataset_name": self.dataset_name,
@@ -101,7 +102,7 @@ def contains_evaluator(expected: str, actual: str) -> float:
     return 1.0 if str(expected).lower() in str(actual).lower() else 0.0
 
 
-def json_keys_evaluator(expected_keys: List[str], actual: Any) -> float:
+def json_keys_evaluator(expected_keys: list[str], actual: Any) -> float:
     if isinstance(actual, str):
         try:
             actual = json.loads(actual)
@@ -126,8 +127,8 @@ class LLMEvaluator:
 
     def __init__(self, llm_provider: Any = None):
         self.llm = llm_provider
-        self._datasets: Dict[str, EvalDataset] = {}
-        self._results: List[EvalResult] = []
+        self._datasets: dict[str, EvalDataset] = {}
+        self._results: list[EvalResult] = []
         audit(event="evaluator_initialized", has_llm=bool(llm_provider), protocol_version=PROTOCOL_VERSION)
 
     def create_dataset(self, name: str, version: str = "1.0") -> EvalDataset:
@@ -135,7 +136,7 @@ class LLMEvaluator:
         self._datasets[name] = ds
         return ds
 
-    def get_dataset(self, name: str) -> Optional[EvalDataset]:
+    def get_dataset(self, name: str) -> EvalDataset | None:
         return self._datasets.get(name)
 
     async def run(
@@ -150,7 +151,7 @@ class LLMEvaluator:
             raise KeyError(f"Dataset not found: {dataset_name!r}")
 
         result = EvalResult(dataset_name=dataset_name, total=len(ds.examples))
-        scores: List[float] = []
+        scores: list[float] = []
 
         for ex in ds.examples:
             try:
@@ -199,5 +200,5 @@ class LLMEvaluator:
         except Exception:
             return 0.5
 
-    def get_results_summary(self) -> List[Dict[str, Any]]:
+    def get_results_summary(self) -> list[dict[str, Any]]:
         return [r.to_dict() for r in self._results]

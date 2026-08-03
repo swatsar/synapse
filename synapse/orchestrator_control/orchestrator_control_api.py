@@ -7,18 +7,17 @@ This layer exposes controlled interfaces without bypassing runtime contracts,
 capability governance, or audit chain.
 """
 
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
 import hashlib
 import json
 import uuid
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from synapse.orchestrator_control.models import (
-    ExecutionRequest,
-    ExecutionStatus,
+    PROTOCOL_VERSION,
     AuditLogEntry,
-    PROTOCOL_VERSION
+    ExecutionStatus,
 )
 
 
@@ -56,21 +55,21 @@ class OrchestratorControlAPI:
         provenance_registry=None,
         membership_authority=None,
         runtime_api=None,
-        audit_log: Optional[List[AuditLogEntry]] = None
+        audit_log: list[AuditLogEntry] | None = None
     ):
         self._provenance_registry = provenance_registry
         self._membership_authority = membership_authority
         self._runtime_api = runtime_api
         self._audit_log = audit_log if audit_log is not None else []
-        self._executions: Dict[str, ExecutionStatus] = {}
-        self._execution_proofs: Dict[str, Dict[str, Any]] = {}
+        self._executions: dict[str, ExecutionStatus] = {}
+        self._execution_proofs: dict[str, dict[str, Any]] = {}
     
     def submit_execution_request(
         self,
         tenant_id: str,
-        contract_id: Optional[str],
-        input_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        contract_id: str | None,
+        input_data: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Submit an execution request.
         
@@ -99,7 +98,7 @@ class OrchestratorControlAPI:
             operation="submit_execution_request",
             tenant_id=tenant_id,
             execution_id=execution_id,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             details={
                 "contract_id": contract_id,
                 "input_hash": self._compute_input_hash(input_data)
@@ -150,7 +149,7 @@ class OrchestratorControlAPI:
             "protocol_version": self.PROTOCOL_VERSION
         }
     
-    def query_execution_status(self, execution_id: str) -> Optional[Dict[str, Any]]:
+    def query_execution_status(self, execution_id: str) -> dict[str, Any] | None:
         """
         Query the status of an execution.
         
@@ -167,7 +166,7 @@ class OrchestratorControlAPI:
             operation="query_execution_status",
             tenant_id="system",
             execution_id=execution_id,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             details={}
         )
         self._audit_log.append(audit_entry)
@@ -187,7 +186,7 @@ class OrchestratorControlAPI:
             }
         return None
     
-    def retrieve_execution_proof(self, execution_id: str) -> Optional[Dict[str, Any]]:
+    def retrieve_execution_proof(self, execution_id: str) -> dict[str, Any] | None:
         """
         Retrieve the execution proof for an execution.
         
@@ -204,14 +203,14 @@ class OrchestratorControlAPI:
             operation="retrieve_execution_proof",
             tenant_id="system",
             execution_id=execution_id,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             details={}
         )
         self._audit_log.append(audit_entry)
         
         return self._execution_proofs.get(execution_id)
     
-    def list_cluster_nodes(self) -> List[Dict[str, Any]]:
+    def list_cluster_nodes(self) -> list[dict[str, Any]]:
         """
         List all cluster nodes.
         
@@ -225,7 +224,7 @@ class OrchestratorControlAPI:
             operation="list_cluster_nodes",
             tenant_id="system",
             execution_id=None,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             details={}
         )
         self._audit_log.append(audit_entry)
@@ -236,7 +235,7 @@ class OrchestratorControlAPI:
         # Default: return empty list
         return []
     
-    def get_cluster_root(self) -> Dict[str, Any]:
+    def get_cluster_root(self) -> dict[str, Any]:
         """
         Get the cluster root information.
         
@@ -250,7 +249,7 @@ class OrchestratorControlAPI:
             operation="get_cluster_root",
             tenant_id="system",
             execution_id=None,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             details={}
         )
         self._audit_log.append(audit_entry)
@@ -268,7 +267,7 @@ class OrchestratorControlAPI:
             "protocol_version": self.PROTOCOL_VERSION
         }
     
-    def get_audit_log(self) -> List[AuditLogEntry]:
+    def get_audit_log(self) -> list[AuditLogEntry]:
         """Get all audit log entries"""
         return self._audit_log.copy()
     
@@ -276,14 +275,14 @@ class OrchestratorControlAPI:
         self,
         tenant_id: str,
         contract_id: str,
-        input_data: Dict[str, Any]
+        input_data: dict[str, Any]
     ) -> str:
         """Generate deterministic execution ID"""
         data = {
             'tenant_id': tenant_id,
             'contract_id': contract_id,
             'input_hash': self._compute_input_hash(input_data),
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
             'protocol_version': self.PROTOCOL_VERSION
         }
         return hashlib.sha256(
@@ -294,7 +293,7 @@ class OrchestratorControlAPI:
         """Create unique audit ID"""
         return f"audit_{uuid.uuid4().hex[:12]}"
     
-    def _compute_input_hash(self, input_data: Dict[str, Any]) -> str:
+    def _compute_input_hash(self, input_data: dict[str, Any]) -> str:
         """Compute hash of input data"""
         return hashlib.sha256(
             json.dumps(input_data, sort_keys=True).encode()

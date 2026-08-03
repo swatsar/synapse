@@ -9,10 +9,9 @@ Responsibilities:
 - Detect knowledge gaps → trigger CreateSkill / CreateKnowledge
 - Emit full audit trail for every evaluation
 """
-import hashlib
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -27,13 +26,13 @@ class EvaluationResult:
     success: bool
     score: float                        # 0.0 – 1.0
     feedback: str
-    recommendations: List[str] = field(default_factory=list)
-    knowledge_gaps: List[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
+    knowledge_gaps: list[str] = field(default_factory=list)
     should_create_skill: bool = False
     suggested_skill_task: str = ""
     protocol_version: str = PROTOCOL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "score": self.score,
@@ -94,10 +93,10 @@ class CriticAgent:
 
     async def evaluate(
         self,
-        execution_result: Dict[str, Any],
+        execution_result: dict[str, Any],
         task: str = "",
-        seed: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        seed: int | None = None,
+    ) -> dict[str, Any]:
         """Evaluate an execution result.
 
         Args:
@@ -133,8 +132,8 @@ class CriticAgent:
         return result.to_dict()
 
     async def _evaluate_with_llm(
-        self, result: Dict, task: str
-    ) -> Optional[EvaluationResult]:
+        self, result: dict, task: str
+    ) -> EvaluationResult | None:
         """Use LLM for structured evaluation."""
         if not self.llm_provider:
             return None
@@ -170,7 +169,7 @@ class CriticAgent:
             return None
 
     def _evaluate_heuristic(
-        self, result: Dict, task: str
+        self, result: dict, task: str
     ) -> EvaluationResult:
         """Deterministic heuristic evaluation when LLM unavailable."""
         status = result.get("status", "unknown")
@@ -183,7 +182,7 @@ class CriticAgent:
             success = True
             feedback = "Task completed successfully with result."
             recommendations = []
-            gaps: List[str] = []
+            gaps: list[str] = []
             should_create = False
             suggested = ""
         elif status == "completed" and not has_result:
@@ -229,8 +228,8 @@ class CriticAgent:
 
     def create_evaluation_prompt(
         self,
-        execution_result: Dict[str, Any],
-        seed: Optional[int] = None,
+        execution_result: dict[str, Any],
+        seed: int | None = None,
     ) -> str:
         """Public method for tests."""
         return EVAL_PROMPT.format(

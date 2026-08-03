@@ -4,12 +4,12 @@ Memory Seal - Cryptographic Sealing for Agent Memory
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, Optional, Any
-from datetime import datetime, UTC
 import hashlib
-import json
 import hmac
+import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -28,12 +28,12 @@ class MemorySeal:
     
     def __init__(self, secret_key: bytes = b"synapse_default_key"):
         self.secret_key = secret_key
-        self._sealed_memories: Dict[str, SealedMemory] = {}
+        self._sealed_memories: dict[str, SealedMemory] = {}
     
     def seal(
         self,
         agent_id: str,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> SealedMemory:
         """Create cryptographic seal for memory data"""
         # Compute data hash
@@ -61,7 +61,7 @@ class MemorySeal:
         
         return sealed
     
-    def verify(self, seal_id: str, data: Dict[str, Any]) -> bool:
+    def verify(self, seal_id: str, data: dict[str, Any]) -> bool:
         """Verify memory seal integrity"""
         if seal_id not in self._sealed_memories:
             return False
@@ -80,15 +80,15 @@ class MemorySeal:
         
         return hmac.compare_digest(expected_sig, sealed.signature)
     
-    def detect_tampering(self, seal_id: str, data: Dict[str, Any]) -> bool:
+    def detect_tampering(self, seal_id: str, data: dict[str, Any]) -> bool:
         """Detect if sealed memory has been tampered with"""
         return not self.verify(seal_id, data)
     
     def reconstruct(
         self,
         seal_id: str,
-        data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        data: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Reconstruct data if seal is valid"""
         if self.verify(seal_id, data):
             return dict(data)

@@ -3,6 +3,7 @@ import functools
 
 from .rollback_manager import RollbackManager
 
+
 class FaultTolerance:
     """Decorator that catches exceptions and triggers a rollback.
 

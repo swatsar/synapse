@@ -6,6 +6,7 @@ Node Security for capability validation
 from synapse.governance.issuance import CapabilityIssuer
 from synapse.transport.message import CapabilityError
 
+
 class NodeSecurity:
     """Security layer for execution node"""
     

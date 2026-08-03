@@ -1,8 +1,8 @@
 PROTOCOL_VERSION: str = "1.0"
 import asyncio
-from typing import Any, Dict, List
 
 from synapse.security.capability_manager import CapabilityManager
+
 
 class ConsensusEngine:
     """Very small deterministic consensus engine.
@@ -15,7 +15,7 @@ class ConsensusEngine:
 
     def __init__(self, caps: CapabilityManager):
         self._caps = caps
-        self._states: Dict[str, Dict] = {}
+        self._states: dict[str, dict] = {}
         self._lock: asyncio.Lock = None  # created lazily per event loop
 
     def _get_lock(self) -> asyncio.Lock:
@@ -24,12 +24,12 @@ class ConsensusEngine:
             self._lock = asyncio.Lock()
         return self._lock
 
-    async def propose(self, node_id: str, state: Dict) -> None:
+    async def propose(self, node_id: str, state: dict) -> None:
         await self._caps.check_capability(["consensus:propose"])
         async with self._get_lock():
             self._states[node_id] = state
 
-    async def decide(self) -> Dict:
+    async def decide(self) -> dict:
         """Return the state of the elected leader (lowest node_id)."""
         await self._caps.check_capability(["consensus:decide"])
         async with self._get_lock():

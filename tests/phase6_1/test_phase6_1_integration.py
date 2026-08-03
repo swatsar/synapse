@@ -5,7 +5,7 @@ Integration Tests for Phase 6.1
 import pytest
 import hashlib
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 from synapse.control_plane.tenant_scheduler import TenantScheduler
 from synapse.control_plane.tenant_quota_registry import TenantQuotaRegistry
@@ -136,7 +136,7 @@ class TestPhase61Integration:
             state_partition.update_state(
                 tenant_id=tenant_id,
                 state_key="last_execution",
-                state_value=datetime.utcnow().isoformat()
+                state_value=datetime.now(UTC).isoformat()
             )
 
         # Verify isolation

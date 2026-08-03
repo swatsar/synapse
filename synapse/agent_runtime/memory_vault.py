@@ -4,11 +4,11 @@ Memory Vault - Immutable, Hash-Addressed, Capability-Protected Memory
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, UTC
 import hashlib
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -16,8 +16,8 @@ class MemorySnapshot:
     """Immutable memory snapshot"""
     snapshot_id: str
     agent_id: str
-    data: Dict[str, Any]
-    capabilities_required: Set[str]
+    data: dict[str, Any]
+    capabilities_required: set[str]
     created_at: str
     hash: str
     protocol_version: str = "1.0"
@@ -27,14 +27,14 @@ class MemoryVault:
     """Secure memory vault with hash-addressed storage"""
     
     def __init__(self):
-        self._snapshots: Dict[str, MemorySnapshot] = {}
-        self._agent_snapshots: Dict[str, List[str]] = {}
+        self._snapshots: dict[str, MemorySnapshot] = {}
+        self._agent_snapshots: dict[str, list[str]] = {}
     
     def store(
         self,
         agent_id: str,
-        data: Dict[str, Any],
-        capabilities_required: Set[str]
+        data: dict[str, Any],
+        capabilities_required: set[str]
     ) -> MemorySnapshot:
         """Store data in vault, returns immutable snapshot"""
         # Compute hash
@@ -68,8 +68,8 @@ class MemoryVault:
     def retrieve(
         self,
         snapshot_id: str,
-        capabilities: Set[str]
-    ) -> Optional[MemorySnapshot]:
+        capabilities: set[str]
+    ) -> MemorySnapshot | None:
         """Retrieve snapshot if capabilities allow"""
         if snapshot_id not in self._snapshots:
             return None
@@ -82,7 +82,7 @@ class MemoryVault:
         
         return snapshot
     
-    def get_agent_snapshots(self, agent_id: str) -> List[str]:
+    def get_agent_snapshots(self, agent_id: str) -> list[str]:
         """Get all snapshot IDs for an agent"""
         return self._agent_snapshots.get(agent_id, [])
     
@@ -101,7 +101,7 @@ class MemoryVault:
         """Detect if snapshot has been tampered with"""
         return not self.verify_integrity(snapshot_id)
     
-    def reconstruct(self, snapshot_id: str) -> Optional[Dict[str, Any]]:
+    def reconstruct(self, snapshot_id: str) -> dict[str, Any] | None:
         """Reconstruct data from snapshot"""
         snapshot = self._snapshots.get(snapshot_id)
         if snapshot:

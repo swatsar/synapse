@@ -14,11 +14,10 @@ Features:
 - Rollback to previous version
 """
 import hashlib
-import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -31,10 +30,10 @@ class PromptVersion:
     """A versioned prompt template."""
     version: str               # e.g. "1.0.0"
     template: str              # The prompt text with {variable} placeholders
-    variables: List[str] = field(default_factory=list)  # Expected variable names
+    variables: list[str] = field(default_factory=list)  # Expected variable names
     description: str = ""
     author: str = "system"
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     is_active: bool = True
     performance_score: float = 0.0  # 0.0–1.0, updated by LearningEngine
     protocol_version: str = PROTOCOL_VERSION
@@ -53,7 +52,7 @@ class PromptVersion:
         except KeyError as e:
             raise ValueError(f"Template variable error: {e}") from e
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
             "hash": self.hash,
@@ -78,7 +77,7 @@ class PromptManager:
 
     def __init__(self):
         # prompt_name → list[PromptVersion] (newest last)
-        self._prompts: Dict[str, List[PromptVersion]] = {}
+        self._prompts: dict[str, list[PromptVersion]] = {}
         self._load_defaults()
         audit(event="prompt_manager_initialized", protocol_version=PROTOCOL_VERSION)
 
@@ -153,7 +152,7 @@ class PromptManager:
             protocol_version=PROTOCOL_VERSION,
         )
 
-    def get_active(self, name: str) -> Optional[PromptVersion]:
+    def get_active(self, name: str) -> PromptVersion | None:
         """Return the currently active prompt version."""
         versions = self._prompts.get(name, [])
         for pv in reversed(versions):
@@ -175,7 +174,7 @@ class PromptManager:
         )
         return rendered
 
-    def rollback(self, name: str) -> Optional[PromptVersion]:
+    def rollback(self, name: str) -> PromptVersion | None:
         """Rollback to the previous version."""
         versions = self._prompts.get(name, [])
         if len(versions) < 2:
@@ -196,9 +195,9 @@ class PromptManager:
             pv.performance_score = max(0.0, min(1.0, score))
             audit(event="prompt_score_updated", name=name, score=pv.performance_score, protocol_version=PROTOCOL_VERSION)
 
-    def list_prompts(self) -> Dict[str, List[Dict[str, Any]]]:
+    def list_prompts(self) -> dict[str, list[dict[str, Any]]]:
         """List all prompt names and their version history."""
         return {name: [pv.to_dict() for pv in versions] for name, versions in self._prompts.items()}
 
-    def list_names(self) -> List[str]:
+    def list_names(self) -> list[str]:
         return list(self._prompts.keys())

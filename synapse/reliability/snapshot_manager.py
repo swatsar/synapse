@@ -1,11 +1,12 @@
 PROTOCOL_VERSION: str = "1.0"
 import asyncio
-import os
-import json
 import datetime
-from typing import Any, Dict
+import json
+import os
+from typing import Any
 
 from synapse.security.capability_manager import CapabilityManager
+
 
 class SnapshotManager:
     """Create and restore deterministic snapshots of the system state.
@@ -15,17 +16,17 @@ class SnapshotManager:
     """
     protocol_version: str = "1.0"
 
-    def __init__(self, caps: CapabilityManager, base_path: str = None):
+    def __init__(self, caps: CapabilityManager, base_path: str | None = None):
         self._caps = caps
         resolved = base_path or os.path.join(os.path.expanduser("~"), ".synapse")
         self._snap_dir = os.path.join(resolved, ".snapshots")
         os.makedirs(self._snap_dir, exist_ok=True)
         os.makedirs(self._snap_dir, exist_ok=True)
 
-    async def create_snapshot(self, state: Dict[str, Any]) -> str:
+    async def create_snapshot(self, state: dict[str, Any]) -> str:
         """Persist ``state`` to a timestamped JSON file and return its path."""
         await self._caps.check_capability(["snapshot:create"])
-        ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
+        ts = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S")
         path = os.path.join(self._snap_dir, f"snapshot_{ts}.json")
 
         def _write_file():
@@ -35,7 +36,7 @@ class SnapshotManager:
         await asyncio.to_thread(_write_file)
         return path
 
-    async def restore_snapshot(self, path: str) -> Dict[str, Any]:
+    async def restore_snapshot(self, path: str) -> dict[str, Any]:
         """Load a snapshot file and return the stored state."""
         await self._caps.check_capability(["snapshot:restore"])
 

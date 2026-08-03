@@ -3,7 +3,6 @@
 Implements SYSTEM_SPEC_v3.1 - Safety Layer.
 With comprehensive audit logging.
 """
-from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 PROTOCOL_VERSION: str = "1.0"
@@ -17,7 +16,7 @@ class SafetyReport(BaseModel):
     """Safety evaluation report."""
     safe: bool
     risk_level: int
-    issues: List[Dict]
+    issues: list[dict]
     requires_human_approval: bool
     protocol_version: str = "1.0"
 
@@ -48,7 +47,7 @@ class SafetyLayer:
             protocol_version=PROTOCOL_VERSION
         )
 
-    async def evaluate_plan(self, plan: Dict) -> SafetyReport:
+    async def evaluate_plan(self, plan: dict) -> SafetyReport:
         """Evaluate plan for safety with audit logging.
 
         Args:
@@ -102,7 +101,7 @@ class SafetyLayer:
 
         return report
 
-    async def _check_dangerous_patterns(self, plan: Dict) -> List[Dict]:
+    async def _check_dangerous_patterns(self, plan: dict) -> list[dict]:
         """Check for dangerous patterns in plan."""
         issues = []
         plan_text = str(plan).lower()
@@ -118,7 +117,7 @@ class SafetyLayer:
 
         return issues
 
-    async def _validate_capabilities(self, plan: Dict) -> List[Dict]:
+    async def _validate_capabilities(self, plan: dict) -> list[dict]:
         """Validate required capabilities."""
         issues = []
         required_caps = plan.get("required_capabilities", [])
@@ -136,7 +135,7 @@ class SafetyLayer:
 
         return issues
 
-    async def _check_resource_limits(self, plan: Dict) -> List[Dict]:
+    async def _check_resource_limits(self, plan: dict) -> list[dict]:
         """Check resource limits."""
         issues = []
         resources = plan.get("resources", {})

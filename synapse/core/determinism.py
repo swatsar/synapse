@@ -4,12 +4,11 @@ Deterministic behavior for reproducible execution
 
 PROTOCOL_VERSION: str = "1.0"
 
-import random
 import hashlib
+import random
 import uuid
-from typing import List, Optional, Dict, Any
-from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 class DeterministicOrder:
@@ -42,15 +41,15 @@ class DeterministicSeed:
 class DeterministicSeedManager:
     """Manages deterministic seeds for reproducible execution"""
     
-    def __init__(self, master_seed: Optional[int] = None, seed: Optional[int] = None):
+    def __init__(self, master_seed: int | None = None, seed: int | None = None):
         # Instance attribute for protocol version
         self.protocol_version = "1.0"
         # Support both 'master_seed' and 'seed' as parameter names
         self.master_seed = master_seed or seed or random.randint(0, 2**32 - 1)
-        self._seed_history: List[DeterministicSeed] = []
-        self._current_seed: Optional[int] = None
+        self._seed_history: list[DeterministicSeed] = []
+        self._current_seed: int | None = None
     
-    def generate_seed(self, context: Optional[str] = None) -> int:
+    def generate_seed(self, context: str | None = None) -> int:
         """Generate a deterministic seed based on master seed and context"""
         if context:
             context_hash = hashlib.sha256(f"{self.master_seed}:{context}".encode()).hexdigest()
@@ -62,7 +61,7 @@ class DeterministicSeedManager:
         self._current_seed = seed
         return seed
     
-    def get_current_seed(self) -> Optional[int]:
+    def get_current_seed(self) -> int | None:
         """Get current seed"""
         return self._current_seed
     
@@ -71,7 +70,7 @@ class DeterministicSeedManager:
         self._current_seed = seed
         self._seed_history.append(DeterministicSeed(value=seed))
     
-    def get_history(self) -> List[DeterministicSeed]:
+    def get_history(self) -> list[DeterministicSeed]:
         """Get seed history"""
         return self._seed_history.copy()
     
@@ -84,7 +83,7 @@ class DeterministicSeedManager:
 class DeterministicIDGenerator:
     """Generates deterministic IDs based on seeds"""
     
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: int | None = None):
         # Instance attribute for protocol version
         self.protocol_version = "1.0"
         self.seed = seed or random.randint(0, 2**32 - 1)

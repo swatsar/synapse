@@ -1,9 +1,7 @@
 import asyncio
 import json
-import os
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import aiosqlite
 
@@ -46,12 +44,12 @@ class MemoryStore:
     
     protocol_version: str = "1.0"
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         self.protocol_version = "1.0"
         self.db_path = db_path
         self.vector_store = None  # Attached externally: VectorMemoryStore or os.path.join(os.getcwd(), "synapse", "memory", "memory.db")
         # No async task is started here – we will create it lazily when needed
-        self._init_task: Optional[asyncio.Task] = None
+        self._init_task: asyncio.Task | None = None
 
     async def _wait_ready(self):
         if self._init_task is None:
@@ -69,21 +67,20 @@ class MemoryStore:
             )
             await db.commit()
 
-    async def get_short_term(self, key: str) -> Optional[Any]:
+    async def get_short_term(self, key: str) -> Any | None:
         await self._wait_ready()
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
-                "SELECT value FROM short_term WHERE key = ? ORDER BY id DESC LIMIT 1",
-                (key,)
-            ) as cursor:
-                row = await cursor.fetchone()
-                if row:
-                    result = json.loads(row[0])
-                    # Return as list if result is dict (for test compatibility)
-                    if isinstance(result, dict):
-                        return [result]
-                    return result
-                return None
+        async with aiosqlite.connect(self.db_path) as db, db.execute(
+            "SELECT value FROM short_term WHERE key = ? ORDER BY id DESC LIMIT 1",
+            (key,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                result = json.loads(row[0])
+                # Return as list if result is dict (for test compatibility)
+                if isinstance(result, dict):
+                    return [result]
+                return result
+            return None
 
     async def delete_short_term(self, key: str) -> None:
         await self._wait_ready()
@@ -101,15 +98,14 @@ class MemoryStore:
             )
             await db.commit()
 
-    async def get_long_term(self, key: str) -> Optional[Any]:
+    async def get_long_term(self, key: str) -> Any | None:
         await self._wait_ready()
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
-                "SELECT value FROM long_term WHERE key = ? ORDER BY id DESC LIMIT 1",
-                (key,)
-            ) as cursor:
-                row = await cursor.fetchone()
-                return json.loads(row[0]) if row else None
+        async with aiosqlite.connect(self.db_path) as db, db.execute(
+            "SELECT value FROM long_term WHERE key = ? ORDER BY id DESC LIMIT 1",
+            (key,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return json.loads(row[0]) if row else None
 
     async def delete_long_term(self, key: str) -> None:
         await self._wait_ready()
@@ -127,18 +123,17 @@ class MemoryStore:
             )
             await db.commit()
 
-    async def get_episodic(self, episode: str) -> Optional[Any]:
+    async def get_episodic(self, episode: str) -> Any | None:
         await self._wait_ready()
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
-                "SELECT data FROM episodic WHERE episode = ? ORDER BY id DESC LIMIT 1",
-                (episode,)
-            ) as cursor:
-                row = await cursor.fetchone()
-                return json.loads(row[0]) if row else None
+        async with aiosqlite.connect(self.db_path) as db, db.execute(
+            "SELECT data FROM episodic WHERE episode = ? ORDER BY id DESC LIMIT 1",
+            (episode,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return json.loads(row[0]) if row else None
 
     # ---------- Search ----------
-    async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         await self._wait_ready()
         results = []
         async with aiosqlite.connect(self.db_path) as db:
@@ -178,7 +173,7 @@ class MemoryStore:
         """
         return await self.add_episodic(episode, data)
     
-    async def get_episode(self, episode: str) -> Optional[Any]:
+    async def get_episode(self, episode: str) -> Any | None:
         """Alias for get_episodic (backward compatibility).
         
         .. deprecated:: 3.1
@@ -186,7 +181,7 @@ class MemoryStore:
         """
         return await self.get_episodic(episode)
     
-    async def query_long_term(self, query: Union[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    async def query_long_term(self, query: str | dict[str, Any]) -> list[dict[str, Any]]:
         """Query long-term memory with flexible criteria.
         
         Args:
@@ -218,7 +213,7 @@ class MemoryStore:
         
         return results
     
-    async def store(self, entry: Dict[str, Any]) -> str:
+    async def store(self, entry: dict[str, Any]) -> str:
         """Store an entry in memory.
         
         Args:
@@ -240,7 +235,7 @@ class MemoryStore:
         
         return key
     
-    async def recall(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def recall(self, query: dict[str, Any]) -> list[dict[str, Any]]:
         """Recall entries from memory.
         
         Args:
@@ -251,6 +246,6 @@ class MemoryStore:
         """
         query_text = query.get("query_text", "")
         limit = query.get("limit", 10)
-        memory_types = query.get("memory_types", ["short_term", "long_term", "episodic"])
+        query.get("memory_types", ["short_term", "long_term", "episodic"])
         
         return await self.search(query_text, limit)

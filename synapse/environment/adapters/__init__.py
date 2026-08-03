@@ -7,16 +7,16 @@ Spec Version: 3.1
 """
 
 from synapse.environment.adapters.base import EnvironmentAdapter
-from synapse.environment.adapters.windows import WindowsAdapter
+from synapse.environment.adapters.factory import get_environment_adapter
 from synapse.environment.adapters.linux import LinuxAdapter
 from synapse.environment.adapters.macos import MacOSAdapter
-from synapse.environment.adapters.factory import get_environment_adapter
+from synapse.environment.adapters.windows import WindowsAdapter
 
 __all__ = [
     'EnvironmentAdapter',
-    'WindowsAdapter',
     'LinuxAdapter',
     'MacOSAdapter',
+    'WindowsAdapter',
     'get_environment_adapter'
 ]
 

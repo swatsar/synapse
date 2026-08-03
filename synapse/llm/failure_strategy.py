@@ -3,8 +3,8 @@
 Implements SYSTEM_SPEC_v3.1 - LLM Failure Strategy.
 With comprehensive audit logging.
 """
-from typing import Dict, List, Optional
 from enum import IntEnum
+
 from pydantic import BaseModel
 
 PROTOCOL_VERSION: str = "1.0"
@@ -37,7 +37,7 @@ class LLMFailureStrategy:
 
     MAX_FAILURES_BEFORE_FAILOVER = 3
 
-    def __init__(self, models: List[ModelConfig], audit_logger=None):
+    def __init__(self, models: list[ModelConfig], audit_logger=None):
         self.models = sorted(models, key=lambda m: m.priority.value)
         self.audit_logger = audit_logger
         self.current_index = 0
@@ -75,7 +75,7 @@ class LLMFailureStrategy:
                     await self._switch_to_fallback(model_name)
                 break
 
-    async def get_available_model(self) -> Optional[ModelConfig]:
+    async def get_available_model(self) -> ModelConfig | None:
         """Get the best available model with audit logging."""
         for model in self.models:
             if model.is_active:
@@ -129,7 +129,7 @@ class LLMFailureStrategy:
             protocol_version=PROTOCOL_VERSION
         )
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get current status of all models."""
         return {
             "models": [

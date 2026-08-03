@@ -2,10 +2,9 @@
 
 Implements SYSTEM_SPEC_v3.1 Phase 9 - Human Approval Pipeline.
 """
-from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -56,9 +55,9 @@ class HumanApprovalPipeline:
         self.connector_runtime = connector_runtime
         self.audit_logger = audit_logger
         self.policy_engine = policy_engine
-        self._approval_queue: List[ApprovalRequest] = []
+        self._approval_queue: list[ApprovalRequest] = []
     
-    async def process(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    async def process(self, task: dict[str, Any]) -> dict[str, Any]:
         """Process a task through the approval pipeline.
         
         Args:
@@ -91,7 +90,7 @@ class HumanApprovalPipeline:
                 task_name=task.get("name", "unknown"),
                 risk_level=risk_level,
                 trace_id=trace_id,
-                timestamp=datetime.now(timezone.utc).isoformat()
+                timestamp=datetime.now(UTC).isoformat()
             )
             
             # Add to queue
@@ -130,7 +129,7 @@ class HumanApprovalPipeline:
         
         return risk_level >= APPROVAL_RISK_THRESHOLD
     
-    def order_queue(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def order_queue(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Order approval queue deterministically.
         
         Args:
@@ -162,7 +161,7 @@ class HumanApprovalPipeline:
                 approved=response.get("approved", False),
                 task_id=task_id,
                 approver=response.get("approver", "unknown"),
-                timestamp=datetime.now(timezone.utc).isoformat()
+                timestamp=datetime.now(UTC).isoformat()
             )
         
         # Default approval for testing
@@ -170,5 +169,5 @@ class HumanApprovalPipeline:
             approved=True,
             task_id=task_id,
             approver="system",
-            timestamp=datetime.now(timezone.utc).isoformat()
+            timestamp=datetime.now(UTC).isoformat()
         )

@@ -1,7 +1,8 @@
 """ExecutionFabric – deterministic node selection and task submission (sync)."""
 import hashlib
 import json
-from typing import Any, Dict, List
+from typing import Any
+
 from .determinism import DeterministicSeedManager
 
 PROTOCOL_VERSION: str = "1.0"
@@ -11,7 +12,7 @@ class ExecutionFabric:
     protocol_version: str = PROTOCOL_VERSION
     
     def __init__(self, seed_manager: DeterministicSeedManager = None):
-        self.nodes: List[Any] = []
+        self.nodes: list[Any] = []
         self.seed_manager = seed_manager or DeterministicSeedManager()
         self._selection_counter = 0
 
@@ -19,7 +20,7 @@ class ExecutionFabric:
         """Register a node for task execution."""
         self.nodes.append(node)
 
-    def select_node(self, task: Dict[str, Any]):
+    def select_node(self, task: dict[str, Any]):
         """Select a node deterministically based on task content.
         Same task always routes to the same node.
         """
@@ -32,7 +33,7 @@ class ExecutionFabric:
         idx = task_hash % len(self.nodes)
         return self.nodes[idx]
 
-    def submit(self, task: Dict[str, Any]) -> Dict[str, Any]:
+    def submit(self, task: dict[str, Any]) -> dict[str, Any]:
         """Submit a task to the selected node."""
         node = self.select_node(task)
         result = node.execute(task)

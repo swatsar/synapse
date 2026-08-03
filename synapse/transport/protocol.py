@@ -4,7 +4,7 @@ Protocol definitions for orchestrator-node communication
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any
+
 
 @dataclass
 class ProtocolVersion:

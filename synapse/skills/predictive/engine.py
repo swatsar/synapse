@@ -5,13 +5,10 @@ Predictive Autonomy & Proactive Risk Management.
 from __future__ import annotations
 
 import hashlib
+import random
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-import asyncio
-import random
-
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -34,7 +31,7 @@ class Prediction:
     type: str
     probability: float
     severity: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -51,13 +48,13 @@ class MitigationAction:
 class PredictionResult:
     """Result of prediction."""
     prediction_id: str
-    predictions: List[Dict[str, Any]]
+    predictions: list[dict[str, Any]]
     risk_level: int
     requires_approval: bool = False
     auto_executed: bool = False
     cluster_propagated: bool = False
     consistent: bool = True
-    mitigation: Optional[MitigationAction] = None
+    mitigation: MitigationAction | None = None
     protocol_version: str = "1.0"
 
 
@@ -68,18 +65,18 @@ class PredictiveEngine:
 
     def __init__(
         self,
-        telemetry: Optional[Any] = None,
-        resource_manager: Optional[Any] = None,
-        policy_engine: Optional[Any] = None,
-        cluster_manager: Optional[Any] = None,
-        human_approval: Optional[Any] = None
+        telemetry: Any | None = None,
+        resource_manager: Any | None = None,
+        policy_engine: Any | None = None,
+        cluster_manager: Any | None = None,
+        human_approval: Any | None = None
     ):
         self.telemetry = telemetry
         self.resource_manager = resource_manager
         self.policy_engine = policy_engine
         self.cluster_manager = cluster_manager
         self.human_approval = human_approval
-        self.audit_logger: Optional[Any] = None
+        self.audit_logger: Any | None = None
 
     def _generate_deterministic_id(self, seed: int, target: str, prediction_type: str) -> str:
         """Generate deterministic prediction ID."""
@@ -170,13 +167,13 @@ class PredictiveEngine:
     async def _analyze_trends(
         self,
         request: PredictionRequest,
-        metrics: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        metrics: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Analyze trends and generate predictions."""
         predictions = []
 
         # Use deterministic random for reproducibility
-        rng = random.Random(request.seed)
+        random.Random(request.seed)
 
         # CPU overload prediction
         if request.target in ["system", "cpu", "cluster"]:
@@ -225,7 +222,7 @@ class PredictiveEngine:
 
         return predictions
 
-    def _calculate_risk_level(self, predictions: List[Dict[str, Any]]) -> int:
+    def _calculate_risk_level(self, predictions: list[dict[str, Any]]) -> int:
         """Calculate overall risk level from predictions."""
         if not predictions:
             return 0

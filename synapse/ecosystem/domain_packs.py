@@ -3,9 +3,8 @@ Domain Packs - Pre-built agent configurations
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-
+from datetime import UTC, datetime
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -20,12 +19,12 @@ class DomainPack:
     name: str
     version: str
     description: str
-    capabilities: List[str] = field(default_factory=list)
-    agent_config: Dict[str, Any] = field(default_factory=dict)
-    dependencies: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    capabilities: list[str] = field(default_factory=list)
+    agent_config: dict[str, Any] = field(default_factory=dict)
+    dependencies: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     
     def validate(self) -> bool:
         """Validate domain pack configuration"""
@@ -33,11 +32,9 @@ class DomainPack:
             return False
         if not self.version:
             return False
-        if not self.description:
-            return False
-        return True
+        return self.description
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             'name': self.name,

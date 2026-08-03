@@ -6,6 +6,7 @@ Node API for external communication
 from synapse.node.node_runtime import ExecutionNode
 from synapse.transport.message import ExecutionRequest, ExecutionResult
 
+
 class NodeAPI:
     """API interface for execution node"""
     

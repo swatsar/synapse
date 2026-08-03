@@ -11,9 +11,8 @@ Federates execution domains across nodes with:
 
 import hashlib
 import json
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -21,15 +20,15 @@ class NodeDescriptor:
     """Descriptor for a cluster node"""
     node_id: str
     node_name: str
-    capabilities: List[str]
-    resource_limits: Dict[str, int]
+    capabilities: list[str]
+    resource_limits: dict[str, int]
     endpoint: str
     registered_at: str = ""
     protocol_version: str = "1.0"
     
     def __post_init__(self):
         if not self.registered_at:
-            self.registered_at = datetime.utcnow().isoformat()
+            self.registered_at = datetime.now(UTC).isoformat()
 
 
 class DistributedExecutionDomain:
@@ -46,9 +45,9 @@ class DistributedExecutionDomain:
     PROTOCOL_VERSION: str = "1.0"
     
     def __init__(self):
-        self._nodes: Dict[str, NodeDescriptor] = {}
-        self._domain_memberships: Dict[str, List[str]] = {}  # domain_id -> [node_ids]
-        self._node_domains: Dict[str, str] = {}  # node_id -> domain_id
+        self._nodes: dict[str, NodeDescriptor] = {}
+        self._domain_memberships: dict[str, list[str]] = {}  # domain_id -> [node_ids]
+        self._node_domains: dict[str, str] = {}  # node_id -> domain_id
     
     def register_node(self, node_descriptor: NodeDescriptor) -> str:
         """
@@ -115,11 +114,11 @@ class DistributedExecutionDomain:
         
         return True
     
-    def get_node(self, node_id: str) -> Optional[NodeDescriptor]:
+    def get_node(self, node_id: str) -> NodeDescriptor | None:
         """Get node descriptor by ID"""
         return self._nodes.get(node_id)
     
-    def get_all_nodes(self) -> List[NodeDescriptor]:
+    def get_all_nodes(self) -> list[NodeDescriptor]:
         """Get all registered nodes"""
         return list(self._nodes.values())
     

@@ -2,8 +2,8 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 import os
-from synapse.core.models import ExecutionContext
 
+from synapse.core.models import ExecutionContext
 
 
 class WriteFileSkill:

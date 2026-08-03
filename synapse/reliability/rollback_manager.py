@@ -1,9 +1,9 @@
 PROTOCOL_VERSION: str = "1.0"
-import os
-from typing import Dict
+
+from synapse.security.capability_manager import CapabilityManager
 
 from .snapshot_manager import SnapshotManager
-from synapse.security.capability_manager import CapabilityManager
+
 
 class RollbackManager:
     """High‑level API to rollback the system to a previous snapshot.
@@ -17,7 +17,7 @@ class RollbackManager:
         self._caps = caps
         self._snap_mgr = snapshot_manager
 
-    async def rollback_to(self, snapshot_path: str) -> Dict:
+    async def rollback_to(self, snapshot_path: str) -> dict:
         """Restore the snapshot and return the loaded state."""
         await self._caps.check_capability(["rollback"])
         state = await self._snap_mgr.restore_snapshot(snapshot_path)

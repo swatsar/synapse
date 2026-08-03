@@ -12,12 +12,10 @@ Copyright (c) 2024 LangChain, Inc.
 Copyright (c) 2026 Synapse Contributors
 """
 
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
 import hashlib
-import json
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -33,9 +31,9 @@ class DocumentSensitivity(str, Enum):
 class Document:
     """Document for RAG system"""
     content: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    id: Optional[str] = None
-    embedding: Optional[List[float]] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    id: str | None = None
+    embedding: list[float] | None = None
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
@@ -48,7 +46,7 @@ class RAGQuery:
     """Query for RAG retrieval"""
     query_text: str
     limit: int = 5
-    memory_types: List[str] = field(default_factory=list)
+    memory_types: list[str] = field(default_factory=list)
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
@@ -58,7 +56,7 @@ class RAGQuery:
 @dataclass
 class RAGResult:
     """Result from RAG retrieval"""
-    documents: List[Document]
+    documents: list[Document]
     query: str
     total_found: int
     
@@ -93,7 +91,7 @@ class RAGSystem:
         self.llm = llm_provider
         self.security = security_manager
         self.audit = audit_logger
-        self.documents: Dict[str, Document] = {}
+        self.documents: dict[str, Document] = {}
     
     async def add_document(self, document: Document) -> str:
         """Add document to RAG system"""
@@ -120,7 +118,7 @@ class RAGSystem:
         
         return doc_id
     
-    async def retrieve(self, query: RAGQuery, context: Dict[str, Any] = None) -> RAGResult:
+    async def retrieve(self, query: RAGQuery, context: dict[str, Any] | None = None) -> RAGResult:
         """Retrieve documents for query"""
         # Generate query embedding
         query_embedding = await self._generate_embedding(query.query_text)
@@ -149,7 +147,7 @@ class RAGSystem:
             protocol_version=self.PROTOCOL_VERSION
         )
     
-    async def _generate_embedding(self, text: str) -> List[float]:
+    async def _generate_embedding(self, text: str) -> list[float]:
         """Generate embedding: LLM embed() if available, else hash-based deterministic vector."""
         if self.llm and hasattr(self.llm, "embed"):
             try:
@@ -158,7 +156,7 @@ class RAGSystem:
                 pass  # noqa: silenced - _exc
 
         # Deterministic hash-based fallback (768-dim, values in [-1, 1])
-        import hashlib, struct
+        import struct
         digest = hashlib.sha512(text.encode("utf-8")).digest()  # 64 bytes
         # Repeat digest to fill 768 floats (768 * 4 = 3072 bytes)
         raw = (digest * ((768 * 4 // len(digest)) + 1))[: 768 * 4]
@@ -169,9 +167,9 @@ class RAGSystem:
     
     async def _filter_by_sensitivity(
         self,
-        documents: List[Document],
-        context: Dict[str, Any]
-    ) -> List[Document]:
+        documents: list[Document],
+        context: dict[str, Any]
+    ) -> list[Document]:
         """Filter documents by sensitivity level"""
         filtered = []
         for doc in documents:

@@ -4,11 +4,12 @@ Multi-Node Replay Consistency
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC
 import hashlib
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
 
 @dataclass
 class StateHash:
@@ -21,7 +22,7 @@ class StateHash:
     protocol_version: str = "1.0"
     
     @classmethod
-    def compute(cls, node_id: str, workflow_id: str, execution_seed: int, state: Dict) -> 'StateHash':
+    def compute(cls, node_id: str, workflow_id: str, execution_seed: int, state: dict) -> 'StateHash':
         """Compute deterministic state hash
         
         IMPORTANT: node_id is NOT included in hash computation
@@ -51,9 +52,9 @@ class ConsistencyReport:
     """Replay consistency report"""
     workflow_id: str
     execution_seed: int
-    node_hashes: Dict[str, str]  # node_id -> state_hash
+    node_hashes: dict[str, str]  # node_id -> state_hash
     is_consistent: bool
-    mismatch_details: List[Dict[str, Any]]
+    mismatch_details: list[dict[str, Any]]
     timestamp: str
     protocol_version: str = "1.0"
 
@@ -62,7 +63,7 @@ class ReplayConsistencyManager:
     """Manages replay consistency across nodes"""
     
     def __init__(self):
-        self._state_hashes: Dict[str, List[StateHash]] = {}  # workflow_id -> list of hashes
+        self._state_hashes: dict[str, list[StateHash]] = {}  # workflow_id -> list of hashes
     
     def record_state_hash(self, state_hash: StateHash):
         """Record state hash from a node"""
@@ -87,7 +88,7 @@ class ReplayConsistencyManager:
                 mismatch_details.append({
                     "node_id": node_id,
                     "state_hash": hash_val,
-                    "expected": list(unique_hashes)[0] if unique_hashes else None
+                    "expected": next(iter(unique_hashes)) if unique_hashes else None
                 })
         
         return ConsistencyReport(
@@ -99,6 +100,6 @@ class ReplayConsistencyManager:
             timestamp=datetime.now(UTC).isoformat()
         )
     
-    def replay_workflow(self, workflow_id: str, execution_seed: int) -> Optional[ConsistencyReport]:
+    def replay_workflow(self, workflow_id: str, execution_seed: int) -> ConsistencyReport | None:
         """Replay and verify workflow"""
         return self.check_consistency(workflow_id, execution_seed)

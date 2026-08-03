@@ -7,14 +7,11 @@ Adapted from LangChain routing patterns (LANGCHAIN_INTEGRATION.md §1.3).
 Synapse additions: health checks, cost tracking, capability validation,
 protocol versioning, audit logging.
 """
-import asyncio
 import logging
-import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from enum import IntEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -48,13 +45,13 @@ class ModelConfig:
     provider: str
     model: str
     priority: ModelPriority = ModelPriority.PRIMARY
-    api_key: Optional[str] = None
-    api_base: Optional[str] = None
+    api_key: str | None = None
+    api_base: str | None = None
     timeout_seconds: int = 30
     rate_limit_per_minute: int = 60
     max_tokens: int = 4096
     is_active: bool = True
-    task_types: List[str] = field(default_factory=list)  # "" = all tasks
+    task_types: list[str] = field(default_factory=list)  # "" = all tasks
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -79,7 +76,7 @@ class CostRecord:
         self.total_cost_usd += cost
         return cost
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model": self.model,
             "input_tokens": self.input_tokens,
@@ -105,12 +102,12 @@ class LLMModelRouter:
 
     PROTOCOL_VERSION: str = PROTOCOL_VERSION
 
-    def __init__(self, models: List[ModelConfig], audit_logger: Any = None):
+    def __init__(self, models: list[ModelConfig], audit_logger: Any = None):
         self.models = sorted(models, key=lambda m: m.priority.value)
         self._audit = audit_logger
-        self._failure_counts: Dict[str, int] = defaultdict(int)
-        self._health: Dict[str, bool] = {m.name: True for m in models}
-        self._costs: Dict[str, CostRecord] = {
+        self._failure_counts: dict[str, int] = defaultdict(int)
+        self._health: dict[str, bool] = {m.name: True for m in models}
+        self._costs: dict[str, CostRecord] = {
             m.name: CostRecord(model=m.model) for m in models
         }
         self._last_health_check: float = 0.0
@@ -125,7 +122,7 @@ class LLMModelRouter:
     # Public API
     # ------------------------------------------------------------------
 
-    async def get_model(self, task_type: str = "") -> Optional[ModelConfig]:
+    async def get_model(self, task_type: str = "") -> ModelConfig | None:
         """Return the best available model for the given task type."""
         # Task-specific routing first
         if task_type:
@@ -186,9 +183,9 @@ class LLMModelRouter:
             )
             logger.warning("Model %s marked unhealthy after %d failures", model_name, count)
 
-    async def health_check(self) -> Dict[str, Dict[str, Any]]:
+    async def health_check(self) -> dict[str, dict[str, Any]]:
         """Return health status of all models."""
-        results: Dict[str, Dict[str, Any]] = {}
+        results: dict[str, dict[str, Any]] = {}
         for m in self.models:
             results[m.name] = {
                 "is_active": m.is_active,
@@ -200,7 +197,7 @@ class LLMModelRouter:
             }
         return results
 
-    def get_cost_summary(self) -> Dict[str, Any]:
+    def get_cost_summary(self) -> dict[str, Any]:
         """Return aggregated cost tracking data."""
         records = {name: rec.to_dict() for name, rec in self._costs.items()}
         total_cost = sum(r["total_cost_usd"] for r in records.values())
@@ -218,7 +215,7 @@ class LLMModelRouter:
         self._failure_counts[model_name] = 0
         audit(event="llm_model_health_reset", model=model_name, protocol_version=PROTOCOL_VERSION)
 
-    def list_models(self) -> List[Dict[str, Any]]:
+    def list_models(self) -> list[dict[str, Any]]:
         """List all configured models with status."""
         return [
             {

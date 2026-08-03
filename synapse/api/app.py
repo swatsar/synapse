@@ -2,22 +2,27 @@
 
 Protocol Version: 1.0
 """
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
 import json
-import asyncio
 import os
+from datetime import UTC, datetime
+from typing import Any
 
-from synapse.core.exceptions import synapse_error_handler, generic_error_handler, SynapseError
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel
+
 from synapse.api.middleware import (
+    make_rate_limit_middleware,
     make_request_logging_middleware,
     make_security_headers_middleware,
-    make_rate_limit_middleware,
 )
+from synapse.core.exceptions import (
+    SynapseError,
+    generic_error_handler,
+    synapse_error_handler,
+)
+
 PROTOCOL_VERSION: str = "1.0"
 
 app = FastAPI(
@@ -43,6 +48,7 @@ app.add_middleware(
 
 # Include API routes
 from synapse.api.routes import api_router
+
 
 # API Key authentication middleware
 @app.middleware("http")
@@ -82,24 +88,24 @@ app.add_exception_handler(Exception, generic_error_handler)
 app.include_router(api_router, prefix="/api/v1")
 
 # In-memory storage for demo
-agents: Dict[str, Dict] = {}
-approvals: List[Dict] = []
-logs: List[Dict] = []
-tasks: List[Dict] = []
+agents: dict[str, dict] = {}
+approvals: list[dict] = []
+logs: list[dict] = []
+tasks: list[dict] = []
 
 
 # === Models ===
 
 class TaskRequest(BaseModel):
     task: str
-    payload: Optional[Dict[str, Any]] = None
-    session_id: Optional[str] = None
+    payload: dict[str, Any] | None = None
+    session_id: str | None = None
 
 
 class ApprovalRequest(BaseModel):
     action: str
     risk_level: int
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class ApprovalResponse(BaseModel):
@@ -116,7 +122,7 @@ async def health_check():
         "status": "healthy",
         "version": "3.4.0",
         "protocol_version": PROTOCOL_VERSION,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }
 
 
@@ -143,7 +149,7 @@ async def create_task(request: TaskRequest):
         "task": request.task,
         "payload": request.payload,
         "status": "completed",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     }
     tasks.append(task)
@@ -181,7 +187,7 @@ async def create_approval(request: ApprovalRequest):
         "risk_level": request.risk_level,
         "details": request.details,
         "status": "pending",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "protocol_version": PROTOCOL_VERSION
     }
     approvals.append(approval)
@@ -194,7 +200,7 @@ async def approve_request(approval_id: str):
     for approval in approvals:
         if approval["id"] == approval_id:
             approval["status"] = "approved"
-            approval["approved_at"] = datetime.now(timezone.utc).isoformat()
+            approval["approved_at"] = datetime.now(UTC).isoformat()
             return approval
     raise HTTPException(status_code=404, detail="Approval not found")
 
@@ -205,7 +211,7 @@ async def reject_request(approval_id: str):
     for approval in approvals:
         if approval["id"] == approval_id:
             approval["status"] = "rejected"
-            approval["rejected_at"] = datetime.now(timezone.utc).isoformat()
+            approval["rejected_at"] = datetime.now(UTC).isoformat()
             return approval
     raise HTTPException(status_code=404, detail="Approval not found")
 
@@ -219,9 +225,9 @@ async def get_logs(limit: int = 100):
 
 
 @app.post("/api/v1/logs")
-async def add_log(log: Dict[str, Any]):
+async def add_log(log: dict[str, Any]):
     """Add a log entry."""
-    log["timestamp"] = datetime.now(timezone.utc).isoformat()
+    log["timestamp"] = datetime.now(UTC).isoformat()
     log["protocol_version"] = PROTOCOL_VERSION
     logs.append(log)
     return log
@@ -571,6 +577,7 @@ def create_app(orchestrator=None, checkpoint_manager=None, rollback_manager=None
         FastAPI application instance
     """
     from fastapi import FastAPI
+
     from synapse.core.models import PROTOCOL_VERSION
     
     # Create new app instance

@@ -7,12 +7,12 @@ Adapted from AutoGPT hierarchical goal patterns (AUTOGPT_INTEGRATION.md §2).
 Synapse additions: capability validation, checkpoint integration,
 audit logging, protocol versioning.
 """
-import uuid
 import logging
+import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -46,16 +46,16 @@ class Goal:
     description: str = ""
     priority: GoalPriority = GoalPriority.MEDIUM
     status: GoalStatus = GoalStatus.PENDING
-    parent_goal_id: Optional[str] = None
-    sub_goals: List[str] = field(default_factory=list)
-    required_capabilities: List[str] = field(default_factory=list)
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    completed_at: Optional[str] = None
-    result: Optional[str] = None
+    parent_goal_id: str | None = None
+    sub_goals: list[str] = field(default_factory=list)
+    required_capabilities: list[str] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    completed_at: str | None = None
+    result: str | None = None
     protocol_version: str = PROTOCOL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "description": self.description,
@@ -90,8 +90,8 @@ class GoalManager:
         self.memory = memory_store
         self.security = security_manager
         self.checkpoint = checkpoint_manager
-        self._goals: Dict[str, Goal] = {}
-        self._active_goal_id: Optional[str] = None
+        self._goals: dict[str, Goal] = {}
+        self._active_goal_id: str | None = None
         audit(event="goal_manager_initialized", protocol_version=PROTOCOL_VERSION)
 
     # ------------------------------------------------------------------
@@ -102,8 +102,8 @@ class GoalManager:
         self,
         description: str,
         priority: GoalPriority = GoalPriority.MEDIUM,
-        required_capabilities: Optional[List[str]] = None,
-        parent_goal_id: Optional[str] = None,
+        required_capabilities: list[str] | None = None,
+        parent_goal_id: str | None = None,
     ) -> Goal:
         """Create a new goal with optional capability validation."""
         caps = required_capabilities or []
@@ -152,7 +152,7 @@ class GoalManager:
         goal = self._goals[goal_id]
         old_status = goal.status
         goal.status = status
-        goal.updated_at = datetime.now(timezone.utc).isoformat()
+        goal.updated_at = datetime.now(UTC).isoformat()
         if status == GoalStatus.COMPLETED:
             goal.completed_at = goal.updated_at
             goal.result = result
@@ -177,7 +177,7 @@ class GoalManager:
         self._active_goal_id = goal_id
         await self.update_status(goal_id, GoalStatus.IN_PROGRESS)
 
-    async def decompose_goal(self, goal_id: str, sub_descriptions: List[str]) -> List[Goal]:
+    async def decompose_goal(self, goal_id: str, sub_descriptions: list[str]) -> list[Goal]:
         """Decompose a goal into sub-goals."""
         if goal_id not in self._goals:
             raise KeyError(f"Goal not found: {goal_id}")
@@ -198,7 +198,7 @@ class GoalManager:
     # Queries
     # ------------------------------------------------------------------
 
-    def get_active_goal(self) -> Optional[Goal]:
+    def get_active_goal(self) -> Goal | None:
         if self._active_goal_id:
             return self._goals.get(self._active_goal_id)
         # Return highest-priority pending goal
@@ -208,26 +208,26 @@ class GoalManager:
         priority_order = {GoalPriority.CRITICAL: 0, GoalPriority.HIGH: 1, GoalPriority.MEDIUM: 2, GoalPriority.LOW: 3}
         return min(pending, key=lambda g: priority_order.get(g.priority, 99))
 
-    def get_goal(self, goal_id: str) -> Optional[Goal]:
+    def get_goal(self, goal_id: str) -> Goal | None:
         return self._goals.get(goal_id)
 
-    def list_goals(self, status: Optional[GoalStatus] = None) -> List[Goal]:
+    def list_goals(self, status: GoalStatus | None = None) -> list[Goal]:
         goals = list(self._goals.values())
         if status:
             goals = [g for g in goals if g.status == status]
         return sorted(goals, key=lambda g: g.created_at)
 
-    def get_goal_tree(self) -> List[Dict[str, Any]]:
+    def get_goal_tree(self) -> list[dict[str, Any]]:
         """Return goal hierarchy as a tree."""
         roots = [g for g in self._goals.values() if not g.parent_goal_id]
         return [self._build_tree(g) for g in roots]
 
-    def _build_tree(self, goal: Goal) -> Dict[str, Any]:
+    def _build_tree(self, goal: Goal) -> dict[str, Any]:
         node = goal.to_dict()
         node["children"] = [self._build_tree(self._goals[sid]) for sid in goal.sub_goals if sid in self._goals]
         return node
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         statuses = {s.value: 0 for s in GoalStatus}
         for g in self._goals.values():
             statuses[g.status.value] = statuses.get(g.status.value, 0) + 1

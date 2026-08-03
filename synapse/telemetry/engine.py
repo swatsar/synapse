@@ -1,9 +1,8 @@
 PROTOCOL_VERSION: str = "1.0"
 import asyncio
 import time
-from typing import Any, Dict
+from typing import Any
 
-from synapse.core.models import ExecutionContext
 
 class TelemetryEngine:
     """Collects structured events, metrics and traces.
@@ -12,9 +11,9 @@ class TelemetryEngine:
     protocol_version: str = "1.0"
 
     def __init__(self):
-        self._events: list[Dict] = []
+        self._events: list[dict] = []
 
-    async def record_event(self, name: str, payload: Dict[str, Any]) -> None:
+    async def record_event(self, name: str, payload: dict[str, Any]) -> None:
         event = {
             "timestamp": time.time(),
             "name": name,

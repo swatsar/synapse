@@ -2,10 +2,8 @@
 
 Phase 10 - Production Autonomy & Self-Optimization.
 """
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -27,7 +25,7 @@ class ResourceUsage:
     memory_mb: int = 0
     disk_mb: int = 0
     network_kb: int = 0
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     protocol_version: str = "1.0"
 
 
@@ -36,7 +34,7 @@ class AllocationResult:
     """Result of resource allocation attempt."""
     success: bool
     error: str = ""
-    allocated: Dict[str, int] = field(default_factory=dict)
+    allocated: dict[str, int] = field(default_factory=dict)
     protocol_version: str = "1.0"
 
 
@@ -52,11 +50,11 @@ class ResourceManager:
     
     protocol_version: str = PROTOCOL_VERSION
     
-    def __init__(self, limits: Optional[ResourceLimits] = None):
+    def __init__(self, limits: ResourceLimits | None = None):
         self.protocol_version = "1.0"
         self.limits = limits or ResourceLimits()
-        self._usage_history: Dict[str, List[ResourceUsage]] = {}
-        self._current_allocations: Dict[str, ResourceUsage] = {}
+        self._usage_history: dict[str, list[ResourceUsage]] = {}
+        self._current_allocations: dict[str, ResourceUsage] = {}
     
     def check_within_limits(self, usage: ResourceUsage) -> bool:
         """Check if usage is within limits.
@@ -74,7 +72,7 @@ class ResourceManager:
             usage.network_kb <= self.limits.max_network_kb
         )
     
-    def get_available(self) -> Dict[str, int]:
+    def get_available(self) -> dict[str, int]:
         """Get available resources.
         
         Returns:
@@ -104,7 +102,7 @@ class ResourceManager:
             self._usage_history[skill_name] = []
         self._usage_history[skill_name].append(usage)
     
-    def get_usage_history(self, skill_name: str) -> List[ResourceUsage]:
+    def get_usage_history(self, skill_name: str) -> list[ResourceUsage]:
         """Get usage history for a skill.
         
         Args:

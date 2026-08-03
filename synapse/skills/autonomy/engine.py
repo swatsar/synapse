@@ -2,11 +2,9 @@
 
 Phase 10 - Production Autonomy & Self-Optimization.
 """
-from typing import Dict, Any, Optional
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import hashlib
-
+from dataclasses import dataclass
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -22,7 +20,7 @@ class OptimizationPlan:
     optimization_type: str
     risk_level: int
     seed: int
-    checkpoint_id: Optional[str] = None
+    checkpoint_id: str | None = None
     cluster_wide: bool = False
     protocol_version: str = "1.0"
 
@@ -35,11 +33,11 @@ class OptimizationResult:
     status: str = "completed"
     approval_required: bool = False
     registered: bool = False
-    new_skill_id: Optional[str] = None
-    improvement: Optional[Dict[str, float]] = None
+    new_skill_id: str | None = None
+    improvement: dict[str, float] | None = None
     error: str = ""
     rollback_executed: bool = False
-    restored_checkpoint_id: Optional[str] = None
+    restored_checkpoint_id: str | None = None
     cluster_rollback: bool = False
     nodes_affected: int = 0
     protocol_version: str = "1.0"
@@ -131,9 +129,8 @@ class AutonomousOptimizationEngine:
                     )
         
         # Get current skill metrics
-        metrics = {}
         if self.telemetry:
-            metrics = self.telemetry.get_skill_metrics(plan.skill_name)
+            self.telemetry.get_skill_metrics(plan.skill_name)
         
         # Attempt optimization
         try:

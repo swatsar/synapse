@@ -2,12 +2,12 @@
 Audit Log for security events
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, UTC
-from dataclasses import dataclass, field
-import uuid
-import json
 import hashlib
+import json
+import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -18,7 +18,7 @@ class AuditEntry:
     # Optional fields with defaults
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = "1.0"
 
 
@@ -26,14 +26,14 @@ class AuditLog:
     """Audit log for security events"""
     
     def __init__(self):
-        self._entries: List[AuditEntry] = []
+        self._entries: list[AuditEntry] = []
     
-    def log(self, event_type: str, data: Dict[str, Any]) -> str:
+    def log(self, event_type: str, data: dict[str, Any]) -> str:
         entry = AuditEntry(event_type=event_type, data=data)
         self._entries.append(entry)
         return entry.id
     
-    def get_entries(self, event_type: str = None) -> List[AuditEntry]:
+    def get_entries(self, event_type: str | None = None) -> list[AuditEntry]:
         if event_type:
             return [e for e in self._entries if e.event_type == event_type]
         return self._entries
@@ -47,9 +47,9 @@ class AuditLogger:
     def __init__(self, name: str = "default"):
         self.name = name
         self._log: AuditLog = AuditLog()
-        self._hash_chain: List[str] = []
+        self._hash_chain: list[str] = []
     
-    def record(self, event_type: str, data: Dict[str, Any]) -> str:
+    def record(self, event_type: str, data: dict[str, Any]) -> str:
         """Record an event (alias for log_event)"""
         return self.log_event(event_type, data)
     
@@ -57,7 +57,7 @@ class AuditLogger:
         self,
         action: str,
         result: Any,
-        context: Optional[Dict[str, Any]] = None
+        context: dict[str, Any] | None = None
     ) -> str:
         """Log an action with result and context"""
         data = {
@@ -77,18 +77,18 @@ class AuditLogger:
     def log_event(
         self,
         event_type: str,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> str:
         """Log a generic event"""
         entry_id = self._log.log(event_type=event_type, data=data)
         self._update_hash_chain(entry_id, data)
         return entry_id
     
-    def get_entries(self, event_type: Optional[str] = None) -> List[AuditEntry]:
+    def get_entries(self, event_type: str | None = None) -> list[AuditEntry]:
         """Get all entries or filtered by event type"""
         return self._log.get_entries(event_type)
     
-    def get_hash_chain(self) -> List[str]:
+    def get_hash_chain(self) -> list[str]:
         """Get the hash chain for integrity verification"""
         return self._hash_chain.copy()
     
@@ -96,14 +96,14 @@ class AuditLogger:
         """Verify the integrity of the audit log"""
         return True
     
-    def _update_hash_chain(self, entry_id: str, data: Dict[str, Any]):
+    def _update_hash_chain(self, entry_id: str, data: dict[str, Any]):
         """Update the hash chain with new entry"""
         prev_hash = self._hash_chain[-1] if self._hash_chain else "0" * 64
         combined = f"{prev_hash}:{entry_id}:{json.dumps(data, sort_keys=True)}"
         new_hash = hashlib.sha256(combined.encode()).hexdigest()
         self._hash_chain.append(new_hash)
     
-    def export(self) -> Dict[str, Any]:
+    def export(self) -> dict[str, Any]:
         """Export audit log as dictionary"""
         return {
             "name": self.name,

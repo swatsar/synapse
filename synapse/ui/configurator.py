@@ -3,14 +3,13 @@
 
 Provides configuration interface for Synapse platform.
 """
-import sys
 import argparse
-import logging
 import asyncio
+import logging
+import sys
 
-from synapse.ui.web.server import WebServer
 from synapse.ui.web.dashboard import Dashboard
-
+from synapse.ui.web.server import WebServer
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -26,14 +25,14 @@ logger = logging.getLogger("synapse-ui-configurator")
 
 def print_banner():
     """Print startup banner."""
-    print("""
+    print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
 ║   Synapse UI Configurator                                    ║
-║   Protocol v{} | Spec v{}                              ║
+║   Protocol v{PROTOCOL_VERSION} | Spec v{SPEC_VERSION}                              ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
-""".format(PROTOCOL_VERSION, SPEC_VERSION))
+""")
 
 
 async def run_configurator_server(host: str = "0.0.0.0", port: int = 8080):  # nosec B104
