@@ -11,6 +11,38 @@ if project_root not in sys.path:
 
 
 # ============================================================================
+# Pytest Marker Registration
+# ============================================================================
+
+def pytest_configure(config):
+    """Register custom pytest markers."""
+    config.addinivalue_line(
+        "markers",
+        "determinism: marks tests that verify deterministic execution behavior"
+    )
+    config.addinivalue_line(
+        "markers",
+        "phase6: marks Phase 6 platform runtime isolation tests"
+    )
+    config.addinivalue_line(
+        "markers",
+        "phase7: marks Phase 7 replay and verification tests"
+    )
+    config.addinivalue_line(
+        "markers",
+        "phase8: marks Phase 8 zero trust fabric tests"
+    )
+    config.addinivalue_line(
+        "markers",
+        "chaos: marks chaos engineering tests"
+    )
+    config.addinivalue_line(
+        "markers",
+        "compliance: marks compliance and contract tests"
+    )
+
+
+# ============================================================================
 # Core Fixtures
 # ============================================================================
 

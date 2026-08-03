@@ -41,8 +41,8 @@ class TestNodeRuntimeRun:
                     task.cancel()
         
         # Run both tasks
-        run_task = asyncio.create_task(runtime.run(), name="node_runtime_run")
-        post_task = asyncio.create_task(post_and_stop())
+        run_task = asyncio.get_running_loop().create_task(runtime.run(), name="node_runtime_run")
+        post_task = asyncio.get_running_loop().create_task(post_and_stop())
         
         try:
             await asyncio.wait_for(run_task, timeout=1.0)
@@ -68,8 +68,8 @@ class TestNodeRuntimeRun:
                 if task.get_name() == "node_runtime_run":
                     task.cancel()
         
-        run_task = asyncio.create_task(runtime.run(), name="node_runtime_run")
-        cancel_task = asyncio.create_task(cancel_after_delay())
+        run_task = asyncio.get_running_loop().create_task(runtime.run(), name="node_runtime_run")
+        cancel_task = asyncio.get_running_loop().create_task(cancel_after_delay())
         
         try:
             await asyncio.wait_for(run_task, timeout=1.0)

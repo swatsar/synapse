@@ -66,7 +66,8 @@ class TelegramConnector(BaseConnector):
                     await self._on_message(event)
 
             self._running = True
-            asyncio.create_task(self._dp.start_polling(self._bot, handle_signals=False))
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._dp.start_polling(self._bot, handle_signals=False))
             logger.info("Telegram bot started (polling)")
         except ImportError:
             logger.warning("aiogram not installed — Telegram connector in stub mode")

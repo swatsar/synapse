@@ -54,7 +54,8 @@ class MemoryStore:
     async def _wait_ready(self):
         if self._init_task is None:
             # Create the initialization task in the current running loop
-            self._init_task = asyncio.create_task(_init_db(self.db_path))
+            loop = asyncio.get_running_loop()
+            self._init_task = loop.create_task(_init_db(self.db_path))
         await self._init_task
 
     # ---------- Short‑term ----------
