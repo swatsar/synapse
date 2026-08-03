@@ -10,6 +10,7 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 # Re-export RuntimeIsolationType and SkillTrustLevel from core
+from synapse.core.isolation_policy import RuntimeIsolationType, SkillTrustLevel
 from synapse.observability.logger import audit
 
 
