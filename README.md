@@ -206,7 +206,7 @@ pytest --cov=synapse --cov-report=term-missing
 | [API Reference](docs/API_REFERENCE.md) | REST API эндпоинты |
 | [SECURITY](docs/user/security.md) | Модель безопасности |
 | [ARCHITECTURE](ARCHITECTURE.md) | Архитектура платформы |
-| [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | Решение проблем |
+| [TROUBLESHOOTING](docs/user/troubleshooting.md) | Решение проблем |
 | [TDD Guide](docs/TDD.md) | TDD-процесс разработки |
 | [CHANGELOG](CHANGELOG.md) | История изменений |
 | [ROADMAP](docs/roadmap.md) | План развития |

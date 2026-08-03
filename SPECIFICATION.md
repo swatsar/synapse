@@ -9,17 +9,17 @@
 
 ## Core Specification Documents
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](docs/architecture_overview.md) | System architecture and components |
-| [Security Model](docs/security_model.md) | Capability-based security + 4-level trust model |
-| [Deterministic Execution](docs/deterministic_execution_model.md) | Determinism guarantees |
-| [Capability Governance](docs/capability_governance.md) | Capability lifecycle management |
-| [Distributed Execution](docs/distributed_execution_model.md) | Multi-node execution model |
-| [Agent Runtime](docs/agent_runtime_model.md) | Agent execution environment |
-| [Replay and Audit](docs/replay_and_audit.md) | Execution verification |
-| [Deployment](docs/deployment_architecture.md) | Deployment modes |
-| [Scaling Strategy](docs/platform_scaling_strategy.md) | Platform scaling |
+| Document | Description | Status |
+|----------|-------------|--------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture and components | ✅ Exists |
+| [Security Model](docs/user/security.md) | Capability-based security + 4-level trust model | ✅ Exists |
+| [Deterministic Execution](ARCHITECTURE.md#deterministic-fabric) | Determinism guarantees | ✅ In ARCHITECTURE.md |
+| [Capability Governance](SPECIFICATION.md#capability-governance) | Capability lifecycle management | ✅ In SPECIFICATION.md |
+| [Distributed Execution](ARCHITECTURE.md#control-plane) | Multi-node execution model | ✅ In ARCHITECTURE.md |
+| [Agent Runtime](ARCHITECTURE.md#agent-runtime) | Agent execution environment | ✅ In ARCHITECTURE.md |
+| [Replay and Audit](ARCHITECTURE.md#audit-layer) | Execution verification | ✅ In ARCHITECTURE.md |
+| [Deployment](docs/admin/deployment.md) | Deployment modes | ✅ Exists |
+| [Scaling Strategy](docs/admin/monitoring.md) | Platform scaling | ✅ Exists |
 
 ## System Invariants
 
