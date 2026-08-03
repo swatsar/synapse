@@ -46,7 +46,6 @@ class TelegramConnector(BaseConnector):
             return
         try:
             from aiogram import Bot, Dispatcher
-            from aiogram.filters import Command
             from aiogram.types import Message
 
             self._bot = Bot(token=self._token)
