@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 PROTOCOL_VERSION: str = "1.0"
 """
 Local Execution Node Runtime
@@ -8,10 +10,8 @@ import time
 from synapse.core.execution import SecureExecutionContext, SecureWorkflowExecutor
 from synapse.core.workflow_engine import WorkflowDefinition
 from synapse.node.node_security import NodeSecurity
-from synapse.transport.message import (
-    ExecutionResult,
-    ExecutionTrace,
-)
+from synapse.transport.message import ExecutionResult, ExecutionTrace
+from typing import Any, Dict, List, Optional
 
 
 class ExecutionNode:

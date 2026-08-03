@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """Synapse UI Configurator and Entry Point.
 
+from __future__ import annotations
+
 Provides configuration interface for Synapse platform.
 """
 import argparse
 import asyncio
 import logging
 import sys
+from typing import Final, Optional
 
 from synapse.ui.web.dashboard import Dashboard
 from synapse.ui.web.server import WebServer
 
-PROTOCOL_VERSION: str = "1.0"
-SPEC_VERSION: str = "3.1"
+PROTOCOL_VERSION: Final[str] = "1.0"
+SPEC_VERSION: Final[str] = "3.1"
 
 
 # Configure logging
@@ -23,19 +26,13 @@ logging.basicConfig(
 logger = logging.getLogger("synapse-ui-configurator")
 
 
-def print_banner():
+def print_banner() -> None:
     """Print startup banner."""
-    print(f"""
-╔══════════════════════════════════════════════════════════════╗
-║                                                              ║
-║   Synapse UI Configurator                                    ║
-║   Protocol v{PROTOCOL_VERSION} | Spec v{SPEC_VERSION}                              ║
-║                                                              ║
-╚══════════════════════════════════════════════════════════════╝
-""")
+    logger.info("Synapse UI Configurator starting - Protocol v%s | Spec v%s", 
+                PROTOCOL_VERSION, SPEC_VERSION)
 
 
-async def run_configurator_server(host: str = "0.0.0.0", port: int = 8080):  # nosec B104
+async def run_configurator_server(host: str = "0.0.0.0", port: int = 8080) -> None:  # nosec B104
     """Run the UI configurator server."""
     logger.info(f"Starting Synapse UI Configurator on http://{host}:{port}")
 
@@ -60,7 +57,7 @@ async def run_configurator_server(host: str = "0.0.0.0", port: int = 8080):  # n
         sys.exit(1)
 
 
-def main():
+def main() -> None:
     """Main entry point for Synapse UI Configurator."""
     parser = argparse.ArgumentParser(
         description="Synapse UI Configurator - Configuration interface for Synapse platform"
@@ -85,8 +82,8 @@ def main():
     args = parser.parse_args()
 
     if args.version:
-        print(f"Synapse UI Configurator v{PROTOCOL_VERSION}")
-        print(f"Protocol: {PROTOCOL_VERSION}, Spec: {SPEC_VERSION}")
+        logger.info("Synapse UI Configurator v%s", PROTOCOL_VERSION)
+        logger.info("Protocol: %s, Spec: %s", PROTOCOL_VERSION, SPEC_VERSION)
         return
 
     print_banner()
@@ -94,7 +91,7 @@ def main():
     try:
         asyncio.run(run_configurator_server(args.host, args.port))
     except KeyboardInterrupt:
-        print("\n👋 UI Configurator stopped. Goodbye!")
+        logger.info("UI Configurator stopped. Goodbye!")
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         sys.exit(1)

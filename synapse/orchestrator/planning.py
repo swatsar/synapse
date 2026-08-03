@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 PROTOCOL_VERSION: str = "1.0"
 """
 Task Planner for creating workflows from tasks
@@ -6,6 +8,7 @@ Task Planner for creating workflows from tasks
 
 from synapse.core.workflow_engine import Step, WorkflowDefinition
 from synapse.orchestrator.task_model import Task
+from typing import Any, Dict, List, Optional
 
 
 class TaskPlanner:
