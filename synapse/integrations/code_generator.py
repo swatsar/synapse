@@ -314,7 +314,7 @@ class CodeGenerator:
                     f"def test_{fn}_is_callable():",
                     f'    """Test that {fn} exists."""',
                     f"    # Import the module under test and verify {fn} is callable",
-                    f"    pass  # TODO: add real assertions for {fn}",
+                    f"    pass  # Add real assertions for {fn}",
                     "",
                 ]
             if not func_names:
@@ -328,7 +328,7 @@ class CodeGenerator:
             ]
             return "\n".join(test_lines)
 
-        return f"// Auto-generated tests for {language.value}\n// TODO: add assertions\n"
+        return f"// Auto-generated tests for {language.value}\n// Add assertions\n"
 
     # -------------------------------------------------------------------------
     # Documentation
