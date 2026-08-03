@@ -95,7 +95,8 @@ class DiscordConnector(BaseConnector):
 
             if self._token:
                 audit(event="discord_bot_starting", protocol_version=PROTOCOL_VERSION)
-                asyncio.create_task(self._bot.start(self._token))
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._bot.start(self._token))
                 self._running = True
             else:
                 logger.warning("Discord token not set — running in stub mode")
@@ -153,7 +154,8 @@ class DiscordConnector(BaseConnector):
             await self._incoming.put(normalized)
 
             if self._message_handler:
-                asyncio.create_task(self._message_handler(normalized))
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._message_handler(normalized))
 
     # ------------------------------------------------------------------
     # Test helpers (queue injection)

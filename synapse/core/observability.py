@@ -79,7 +79,7 @@ class ObservabilityCore:
         """Publish event (synchronous wrapper)"""
         import asyncio
         try:
-            asyncio.get_running_loop()
-            asyncio.create_task(self.emit(event.event_type, event.data))
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.emit(event.event_type, event.data))
         except RuntimeError:
             asyncio.run(self.emit(event.event_type, event.data))
