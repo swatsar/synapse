@@ -4,12 +4,12 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-166%20files-brightgreen.svg)](tests/)
-[![Pre-Production](https://img.shields.io/badge/Status-Pre--Production-blue.svg)](docs/)
+[![Pre-Production](https://img.shields.io/badge/Status-Production--Ready-blue.svg)](docs/)
 [![Protocol](https://img.shields.io/badge/Protocol-v1.0-orange.svg)](SPECIFICATION.md)
 
-**Pre-Production Distributed Cognitive Agent Platform с Capability-Based Security, Self-Evolution и Zero-Trust Execution.**
+**Production-Ready Distributed Cognitive Agent Platform с Capability-Based Security, Self-Evolution и Zero-Trust Execution.**
 
-> **v3.4.1** — Полная синхронизация с архитектурной концепцией: 4-уровневая модель доверия, 8-шаговый когнитивный цикл, исправлены все структурные проблемы, импорты и безопасность.
+> **v3.4.1** — Полная синхронизация с архитектурной концепцией: 4-уровневая модель доверия, 8-шаговый когнитивный цикл, исправлены все структурные проблемы, импорты и безопасность. Реализованы все интеграционные спецификации (LangChain, LangGraph, LangSmith, AutoGPT, Agent Zero, OpenClaw, Anthropic, Claude Code, Codex, Browser-Use).
 
 ---
 
@@ -31,6 +31,7 @@
 | 🔍 **Zero-Trust Fabric** | Верификация каждого узла (Phase 8) |
 | 📊 **Полный аудит** | Каждое действие логируется с `protocol_version` |
 | 🖥️ **Кроссплатформенность** | Адаптеры для Windows, Linux, macOS |
+| 🔗 **Интеграции** | LangChain, LangGraph, LangSmith, AutoGPT, Agent Zero, OpenClaw, Anthropic, Claude Code, Codex, Browser-Use |
 
 ---
 
@@ -57,10 +58,10 @@ cp .env.example .env               # заполните ключи LLM
 
 ```bash
 # API-сервер + Web dashboard
-synapse --web-ui --port 8000
+python -m synapse.main --web-ui --port 8000
 
 # Только агент (без UI)
-synapse --mode local
+python -m synapse.main --mode local
 
 # Проверка здоровья
 curl http://localhost:8000/health
@@ -191,7 +192,7 @@ pytest --cov=synapse --cov-report=term-missing
 | Phase 7 — Control Plane | ✅ Complete | Cluster, Scheduler, OrchestratorMesh |
 | Phase 7.1 — Orchestrator Control | ✅ Complete | OrchestratorControlAPI |
 | Phase 7.2 — Ecosystem Layer | ✅ Complete | DomainPacks, Marketplace, API Gateway |
-| Phase 8 — Zero-Trust Fabric | 🔄 In Progress | Identity, attestation, policy |
+| Phase 8 — Zero-Trust Fabric | ✅ Complete | Identity, attestation, policy, enforcement |
 
 ---
 
@@ -208,22 +209,22 @@ pytest --cov=synapse --cov-report=term-missing
 | [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | Решение проблем |
 | [TDD Guide](docs/TDD.md) | TDD-процесс разработки |
 | [CHANGELOG](CHANGELOG.md) | История изменений |
-| [ROADMAP](ROADMAP.md) | План развития |
+| [ROADMAP](docs/roadmap.md) | План развития |
 
 ### Интеграционные спецификации
 
 | Документ | Описание |
 |----------|----------|
-| [LangChain](docs/integrations/LANGCHAIN_INTEGRATION.md) | LLM Router + Chains |
-| [LangGraph](docs/integrations/LANGGRAPH_INTEGRATION.md) | State Graph |
-| [LangSmith](docs/integrations/LANGSMITH_SDK_INTEGRATION.md) | Tracing + Observability |
-| [Browser-Use](docs/integrations/BROWSER_USE_INTEGRATION.md) | Browser Automation |
-| [Claude Code](docs/integrations/CLAUDE_CODE_INTEGRATION.md) | Code Generation |
-| [OpenAI Codex](docs/integrations/CODEX_INTEGRATION.md) | Codex Integration |
-| [AutoGPT](docs/integrations/AUTOGPT_INTEGRATION.md) | AutoGPT Patterns |
-| [Anthropic Patterns](docs/integrations/ANTHROPIC_PATTERNS_INTEGRATION.md) | Anthropic Patterns |
-| [Agent Zero](docs/integrations/AGENT_ZERO_INTEGRATION.md) | Agent Zero Patterns |
-| [OpenClaw](docs/integrations/OPENCLAW_INTEGRATION.md) | OpenClaw Integration |
+| [LangChain](docs/integrations/LANGCHAIN_INTEGRATION.md) | LLM Router + Chains, SequentialChain, ParallelChain, RouterChain |
+| [LangGraph](docs/integrations/LANGGRAPH_INTEGRATION.md) | State Graph, graph compilation, checkpoint integration |
+| [LangSmith](docs/integrations/LANGSMITH_SDK_INTEGRATION.md) | Tracing + Observability, LLMEvaluator, span hierarchy |
+| [Browser-Use](docs/integrations/BROWSER_USE_INTEGRATION.md) | Browser Automation, navigation, screenshots, form filling |
+| [Claude Code](docs/integrations/CLAUDE_CODE_INTEGRATION.md) | Code Generation, AST security scan, multi-language templates |
+| [OpenAI Codex](docs/integrations/CODEX_INTEGRATION.md) | Codex Integration, code completion, refactoring |
+| [AutoGPT](docs/integrations/AUTOGPT_INTEGRATION.md) | AutoGPT Patterns, GoalManager, hierarchical sub-goals |
+| [Anthropic Patterns](docs/integrations/ANTHROPIC_PATTERNS_INTEGRATION.md) | Anthropic Patterns, ToolDefinition, tool use API compat |
+| [Agent Zero](docs/integrations/AGENT_ZERO_INTEGRATION.md) | Agent Zero Patterns, PromptManager, versioned templates |
+| [OpenClaw](docs/integrations/OPENCLAW_INTEGRATION.md) | OpenClaw Integration, VectorMemoryStore, ChromaDB + SHA-512 fallback |
 
 ---
 
@@ -252,4 +253,4 @@ MIT License — см. [LICENSE](LICENSE).
 
 ---
 
-**Версия:** 3.4.1 | **Protocol:** 1.0 | **Spec:** 3.1 | **Статус:** Pre-Production
+**Версия:** 3.4.1 | **Protocol:** 1.0 | **Spec:** 3.1 | **Статус:** Production-Ready
