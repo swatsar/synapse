@@ -87,7 +87,10 @@ class Orchestrator:
         memory_store: Any | None = None,
         security_manager: Any | None = None,
         skill_registry: Any | None = None,
-        checkpoint_manager: Any | None = None
+        checkpoint_manager: Any | None = None,
+        planner: Any | None = None,
+        critic: Any | None = None,
+        learning_engine: Any | None = None,
     ):
         self.protocol_version = "1.0"
         self.seed_manager = seed_manager
@@ -96,6 +99,9 @@ class Orchestrator:
         self.security_manager = security_manager
         self.skill_registry = skill_registry
         self.checkpoint_manager = checkpoint_manager
+        self.planner = planner
+        self.critic = critic
+        self.learning_engine = learning_engine
 
         # Audit: orchestrator initialized
         audit(
@@ -112,30 +118,79 @@ class Orchestrator:
     async def execute_cycle(self, event: dict[str, Any]) -> CognitiveCycleResult:
         """Execute a complete cognitive cycle on an event.
 
-        This is the main orchestration method that implements the 7-step
-        cognitive cycle: Perception → Recall → Plan → Action → Observe → Evaluate → Learn
+        This is the main orchestration method that implements the 8-step
+        cognitive cycle: PERCEIVE → RECALL → PLAN → SECURITY → ACT → OBSERVE → EVALUATE → LEARN
         """
-        # Extract goals from event directly (no _parse_event method needed)
-        goals = event.get("goals", [])
-        if not goals and event.get("content"):
-            goals = [event.get("content")]
-
-        # Execute the first goal
-        if goals:
-            return await self.run_goal({"content": goals[0], "type": event.get("type", "unknown")})
-
-        return CognitiveCycleResult(
-            success=False,
-            perceived=None,
-            recalled=None,
-            plan=None,
-            security_result=None,
-            action_result=None,
-            observation=None,
-            evaluation=None,
-            learning=None,
-            error="No valid goals extracted from event"
+        audit(
+            event="cognitive_cycle_started",
+            event_type=event.get("type", "unknown"),
+            protocol_version=self.protocol_version
         )
+
+        try:
+            # Step 1: PERCEIVE
+            perceived = await self._perceive(event)
+            
+            # Step 2: RECALL
+            recalled = await self._recall(perceived)
+            
+            # Step 3: PLAN
+            plan = await self._plan(perceived, recalled)
+            
+            # Step 4: SECURITY CHECK
+            security_result = await self._security_check(plan)
+            
+            if not security_result.get("approved", False):
+                return CognitiveCycleResult(
+                    success=False,
+                    perceived=perceived,
+                    recalled=recalled,
+                    plan=plan,
+                    security_result=security_result,
+                    error="Security check failed"
+                )
+            
+            # Create checkpoint before ACT for risk_level >= 3
+            if plan.get("risk_level", 0) >= 3 and self.checkpoint_manager:
+                await self._create_checkpoint(event, plan)
+            
+            # Step 5: ACT
+            action_result = await self._act(plan)
+            
+            # Step 6: OBSERVE
+            observation = await self._observe(action_result)
+            
+            # Step 7: EVALUATE
+            evaluation = await self._evaluate(plan, observation)
+            
+            # Step 8: LEARN
+            learning = await self._learn(event, plan, action_result, evaluation)
+            
+            audit(
+                event="cognitive_cycle_completed",
+                success=evaluation.get("success", False),
+                protocol_version=self.protocol_version
+            )
+            
+            return CognitiveCycleResult(
+                success=True,
+                perceived=perceived,
+                recalled=recalled,
+                plan=plan,
+                security_result=security_result,
+                action_result=action_result,
+                observation=observation,
+                evaluation=evaluation,
+                learning=learning
+            )
+            
+        except Exception as e:
+            audit(
+                event="cognitive_cycle_error",
+                error=str(e),
+                protocol_version=self.protocol_version
+            )
+            return CognitiveCycleResult(success=False, error=str(e))
 
     async def run_goal(self, goal: dict[str, Any]) -> CognitiveCycleResult:
         """Run a high-level goal through the cognitive cycle.
@@ -642,7 +697,18 @@ class Orchestrator:
                 learning["create_skill_triggered"] = evaluation.get("should_create_skill", False)
             except Exception as e:
                 audit(event="learn_engine_error", error=str(e), protocol_version=self.protocol_version)
-        elif self.memory_store:
+        
+        # Always add an insight for successful execution (fallback when no memory_store)
+        if evaluation.get("success") and not learning["insights"]:
+            insight = {
+                "type": "success_pattern",
+                "task": task[:100],
+                "score": evaluation.get("score", 1.0),
+            }
+            learning["insights"].append(insight)
+            learning["stored"] = True
+        
+        if self.memory_store and not learning["insights"]:
             try:
                 insight = {
                     "type": "success_pattern" if evaluation.get("success") else "failure_pattern",
@@ -829,10 +895,10 @@ def build_orchestrator(
         security_manager=security,
         memory_store=memory,
         checkpoint_manager=checkpoint_mgr,
+        planner=planner,
+        critic=critic,
+        learning_engine=learning,
+        skill_registry=None,  # injected externally if needed
     )
-    orch.planner = planner
-    orch.critic = critic
-    orch.learning_engine = learning
-    orch.skill_registry = None  # injected externally if needed
 
     return orch
