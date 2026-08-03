@@ -33,8 +33,8 @@ memory_settings: dict[str, Any] = {
 }
 
 connector_settings: dict[str, Any] = {
-    "telegram": {"enabled": False, "token": ""},
-    "discord": {"enabled": False, "token": ""},
+    "telegram": {"enabled": False, "token": None},  # noqa: S105 - placeholder, not a credential
+    "discord": {"enabled": False, "token": None},  # noqa: S105 - placeholder, not a credential
     "protocol_version": PROTOCOL_VERSION
 }
 

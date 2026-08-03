@@ -20,7 +20,7 @@ class DeterministicOrder:
         if not items:
             return []
         
-        rng = random.Random(seed)
+        rng = random.Random(seed)  # noqa: S311 - non-cryptographic use for deterministic ordering
         items_list = list(items)
         rng.shuffle(items_list)
         return items_list
@@ -45,7 +45,7 @@ class DeterministicSeedManager:
         # Instance attribute for protocol version
         self.protocol_version = "1.0"
         # Support both 'master_seed' and 'seed' as parameter names
-        self.master_seed = master_seed or seed or random.randint(0, 2**32 - 1)
+        self.master_seed = master_seed or seed or random.randint(0, 2**32 - 1)  # noqa: S311 - non-cryptographic use for seeding reproducibility
         self._seed_history: list[DeterministicSeed] = []
         self._current_seed: int | None = None
     
@@ -86,7 +86,7 @@ class DeterministicIDGenerator:
     def __init__(self, seed: int | None = None):
         # Instance attribute for protocol version
         self.protocol_version = "1.0"
-        self.seed = seed or random.randint(0, 2**32 - 1)
+        self.seed = seed or random.randint(0, 2**32 - 1)  # noqa: S311 - non-cryptographic use for ID generation
         self._counter = 0
     
     def generate(self, *args, **kwargs) -> str:

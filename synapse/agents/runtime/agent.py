@@ -63,7 +63,7 @@ class CognitiveAgent:
                         key=f"experience:{id(result)}",
                         value={"result": str(result), "agent": self.__class__.__name__}
                     )
-                except Exception as _exc:  # noqa
+                except Exception as _exc:  # noqa: S110 - intentionally silencing memory store errors to avoid disrupting agent execution
                     pass  # noqa: silenced - _exc
 
     # ---------------------------------------------------------------------

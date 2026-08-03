@@ -173,7 +173,7 @@ class PredictiveEngine:
         predictions = []
 
         # Use deterministic random for reproducibility
-        random.Random(request.seed)
+        random.Random(request.seed)  # noqa: S311 - non-cryptographic use for simulation
 
         # CPU overload prediction
         if request.target in ["system", "cpu", "cluster"]:
