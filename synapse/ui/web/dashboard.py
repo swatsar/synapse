@@ -1,6 +1,6 @@
 """Dashboard - Minimal control plane UI."""
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -31,11 +31,11 @@ class Dashboard:
     def __init__(self, orchestrator=None, capability_manager=None):
         self._orchestrator = orchestrator
         self._capability_manager = capability_manager
-        self._agents: List[AgentInfo] = []
-        self._approvals: List[ApprovalRequest] = []
-        self._logs: List[Dict[str, Any]] = []
+        self._agents: list[AgentInfo] = []
+        self._approvals: list[ApprovalRequest] = []
+        self._logs: list[dict[str, Any]] = []
     
-    def get_cluster_state(self) -> Dict[str, Any]:
+    def get_cluster_state(self) -> dict[str, Any]:
         """Get cluster state."""
         return {
             "status": "operational",
@@ -43,7 +43,7 @@ class Dashboard:
             "protocol_version": PROTOCOL_VERSION
         }
     
-    def list_agents(self) -> List[AgentInfo]:
+    def list_agents(self) -> list[AgentInfo]:
         """List all agents."""
         return self._agents
     
@@ -51,7 +51,7 @@ class Dashboard:
         """Add an agent."""
         self._agents.append(agent)
     
-    def get_pending_approvals(self) -> List[ApprovalRequest]:
+    def get_pending_approvals(self) -> list[ApprovalRequest]:
         """Get pending approval requests."""
         return [a for a in self._approvals if a.status == "pending"]
     
@@ -75,17 +75,17 @@ class Dashboard:
                 return True
         return False
     
-    async def execute_task(self, task: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute_task(self, task: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """Execute a task."""
         if self._orchestrator:
             return await self._orchestrator.handle({"task": task, "payload": payload})
         return {"status": "completed", "protocol_version": PROTOCOL_VERSION}
     
-    def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_logs(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get recent logs."""
         return self._logs[-limit:]
     
-    def add_log(self, log: Dict[str, Any]) -> None:
+    def add_log(self, log: dict[str, Any]) -> None:
         """Add a log entry."""
         log["protocol_version"] = PROTOCOL_VERSION
         self._logs.append(log)

@@ -1,11 +1,12 @@
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
-import asyncio
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
 
 from synapse.core.models import ExecutionContext, SkillManifest
-from synapse.observability.logger import trace, record_metric
+from synapse.observability.logger import record_metric, trace
+
 
 class CognitiveAgent:
     """Base class for cognitive agents.
@@ -15,7 +16,7 @@ class CognitiveAgent:
     def __init__(self, name: str, context: ExecutionContext):
         self.name = name
         self.context = context
-        self.skill_registry: Dict[str, Callable[..., Any]] = {}
+        self.skill_registry: dict[str, Callable[..., Any]] = {}
 
     # ---------------------------------------------------------------------
     # Skill handling

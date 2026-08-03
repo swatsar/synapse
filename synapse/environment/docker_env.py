@@ -1,11 +1,11 @@
 PROTOCOL_VERSION: str = "1.0"
-import asyncio
 from typing import Any
 
 from synapse.environment.base import Environment
 from synapse.environment.local_os import LocalOS
-from synapse.security.execution_guard import ExecutionGuard
 from synapse.security.capability_manager import CapabilityManager
+from synapse.security.execution_guard import ExecutionGuard
+
 
 class DockerEnv(Environment):
     """Placeholder Docker‑based environment.

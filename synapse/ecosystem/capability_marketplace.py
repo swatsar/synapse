@@ -2,11 +2,9 @@
 Capability Marketplace - Capability catalog & versioning
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import hashlib
-
+from dataclasses import dataclass, field
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -17,8 +15,8 @@ class CapabilityDescriptor:
     name: str
     version: str
     description: str
-    dependencies: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    dependencies: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION
     
     def compute_hash(self) -> str:
@@ -33,8 +31,8 @@ class CapabilityMarketplace:
     """
     
     def __init__(self):
-        self._capabilities: Dict[str, CapabilityDescriptor] = {}
-        self._versions: Dict[str, List[str]] = {}
+        self._capabilities: dict[str, CapabilityDescriptor] = {}
+        self._versions: dict[str, list[str]] = {}
         self.protocol_version: str = PROTOCOL_VERSION
     
     def register_capability(self, capability: Any) -> str:
@@ -57,27 +55,27 @@ class CapabilityMarketplace:
             return key
         return ""
     
-    def list_capabilities(self, filter_name: str = None) -> List[CapabilityDescriptor]:
+    def list_capabilities(self, filter_name: str | None = None) -> list[CapabilityDescriptor]:
         """List all capabilities, optionally filtered by name"""
         if filter_name:
             return [c for c in self._capabilities.values() if c.name == filter_name]
         return list(self._capabilities.values())
     
-    def get_capability(self, name: str, version: str = None) -> Optional[CapabilityDescriptor]:
+    def get_capability(self, name: str, version: str | None = None) -> CapabilityDescriptor | None:
         """Get a specific capability by name and optional version"""
         if version:
             key = f"{name}:{version}"
             return self._capabilities.get(key)
         
         # Get latest version
-        if name in self._versions and self._versions[name]:
+        if self._versions.get(name):
             latest_version = self._versions[name][-1]
             key = f"{name}:{latest_version}"
             return self._capabilities.get(key)
         
         return None
     
-    def resolve_dependencies(self, capability_name: str) -> List[str]:
+    def resolve_dependencies(self, capability_name: str) -> list[str]:
         """Resolve dependencies for a capability"""
         capability = self.get_capability(capability_name)
         if not capability:

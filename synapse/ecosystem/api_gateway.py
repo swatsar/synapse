@@ -2,11 +2,9 @@
 External API Gateway - REST/GraphQL/WebSocket APIs
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Callable
-from datetime import datetime
-import hashlib
-
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -16,7 +14,7 @@ class APIRequest:
     """API Request container"""
     method: str
     path: str
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     body: Any = None
     protocol_version: str = PROTOCOL_VERSION
 
@@ -26,7 +24,7 @@ class APIResponse:
     """API Response container"""
     status_code: int
     body: Any
-    headers: Dict[str, str] = field(default_factory=dict)
+    headers: dict[str, str] = field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -34,7 +32,7 @@ class RESTHandler:
     """REST API Handler"""
     
     def __init__(self):
-        self.routes: Dict[str, Callable] = {}
+        self.routes: dict[str, Callable] = {}
         self.protocol_version = PROTOCOL_VERSION
     
     def register_route(self, method: str, path: str, handler: Callable):
@@ -56,8 +54,8 @@ class GraphQLHandler:
     """GraphQL API Handler"""
     
     def __init__(self):
-        self.schema: Dict[str, Any] = {}
-        self.resolvers: Dict[str, Callable] = {}
+        self.schema: dict[str, Any] = {}
+        self.resolvers: dict[str, Callable] = {}
         self.protocol_version = PROTOCOL_VERSION
     
     def register_schema(self, schema: str):
@@ -68,7 +66,7 @@ class GraphQLHandler:
         """Register a GraphQL resolver"""
         self.resolvers[field] = resolver
     
-    async def execute(self, query: str, variables: Dict = None) -> Dict:
+    async def execute(self, query: str, variables: dict | None = None) -> dict:
         """Execute GraphQL query"""
         return {"data": {}, "query": query}
 
@@ -77,7 +75,7 @@ class WebSocketHandler:
     """WebSocket API Handler"""
     
     def __init__(self):
-        self.connections: Dict[str, Any] = {}
+        self.connections: dict[str, Any] = {}
         self.protocol_version = PROTOCOL_VERSION
     
     async def connect(self, connection_id: str, websocket: Any):
@@ -116,7 +114,7 @@ class ExternalAPIGateway:
         self._graphql_handler = GraphQLHandler()
         self._websocket_handler = WebSocketHandler()
         self._marketplace = marketplace
-        self._authenticators: Dict[str, Callable] = {}
+        self._authenticators: dict[str, Callable] = {}
         self.protocol_version: str = PROTOCOL_VERSION
     
     @property

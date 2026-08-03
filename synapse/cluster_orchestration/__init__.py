@@ -9,16 +9,16 @@ Components:
 - FederatedAuditCoordinator
 """
 
-from .distributed_execution_domain import DistributedExecutionDomain
 from .cluster_scheduler import ClusterScheduler
-from .orchestrator_runtime_bridge import OrchestratorRuntimeBridge
+from .distributed_execution_domain import DistributedExecutionDomain
 from .federated_audit_coordinator import FederatedAuditCoordinator
+from .orchestrator_runtime_bridge import OrchestratorRuntimeBridge
 
 __all__ = [
-    'DistributedExecutionDomain',
     'ClusterScheduler',
-    'OrchestratorRuntimeBridge',
-    'FederatedAuditCoordinator'
+    'DistributedExecutionDomain',
+    'FederatedAuditCoordinator',
+    'OrchestratorRuntimeBridge'
 ]
 
 PROTOCOL_VERSION = "1.0"

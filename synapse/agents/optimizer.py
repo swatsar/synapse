@@ -2,11 +2,9 @@
 
 Phase 10 - Production Autonomy & Self-Optimization.
 """
-from typing import Dict, Any, Optional
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import hashlib
-
+from dataclasses import dataclass
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -15,7 +13,7 @@ PROTOCOL_VERSION: str = "1.0"
 class OptimizationRequest:
     """Request for optimization."""
     skill_name: str
-    performance_metrics: Dict[str, Any]
+    performance_metrics: dict[str, Any]
     optimization_goal: str
     seed: int
     current_code: str = ""

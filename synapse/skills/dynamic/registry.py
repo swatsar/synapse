@@ -21,17 +21,15 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 import importlib.util
-import os
-import pathlib
-from typing import Callable, Dict, Optional, List
-from enum import Enum
-from datetime import datetime, timezone
 import uuid
+from collections.abc import Callable
+from datetime import UTC, datetime
+from enum import Enum
 
-from synapse.core.models import SkillManifest, ResourceLimits
-from synapse.security.execution_guard import ExecutionGuard
-from synapse.security.capability_manager import CapabilityManager
+from synapse.core.models import ResourceLimits, SkillManifest
 from synapse.observability.logger import audit
+from synapse.security.capability_manager import CapabilityManager
+from synapse.security.execution_guard import ExecutionGuard
 
 
 class SkillLifecycleStatus(str, Enum):
@@ -52,7 +50,6 @@ class SkillLifecycleStatus(str, Enum):
 
 class SkillLifecycleTransitionError(Exception):
     """Raised when an invalid lifecycle transition is attempted."""
-    pass
 
 
 class SkillRecord:
@@ -69,16 +66,16 @@ class SkillRecord:
         self.manifest = manifest
         self.handler = handler
         self.status = status
-        self.created_at = datetime.now(timezone.utc).isoformat()
-        self.updated_at = datetime.now(timezone.utc).isoformat()
-        self.status_history: List[Dict] = [{
+        self.created_at = datetime.now(UTC).isoformat()
+        self.updated_at = datetime.now(UTC).isoformat()
+        self.status_history: list[dict] = [{
             "status": status.value,
             "timestamp": self.created_at,
             "reason": "initial"
         }]
         self.protocol_version = PROTOCOL_VERSION
     
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "skill_id": self.skill_id,
             "name": self.manifest.name,
@@ -105,7 +102,7 @@ class SkillRegistry:
     protocol_version: str = "1.0"
 
     # Valid lifecycle transitions
-    VALID_TRANSITIONS: Dict[SkillLifecycleStatus, List[SkillLifecycleStatus]] = {
+    VALID_TRANSITIONS: dict[SkillLifecycleStatus, list[SkillLifecycleStatus]] = {
         SkillLifecycleStatus.GENERATED: [
             SkillLifecycleStatus.TESTED,
             SkillLifecycleStatus.ARCHIVED
@@ -130,8 +127,8 @@ class SkillRegistry:
     }
 
     def __init__(self, capability_manager: CapabilityManager):
-        self._registry: Dict[str, SkillRecord] = {}
-        self._manifests: Dict[str, SkillManifest] = {}
+        self._registry: dict[str, SkillRecord] = {}
+        self._manifests: dict[str, SkillManifest] = {}
         self.capability_manager = capability_manager
         # Create default limits for the guard
         default_limits = ResourceLimits(
@@ -215,7 +212,7 @@ class SkillRegistry:
         # Update status
         old_status = record.status
         record.status = to_status
-        record.updated_at = datetime.now(timezone.utc).isoformat()
+        record.updated_at = datetime.now(UTC).isoformat()
         record.status_history.append({
             "status": to_status.value,
             "timestamp": record.updated_at,
@@ -318,7 +315,7 @@ class SkillRegistry:
         """
         return self._registry[name].handler
 
-    def get_by_id(self, skill_id: str) -> Optional[SkillRecord]:
+    def get_by_id(self, skill_id: str) -> SkillRecord | None:
         """Get a skill record by ID.
         
         Args:
@@ -329,7 +326,7 @@ class SkillRegistry:
         """
         return self._registry.get(skill_id)
 
-    def get_status(self, skill_id: str) -> Optional[SkillLifecycleStatus]:
+    def get_status(self, skill_id: str) -> SkillLifecycleStatus | None:
         """Get the lifecycle status of a skill.
         
         Args:
@@ -341,7 +338,7 @@ class SkillRegistry:
         record = self._registry.get(skill_id)
         return record.status if record else None
 
-    def get_active_skills(self) -> List[SkillRecord]:
+    def get_active_skills(self) -> list[SkillRecord]:
         """Get all active skills.
         
         Returns:
@@ -352,7 +349,7 @@ class SkillRegistry:
             if r.status == SkillLifecycleStatus.ACTIVE
         ]
 
-    def get_skills_by_status(self, status: SkillLifecycleStatus) -> List[SkillRecord]:
+    def get_skills_by_status(self, status: SkillLifecycleStatus) -> list[SkillRecord]:
         """Get all skills with a specific status.
         
         Args:
@@ -379,11 +376,11 @@ class SkillRegistry:
         if spec.loader is None:
             raise ImportError(f"Cannot load skill from {path}")
         spec.loader.exec_module(module)  # type: ignore[arg-type]
-        manifest: SkillManifest = getattr(module, "manifest")
-        handler: Callable = getattr(module, "handler")
+        manifest: SkillManifest = module.manifest
+        handler: Callable = module.handler
         return await self.register(manifest, handler)
 
-    def list_skills(self) -> Dict[str, SkillManifest]:
+    def list_skills(self) -> dict[str, SkillManifest]:
         """List all registered skills.
         
         Returns:
@@ -391,7 +388,7 @@ class SkillRegistry:
         """
         return self._manifests.copy()
 
-    def list_skills_with_status(self) -> List[Dict]:
+    def list_skills_with_status(self) -> list[dict]:
         """List all skills with their lifecycle status.
         
         Returns:

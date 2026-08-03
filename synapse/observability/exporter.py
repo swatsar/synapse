@@ -2,10 +2,10 @@
 
 Provides exporters for Prometheus and other monitoring systems.
 """
-from typing import Dict, Any, List, Optional, Union
-from dataclasses import dataclass, field
 import json
 import time
+from dataclasses import dataclass, field
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -16,7 +16,7 @@ class Metric:
     """Metric data point."""
     name: str
     value: float
-    labels: Dict[str, str] = field(default_factory=dict)
+    labels: dict[str, str] = field(default_factory=dict)
     timestamp: float = 0.0
     metric_type: str = "gauge"
 
@@ -29,7 +29,7 @@ class Span:
     name: str
     start_time: float = 0.0
     end_time: float = 0.0
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 class MetricsExporter:
@@ -37,10 +37,10 @@ class MetricsExporter:
     
     protocol_version: str = "1.0"
     
-    def __init__(self, prefix: str = "synapse", collector=None, config: Optional[dict] = None):
+    def __init__(self, prefix: str = "synapse", collector=None, config: dict | None = None):
         self.protocol_version = "1.0"
         self._prefix = prefix
-        self._metrics: Dict[str, Metric] = {}
+        self._metrics: dict[str, Metric] = {}
         self.collector = collector
         self.config = config or {}
     
@@ -48,7 +48,7 @@ class MetricsExporter:
         self,
         name: str,
         value: float,
-        labels: Optional[Dict[str, str]] = None,
+        labels: dict[str, str] | None = None,
         metric_type: str = "gauge"
     ) -> None:
         """Add a metric."""
@@ -61,7 +61,7 @@ class MetricsExporter:
         )
         self._metrics[f"{self._prefix}_{name}"] = metric
     
-    async def export(self, metrics: Optional[Dict[str, Any]] = None) -> bool:
+    async def export(self, metrics: dict[str, Any] | None = None) -> bool:
         """Export metrics."""
         if metrics:
             for name, value in metrics.items():
@@ -105,21 +105,21 @@ class ClusterMetricsAggregator:
     
     def __init__(self):
         self.protocol_version = "1.0"
-        self._node_metrics: Dict[str, Any] = {}
+        self._node_metrics: dict[str, Any] = {}
     
-    def add_node_metrics(self, node_id: str, metrics: Union[List[Metric], Dict[str, Any]]) -> None:
+    def add_node_metrics(self, node_id: str, metrics: list[Metric] | dict[str, Any]) -> None:
         """Add metrics from a node.
         
         Supports both Metric objects and dict metrics.
         """
         self._node_metrics[node_id] = metrics
     
-    def get_aggregated(self) -> Dict[str, Any]:
+    def get_aggregated(self) -> dict[str, Any]:
         """Get aggregated metrics."""
         # Aggregate numeric values from all nodes
         aggregated = {"nodes": len(self._node_metrics), "protocol_version": self.protocol_version}
         
-        for node_id, metrics in self._node_metrics.items():
+        for metrics in self._node_metrics.values():
             if isinstance(metrics, dict):
                 for key, value in metrics.items():
                     if isinstance(value, (int, float)):
@@ -143,13 +143,13 @@ class LogExporter:
     
     def __init__(self):
         self.protocol_version = "1.0"
-        self._logs: List[Dict[str, Any]] = []
+        self._logs: list[dict[str, Any]] = []
     
     def add_log(
         self,
-        entry: Optional[Union[str, Dict[str, Any]]] = None,
+        entry: str | dict[str, Any] | None = None,
         level: str = "INFO",
-        message: Optional[str] = None,
+        message: str | None = None,
         **kwargs
     ) -> str:
         """Add a log entry.
@@ -202,7 +202,7 @@ class LogExporter:
         self._logs.append(log_entry)
         return log_id
     
-    def export_json(self) -> List[Dict[str, Any]]:
+    def export_json(self) -> list[dict[str, Any]]:
         """Export logs as list of dicts (for test compatibility)."""
         return self._logs
     
@@ -225,13 +225,13 @@ class TraceExporter:
     
     def __init__(self):
         self.protocol_version = "1.0"
-        self._spans: List[Dict[str, Any]] = []
-        self._spans_by_trace: Dict[str, List[Dict[str, Any]]] = {}
+        self._spans: list[dict[str, Any]] = []
+        self._spans_by_trace: dict[str, list[dict[str, Any]]] = {}
     
     def add_span(
         self,
-        span: Optional[Union[Span, Dict[str, Any]]] = None,
-        span_data: Optional[Dict] = None,
+        span: Span | dict[str, Any] | None = None,
+        span_data: dict | None = None,
         **kwargs
     ) -> str:
         """Add a trace span.
@@ -283,11 +283,11 @@ class TraceExporter:
         
         return span_dict.get("span_id", "")
     
-    def export(self) -> List[Dict[str, Any]]:
+    def export(self) -> list[dict[str, Any]]:
         """Export all traces as list (for test compatibility)."""
         return self._spans
     
-    def export_dict(self) -> Dict[str, Any]:
+    def export_dict(self) -> dict[str, Any]:
         """Export all traces as dict."""
         return {
             "traces": len(self._spans_by_trace),
@@ -295,7 +295,7 @@ class TraceExporter:
             "protocol_version": self.protocol_version
         }
     
-    def export_for_trace(self, trace_id: str) -> Optional[Dict[str, Any]]:
+    def export_for_trace(self, trace_id: str) -> dict[str, Any] | None:
         """Export spans for a specific trace."""
         if trace_id not in self._spans_by_trace:
             return None
@@ -314,9 +314,9 @@ class PrometheusExporter:
     def __init__(self, prefix: str = "synapse"):
         self.protocol_version = "1.0"
         self._prefix = prefix
-        self._metrics: Dict[str, Metric] = {}
+        self._metrics: dict[str, Metric] = {}
     
-    def export(self, metrics: List[Metric]) -> str:
+    def export(self, metrics: list[Metric]) -> str:
         """Export metrics in Prometheus format."""
         lines = []
         for metric in metrics:
@@ -332,11 +332,11 @@ class PrometheusExporter:
                 lines.append(f"{name} {metric.value}")
         return "\n".join(lines)
     
-    def add_metric(self, name: str, value: float, labels: Optional[Dict[str, str]] = None, metric_type: str = "gauge") -> None:
+    def add_metric(self, name: str, value: float, labels: dict[str, str] | None = None, metric_type: str = "gauge") -> None:
         metric = Metric(name=name, value=value, labels=labels or {}, metric_type=metric_type)
         self._metrics[f"{self._prefix}_{name}"] = metric
     
-    def get_metrics(self) -> List[Metric]:
+    def get_metrics(self) -> list[Metric]:
         return list(self._metrics.values())
     
     def clear(self) -> None:
@@ -350,8 +350,8 @@ class JSONExporter:
     
     def __init__(self):
         self.protocol_version = "1.0"
-        self._metrics: List[Dict[str, Any]] = []
+        self._metrics: list[dict[str, Any]] = []
     
-    def export(self, metrics: List[Metric]) -> str:
+    def export(self, metrics: list[Metric]) -> str:
         data = [{"name": m.name, "value": m.value, "labels": m.labels, "type": m.metric_type} for m in metrics]
         return json.dumps(data, indent=2)

@@ -17,12 +17,11 @@ Metacognition:
 - If same task fails 3+ times → triggers CreateSkill pipeline
 - If capability denied 3+ times → triggers CreateKnowledge
 """
-import asyncio
 import logging
 import time
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 from synapse.memory.store import MemoryStore
 from synapse.observability.logger import audit, record_metric, trace
@@ -62,11 +61,11 @@ class LearningEngine:
         self.vector_store = vector_store
 
         # In-memory tracking (persisted to memory store periodically)
-        self._skill_results: Dict[str, List[Tuple[float, bool]]] = defaultdict(list)
+        self._skill_results: dict[str, list[tuple[float, bool]]] = defaultdict(list)
         # skill_name → [(timestamp, success)]
-        self._failure_tasks: Dict[str, int] = defaultdict(int)
+        self._failure_tasks: dict[str, int] = defaultdict(int)
         # task_hash → failure_count
-        self._capability_denials: Dict[str, int] = defaultdict(int)
+        self._capability_denials: dict[str, int] = defaultdict(int)
         # capability → denial_count
 
     # ------------------------------------------------------------------
@@ -99,7 +98,7 @@ class LearningEngine:
     async def feedback(self, result: Any, classification: str) -> None:
         """Store experience in MemoryStore + VectorStore."""
         async with trace("learning_feedback"):
-            ts = datetime.now(timezone.utc).isoformat()
+            ts = datetime.now(UTC).isoformat()
             entry = {
                 "classification": classification,
                 "timestamp": ts,
@@ -190,7 +189,7 @@ class LearningEngine:
                 {
                     "skill": skill_name,
                     "success_rate": rate,
-                    "deprecated_at": datetime.now(timezone.utc).isoformat(),
+                    "deprecated_at": datetime.now(UTC).isoformat(),
                     "reason": "success_rate_below_threshold",
                 },
             )
@@ -236,7 +235,7 @@ class LearningEngine:
                 "type": "knowledge",
                 "capability": capability,
                 "guidance": knowledge_text,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             },
         )
         if self.vector_store:
@@ -249,10 +248,10 @@ class LearningEngine:
     # Metacognition: pattern analysis
     # ------------------------------------------------------------------
 
-    async def analyze_patterns(self) -> Dict[str, Any]:
+    async def analyze_patterns(self) -> dict[str, Any]:
         """Analyse stored experiences; return summary of insights."""
         async with trace("analyze_patterns"):
-            insights: Dict[str, Any] = {
+            insights: dict[str, Any] = {
                 "low_performing_skills": [],
                 "frequent_failure_tasks": [],
                 "capability_bottlenecks": [],
@@ -291,7 +290,7 @@ class LearningEngine:
             )
             return insights
 
-    async def optimize_prompts(self, agent_name: str) -> Dict[str, Any]:
+    async def optimize_prompts(self, agent_name: str) -> dict[str, Any]:
         """Suggest prompt improvements for under-performing agents.
 
         In production this would use LLM to generate improved system prompts.

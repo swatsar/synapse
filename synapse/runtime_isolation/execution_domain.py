@@ -10,10 +10,10 @@ ExecutionDomain provides isolated execution boundaries with:
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import FrozenSet, Optional, Dict, Any
 import hashlib
 import json
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -29,11 +29,11 @@ class ExecutionDomain:
     """
     domain_id: str
     tenant_id: str
-    capabilities: FrozenSet[str]
+    capabilities: frozenset[str]
     state_hash: str
     protocol_version: str = "1.0"
-    created_at: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    created_at: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         """Validate domain after initialization"""
@@ -51,7 +51,7 @@ class ExecutionDomain:
         hash_data = {
             "domain_id": self.domain_id,
             "tenant_id": self.tenant_id,
-            "capabilities": sorted(list(self.capabilities)),
+            "capabilities": sorted(self.capabilities),
             "protocol_version": self.protocol_version
         }
         
@@ -92,7 +92,7 @@ class ExecutionDomain:
         """Validate that this domain belongs to the specified tenant"""
         return self.tenant_id == tenant_id
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation"""
         return {
             "domain_id": self.domain_id,
@@ -105,7 +105,7 @@ class ExecutionDomain:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ExecutionDomain":
+    def from_dict(cls, data: dict[str, Any]) -> "ExecutionDomain":
         """Create ExecutionDomain from dictionary"""
         return cls(
             domain_id=data["domain_id"],

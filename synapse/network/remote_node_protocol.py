@@ -2,20 +2,20 @@
 All public models expose ``protocol_version = "1.0"``.
 """
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, field_validator
 
+from synapse.core.time_sync_manager import TimeSyncManager
 from synapse.security.capability_manager import CapabilityManager
 from synapse.security.execution_guard import ExecutionGuard
-from synapse.core.time_sync_manager import TimeSyncManager
 
 PROTOCOL_VERSION = "1.0"
 
 class NodeIdentity(BaseModel):
     node_id: str
     protocol_version: str = PROTOCOL_VERSION
-    capabilities: List[str] = []
+    capabilities: list[str] = []
 
     @field_validator("protocol_version")
     @classmethod
@@ -29,7 +29,7 @@ class RemoteMessage(BaseModel):
     trace_id: str = None  # filled by protocol
     timestamp: float = None
     node_id: str = None
-    capabilities: List[str] = []
+    capabilities: list[str] = []
     payload: Any
 
     @field_validator("protocol_version")
@@ -45,7 +45,7 @@ class RemoteMessage(BaseModel):
 class HandshakeRequest(BaseModel):
     node_id: str
     protocol_version: str = PROTOCOL_VERSION
-    capabilities: List[str] = []
+    capabilities: list[str] = []
 
     @field_validator("protocol_version")
     @classmethod
@@ -58,7 +58,7 @@ class HandshakeResponse(BaseModel):
     node_id: str
     protocol_version: str = PROTOCOL_VERSION
     accepted: bool
-    negotiated_capabilities: List[str] = []
+    negotiated_capabilities: list[str] = []
 
     @field_validator("protocol_version")
     @classmethod
@@ -76,7 +76,7 @@ class RemoteNodeProtocol:
     def __init__(self, caps: CapabilityManager, node_id: str, limits=None):
         self._caps = caps
         self.node_id = node_id
-        self.negotiated_capabilities: List[str] = []
+        self.negotiated_capabilities: list[str] = []
         # ExecutionGuard is used for sandboxing when building envelopes
         self._guard = ExecutionGuard(capability_manager=caps)
 
@@ -93,7 +93,7 @@ class RemoteNodeProtocol:
             negotiated_capabilities=self.negotiated_capabilities,
         )
 
-    async def prepare_message(self, payload: Any) -> Dict[str, Any]:
+    async def prepare_message(self, payload: Any) -> dict[str, Any]:
         # Build a deterministic envelope inside the sandbox
         async with self._guard:
             # Get current time and convert to float timestamp
@@ -121,7 +121,7 @@ class RemoteNodeProtocol:
         message.normalise_timestamp()
         return True
     
-    async def validate_incoming(self, envelope: Dict[str, Any]) -> RemoteMessage:
+    async def validate_incoming(self, envelope: dict[str, Any]) -> RemoteMessage:
         """Validate and parse incoming message envelope.
         
         Args:

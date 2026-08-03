@@ -1,9 +1,12 @@
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
-import pytest
 import re
-from synapse.observability.logger import trace, get_metric, _metrics
+
+import pytest
+
+from synapse.observability.logger import get_metric, trace
+
 
 @pytest.mark.asyncio
 async def test_trace_logging_and_metrics(caplog):

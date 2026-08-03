@@ -2,17 +2,17 @@
 
 Protocol Version: 1.0
 """
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Optional, Any
-from datetime import datetime, timezone
 
 PROTOCOL_VERSION: str = "1.0"
 
 router = APIRouter()
 
 # In-memory storage (will be replaced with database)
-providers_db: Dict[str, Dict] = {}
+providers_db: dict[str, dict] = {}
 
 
 # === Models ===
@@ -20,17 +20,17 @@ providers_db: Dict[str, Dict] = {}
 class ProviderCreate(BaseModel):
     name: str
     api_key: str
-    models: List[str] = []
+    models: list[str] = []
     priority: int = 3
-    base_url: Optional[str] = None
+    base_url: str | None = None
 
 
 class ProviderUpdate(BaseModel):
-    name: Optional[str] = None
-    api_key: Optional[str] = None
-    models: Optional[List[str]] = None
-    priority: Optional[int] = None
-    base_url: Optional[str] = None
+    name: str | None = None
+    api_key: str | None = None
+    models: list[str] | None = None
+    priority: int | None = None
+    base_url: str | None = None
 
 
 class PriorityUpdate(BaseModel):
@@ -45,13 +45,13 @@ class ProviderService:
     def __init__(self):
         self.providers = providers_db
     
-    def list_providers(self) -> List[Dict]:
+    def list_providers(self) -> list[dict]:
         return list(self.providers.values())
     
-    def get_provider(self, provider_id: str) -> Optional[Dict]:
+    def get_provider(self, provider_id: str) -> dict | None:
         return self.providers.get(provider_id)
     
-    def create_provider(self, data: ProviderCreate) -> Dict:
+    def create_provider(self, data: ProviderCreate) -> dict:
         provider_id = data.name.lower().replace(" ", "_")
         provider = {
             "id": provider_id,
@@ -60,19 +60,19 @@ class ProviderService:
             "models": data.models,
             "priority": data.priority,
             "base_url": data.base_url,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "protocol_version": PROTOCOL_VERSION
         }
         self.providers[provider_id] = provider
         return provider
     
-    def update_provider(self, provider_id: str, data: ProviderUpdate) -> Optional[Dict]:
+    def update_provider(self, provider_id: str, data: ProviderUpdate) -> dict | None:
         if provider_id not in self.providers:
             return None
         provider = self.providers[provider_id]
         update_data = data.model_dump(exclude_unset=True)
         provider.update(update_data)
-        provider["updated_at"] = datetime.now(timezone.utc).isoformat()
+        provider["updated_at"] = datetime.now(UTC).isoformat()
         return provider
     
     def delete_provider(self, provider_id: str) -> bool:
@@ -81,13 +81,13 @@ class ProviderService:
             return True
         return False
     
-    def test_connection(self, provider_id: str) -> Dict:
+    def test_connection(self, provider_id: str) -> dict:
         # Simulate connection test
         if provider_id not in self.providers:
             return {"success": False, "error": "Provider not found"}
         return {"success": True, "latency_ms": 150, "model": "test"}
     
-    def list_models(self, provider_id: str) -> List[Dict]:
+    def list_models(self, provider_id: str) -> list[dict]:
         if provider_id not in self.providers:
             return []
         return [
@@ -95,7 +95,7 @@ class ProviderService:
             for m in self.providers[provider_id].get("models", [])
         ]
     
-    def set_priority(self, provider_id: str, priority: int) -> Optional[Dict]:
+    def set_priority(self, provider_id: str, priority: int) -> dict | None:
         if provider_id not in self.providers:
             return None
         self.providers[provider_id]["priority"] = priority

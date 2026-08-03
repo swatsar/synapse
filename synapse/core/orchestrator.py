@@ -11,11 +11,13 @@ Cognitive Cycle:
 7. EVALUATE  - Оценка выполнения
 8. LEARN     - Обучение
 """
-from .determinism import DeterministicSeedManager, DeterministicIDGenerator
-from synapse.observability.logger import audit
-from typing import Dict, Any, Optional
-from datetime import datetime, timezone
 import uuid
+from datetime import UTC, datetime
+from typing import Any
+
+from synapse.observability.logger import audit
+
+from .determinism import DeterministicIDGenerator, DeterministicSeedManager
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -27,15 +29,15 @@ class CognitiveCycleResult:
     def __init__(
         self,
         success: bool,
-        perceived: Optional[Dict] = None,
-        recalled: Optional[Dict] = None,
-        plan: Optional[Dict] = None,
-        security_result: Optional[Dict] = None,
-        action_result: Optional[Dict] = None,
-        observation: Optional[Dict] = None,
-        evaluation: Optional[Dict] = None,
-        learning: Optional[Dict] = None,
-        error: Optional[str] = None
+        perceived: dict | None = None,
+        recalled: dict | None = None,
+        plan: dict | None = None,
+        security_result: dict | None = None,
+        action_result: dict | None = None,
+        observation: dict | None = None,
+        evaluation: dict | None = None,
+        learning: dict | None = None,
+        error: str | None = None
     ):
         self.success = success
         self.perceived = perceived
@@ -48,9 +50,9 @@ class CognitiveCycleResult:
         self.learning = learning
         self.error = error
         self.protocol_version = PROTOCOL_VERSION
-        self.timestamp = datetime.now(timezone.utc).isoformat()
+        self.timestamp = datetime.now(UTC).isoformat()
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "perceived": self.perceived,
@@ -82,10 +84,10 @@ class Orchestrator:
         self,
         seed_manager: DeterministicSeedManager,
         id_generator: DeterministicIDGenerator,
-        memory_store: Optional[Any] = None,
-        security_manager: Optional[Any] = None,
-        skill_registry: Optional[Any] = None,
-        checkpoint_manager: Optional[Any] = None
+        memory_store: Any | None = None,
+        security_manager: Any | None = None,
+        skill_registry: Any | None = None,
+        checkpoint_manager: Any | None = None
     ):
         self.protocol_version = "1.0"
         self.seed_manager = seed_manager
@@ -107,7 +109,7 @@ class Orchestrator:
     # 7-STEP COGNITIVE CYCLE
     # =========================================================================
 
-    async def execute_cycle(self, event: Dict[str, Any]) -> CognitiveCycleResult:
+    async def execute_cycle(self, event: dict[str, Any]) -> CognitiveCycleResult:
         """Execute a complete cognitive cycle on an event.
 
         This is the main orchestration method that implements the 7-step
@@ -127,7 +129,7 @@ class Orchestrator:
             protocol_version=self.protocol_version
         )
 
-    async def run_goal(self, goal: Dict[str, Any]) -> CognitiveCycleResult:
+    async def run_goal(self, goal: dict[str, Any]) -> CognitiveCycleResult:
         """Run a high-level goal through the cognitive cycle.
 
         This method provides a simplified interface for running goals
@@ -143,7 +145,7 @@ class Orchestrator:
         event = {
             "type": "goal",
             "data": goal,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
 
         return await self.execute_cycle(event)
@@ -235,7 +237,7 @@ class Orchestrator:
     # Step 1: PERCEIVE
     # -------------------------------------------------------------------------
     
-    async def _perceive(self, event: Dict[str, Any]) -> Dict[str, Any]:
+    async def _perceive(self, event: dict[str, Any]) -> dict[str, Any]:
         """Step 1: PERCEIVE - Восприятие события.
         
         Analyzes and normalizes the incoming event.
@@ -258,7 +260,7 @@ class Orchestrator:
             "content": event.get("content", ""),
             "source": event.get("source", "unknown"),
             "user_id": event.get("user_id"),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "metadata": event.get("metadata", {}),
             "protocol_version": self.protocol_version
         }
@@ -269,7 +271,7 @@ class Orchestrator:
     # Step 2: RECALL
     # -------------------------------------------------------------------------
     
-    async def _recall(self, perceived: Dict[str, Any]) -> Dict[str, Any]:
+    async def _recall(self, perceived: dict[str, Any]) -> dict[str, Any]:
         """Step 2: RECALL - Извлечение из памяти.
         
         Retrieves relevant context from memory stores.
@@ -320,9 +322,9 @@ class Orchestrator:
     
     async def _plan(
         self,
-        perceived: Dict[str, Any],
-        recalled: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        perceived: dict[str, Any],
+        recalled: dict[str, Any]
+    ) -> dict[str, Any]:
         """Step 3: PLAN - Планирование действий.
         
         Creates action plan based on perceived event and recalled context.
@@ -344,7 +346,6 @@ class Orchestrator:
 
         if self.planner and goal:
             try:
-                from synapse.agents.planner import PlannerAgent  # noqa: PLC0415
                 action_plan = await self.planner.create_plan(
                     task=goal,
                     context={"recalled": recalled, "perceived": perceived},
@@ -380,7 +381,7 @@ class Orchestrator:
     # Step 4: SECURITY CHECK
     # -------------------------------------------------------------------------
     
-    async def _security_check(self, plan: Dict[str, Any]) -> Dict[str, Any]:
+    async def _security_check(self, plan: dict[str, Any]) -> dict[str, Any]:
         """Step 4: SECURITY CHECK - Проверка capabilities.
         
         Validates that required capabilities are available and approved.
@@ -434,7 +435,7 @@ class Orchestrator:
     # Step 5: ACT
     # -------------------------------------------------------------------------
     
-    async def _act(self, plan: Dict[str, Any]) -> Dict[str, Any]:
+    async def _act(self, plan: dict[str, Any]) -> dict[str, Any]:
         """Step 5: ACT - Выполнение плана.
         
         Executes the action plan using available skills.
@@ -496,7 +497,7 @@ class Orchestrator:
     # Step 6: OBSERVE
     # -------------------------------------------------------------------------
     
-    async def _observe(self, action_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def _observe(self, action_result: dict[str, Any]) -> dict[str, Any]:
         """Step 6: OBSERVE - Наблюдение результата.
         
         Observes and analyzes the action execution result.
@@ -530,9 +531,9 @@ class Orchestrator:
     
     async def _evaluate(
         self,
-        plan: Dict[str, Any],
-        observation: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        plan: dict[str, Any],
+        observation: dict[str, Any]
+    ) -> dict[str, Any]:
         """Step 7: EVALUATE - Оценка выполнения.
         
         Evaluates the success of the action against the plan.
@@ -587,11 +588,11 @@ class Orchestrator:
     
     async def _learn(
         self,
-        event: Dict[str, Any],
-        plan: Dict[str, Any],
-        action_result: Dict[str, Any],
-        evaluation: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        event: dict[str, Any],
+        plan: dict[str, Any],
+        action_result: dict[str, Any],
+        evaluation: dict[str, Any]
+    ) -> dict[str, Any]:
         """Step 8: LEARN - Обучение.
         
         Stores learnings from this execution for future use.
@@ -654,8 +655,8 @@ class Orchestrator:
     
     async def _create_checkpoint(
         self,
-        event: Dict[str, Any],
-        plan: Dict[str, Any]
+        event: dict[str, Any],
+        plan: dict[str, Any]
     ) -> str:
         """Create checkpoint before high-risk action.
         
@@ -757,9 +758,9 @@ class Orchestrator:
 
 def build_orchestrator(
     llm_model: str = "gpt-4o-mini",
-    api_key: str = None,
-    db_path: str = None,
-    vector_persist_dir: str = None,
+    api_key: str | None = None,
+    db_path: str | None = None,
+    vector_persist_dir: str | None = None,
 ) -> "Orchestrator":
     """Build a fully-wired Orchestrator with all cognitive components.
 
@@ -767,15 +768,16 @@ def build_orchestrator(
     and LLMProvider.
     """
     import os as _os
+
+    from synapse.agents.critic import CriticAgent
+    from synapse.agents.developer import DeveloperAgent
+    from synapse.agents.planner import PlannerAgent
+    from synapse.core.checkpoint import CheckpointManager
+    from synapse.core.security import SecurityManager
+    from synapse.learning.engine import LearningEngine
     from synapse.llm.provider import LiteLLMProvider
     from synapse.memory.store import MemoryStore
     from synapse.memory.vector_store import VectorMemoryStore
-    from synapse.agents.planner import PlannerAgent
-    from synapse.agents.critic import CriticAgent
-    from synapse.agents.developer import DeveloperAgent
-    from synapse.learning.engine import LearningEngine
-    from synapse.core.security import SecurityManager
-    from synapse.core.checkpoint import CheckpointManager
 
     # LLM
     llm = LiteLLMProvider(

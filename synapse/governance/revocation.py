@@ -5,6 +5,7 @@ Capability Revoker for revoking capabilities
 
 from synapse.governance.issuance import CapabilityIssuer
 
+
 class CapabilityRevoker:
     """Revokes capabilities from agents"""
     

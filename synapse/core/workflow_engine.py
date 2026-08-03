@@ -3,45 +3,46 @@ PROTOCOL_VERSION: str = "1.0"
 Workflow Engine for dependency resolution and execution
 """
 
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, field
 import uuid
+from dataclasses import dataclass, field
+from typing import Any
+
 
 @dataclass
 class Step:
     """Single workflow step"""
     id: str
     name: str
-    requires: List[str] = field(default_factory=list)
-    capabilities: List[str] = field(default_factory=list)
+    requires: list[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     action: str = ""
-    input_data: Dict[str, Any] = field(default_factory=dict)
+    input_data: dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class WorkflowDefinition:
     """Workflow definition with steps and dependencies"""
     name: str
-    steps: List[Step] = field(default_factory=list)
-    dependencies: Dict[str, List[str]] = field(default_factory=dict)
+    steps: list[Step] = field(default_factory=list)
+    dependencies: dict[str, list[str]] = field(default_factory=dict)
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    required_capabilities: List[str] = field(default_factory=list)
+    required_capabilities: list[str] = field(default_factory=list)
     description: str = ""
 
 class WorkflowEngine:
     """Engine for workflow dependency resolution and execution"""
     
     def __init__(self):
-        self._workflows: Dict[str, WorkflowDefinition] = {}
+        self._workflows: dict[str, WorkflowDefinition] = {}
     
     def register(self, workflow: WorkflowDefinition):
         """Register a workflow"""
         self._workflows[workflow.id] = workflow
     
-    def get_execution_order(self, workflow: WorkflowDefinition) -> List[Step]:
+    def get_execution_order(self, workflow: WorkflowDefinition) -> list[Step]:
         """Get execution order based on dependencies"""
         return self.build_execution_order(workflow)
     
-    def build_execution_order(self, workflow: WorkflowDefinition) -> List[Step]:
+    def build_execution_order(self, workflow: WorkflowDefinition) -> list[Step]:
         """Build execution order from workflow steps using topological sort"""
         if not workflow.steps:
             return []

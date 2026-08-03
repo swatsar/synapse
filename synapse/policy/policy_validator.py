@@ -4,10 +4,10 @@ Formal Policy Validation Engine
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, UTC
-import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
 
 @dataclass
 class PolicyViolation:
@@ -15,7 +15,7 @@ class PolicyViolation:
     violation_type: str
     severity: str
     description: str
-    context: Dict[str, Any]
+    context: dict[str, Any]
     protocol_version: str = "1.0"
 
 
@@ -23,7 +23,7 @@ class PolicyViolation:
 class ValidationResult:
     """Policy validation result"""
     is_valid: bool
-    violations: List[PolicyViolation]
+    violations: list[PolicyViolation]
     workflow_id: str
     timestamp: str
     protocol_version: str = "1.0"
@@ -33,9 +33,9 @@ class PolicyEngine:
     """Formal policy validation engine"""
     
     def __init__(self):
-        self._policies: Dict[str, Any] = {}
+        self._policies: dict[str, Any] = {}
     
-    def validate_workflow(self, workflow: Any, capabilities: Set[str]) -> ValidationResult:
+    def validate_workflow(self, workflow: Any, capabilities: set[str]) -> ValidationResult:
         """Validate workflow before execution"""
         violations = []
         workflow_id = getattr(workflow, 'id', 'unknown')
@@ -70,7 +70,7 @@ class PolicyEngine:
             timestamp=datetime.now(UTC).isoformat()
         )
     
-    def _extract_required_capabilities(self, workflow: Any) -> Set[str]:
+    def _extract_required_capabilities(self, workflow: Any) -> set[str]:
         """Extract required capabilities from workflow"""
         required = set()
         if hasattr(workflow, 'steps'):
@@ -81,13 +81,13 @@ class PolicyEngine:
             required.update(workflow.required_capabilities)
         return required
     
-    def _validate_capability_scopes(self, workflow: Any, capabilities: Set[str]) -> List[PolicyViolation]:
+    def _validate_capability_scopes(self, workflow: Any, capabilities: set[str]) -> list[PolicyViolation]:
         """Validate capability scopes"""
         violations = []
         # Check if capabilities match allowed scopes
         return violations
     
-    def _validate_dependency_graph(self, workflow: Any) -> List[PolicyViolation]:
+    def _validate_dependency_graph(self, workflow: Any) -> list[PolicyViolation]:
         """Validate dependency graph for cycles"""
         violations = []
         if hasattr(workflow, 'steps'):
@@ -104,7 +104,7 @@ class PolicyEngine:
                 seen.add(step_id)
         return violations
     
-    def _check_privilege_escalation(self, workflow: Any, capabilities: Set[str]) -> List[PolicyViolation]:
+    def _check_privilege_escalation(self, workflow: Any, capabilities: set[str]) -> list[PolicyViolation]:
         """Check for implicit privilege escalation"""
         violations = []
         # Check if workflow tries to escalate privileges

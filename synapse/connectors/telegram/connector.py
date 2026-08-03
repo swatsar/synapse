@@ -5,7 +5,8 @@ Protocol Version: 1.0
 import asyncio
 import logging
 import os
-from typing import Dict, Any, Optional, Callable
+from collections.abc import Callable
+from typing import Any
 
 from synapse.connectors.base.connector import BaseConnector
 from synapse.security.capability_manager import CapabilityManager
@@ -26,8 +27,8 @@ class TelegramConnector(BaseConnector):
     def __init__(
         self,
         caps: CapabilityManager,
-        token: Optional[str] = None,
-        on_message: Optional[Callable] = None,
+        token: str | None = None,
+        on_message: Callable | None = None,
     ):
         self._caps = caps
         self._token = token or os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -80,7 +81,7 @@ class TelegramConnector(BaseConnector):
         if self._bot:
             await self._bot.session.close()
 
-    async def receive_message(self) -> Dict[str, Any]:
+    async def receive_message(self) -> dict[str, Any]:
         """Block until a message arrives."""
         return await self._incoming.get()
 
@@ -101,7 +102,7 @@ class TelegramConnector(BaseConnector):
         description: str,
         approval_id: str,
         risk_level: int,
-        code_preview: Optional[str] = None,
+        code_preview: str | None = None,
     ) -> None:
         """Send a human-approval request with inline keyboard."""
         text = (
@@ -116,7 +117,6 @@ class TelegramConnector(BaseConnector):
 
         if self._bot:
             try:
-                from aiogram.utils.markdown import markdown_decoration
                 await self._bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown")
                 return
             except Exception as e:
@@ -125,7 +125,7 @@ class TelegramConnector(BaseConnector):
 
     # ── Test helpers ──────────────────────────────────────────────────────────
 
-    async def _inject(self, message: Dict[str, Any]) -> None:
+    async def _inject(self, message: dict[str, Any]) -> None:
         """Inject a message for testing."""
         await self._incoming.put(message)
 

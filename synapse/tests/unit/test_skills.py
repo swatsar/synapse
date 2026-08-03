@@ -1,11 +1,12 @@
 PROTOCOL_VERSION: str = "1.0"
-import pytest
-from pathlib import Path
 
-from synapse.skills.builtins.read_file import ReadFileSkill
-from synapse.skills.builtins.write_file import WriteFileSkill
-from synapse.skills.builtins.web_search import WebSearchSkill
+import pytest
+
 from synapse.core.models import ExecutionContext, ResourceLimits
+from synapse.skills.builtins.read_file import ReadFileSkill
+from synapse.skills.builtins.web_search import WebSearchSkill
+from synapse.skills.builtins.write_file import WriteFileSkill
+
 
 @pytest.fixture
 def test_context():

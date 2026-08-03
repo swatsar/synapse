@@ -1,9 +1,10 @@
 PROTOCOL_VERSION: str = "1.0"
 import asyncio
-from typing import Any, Dict, List
+from typing import Any
 
 from synapse.memory.store import MemoryStore
 from synapse.security.capability_manager import CapabilityManager
+
 
 class DistributedMemoryStore:
     """Thin async wrapper around the core ``MemoryStore`` that pretends to be
@@ -21,7 +22,7 @@ class DistributedMemoryStore:
         await self._caps.check_capability(["memory:write"])
         await self._store.add_long_term(category, data)
 
-    async def query(self, query: str, limit: int = 10) -> List[Dict]:
+    async def query(self, query: str, limit: int = 10) -> list[dict]:
         await self._caps.check_capability(["memory:read"])
         return await self._store.query_long_term(query)
 

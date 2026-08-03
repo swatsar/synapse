@@ -5,11 +5,12 @@ resource limits.
 """
 import asyncio
 import json
-from typing import Any, Dict, List
+from typing import Any
 
+from synapse.observability.logger import audit
 from synapse.security.capability_manager import CapabilityManager
 from synapse.security.execution_guard import ExecutionGuard
-from synapse.observability.logger import audit
+
 
 class Transport:
     protocol_version: str = "1.0"
@@ -18,20 +19,20 @@ class Transport:
         self._caps = caps
         self._guard = guard
         # In‑memory queue used for the stub implementation – in prod this would be a socket
-        self._outbox: List[Dict] = []
-        self._inbox: List[Dict] = []
+        self._outbox: list[dict] = []
+        self._inbox: list[dict] = []
 
-    async def _send(self, envelope: Dict[str, Any]) -> None:
+    async def _send(self, envelope: dict[str, Any]) -> None:
         # Simulated low‑level send – just push to inbox of the remote side
         self._outbox.append(envelope)
 
-    async def _receive(self) -> Dict[str, Any]:
+    async def _receive(self) -> dict[str, Any]:
         # Simulated low‑level receive – pop from inbox
         while not self._inbox:
             await asyncio.sleep(0.01)
         return self._inbox.pop(0)
 
-    async def send_message(self, envelope: Dict[str, Any], required_caps: List[str] = None) -> None:
+    async def send_message(self, envelope: dict[str, Any], required_caps: list[str] | None = None) -> None:
         # Capability check before sending
         caps = required_caps or envelope.get("capabilities", [])
         await self._caps.check_capability(caps)
@@ -44,11 +45,11 @@ class Transport:
             # Simulated send (store in outbox)
             await self._send(envelope)
 
-    async def receive_message(self, timeout: float = 5.0) -> Dict[str, Any]:
+    async def receive_message(self, timeout: float = 5.0) -> dict[str, Any]:
         try:
             # Timeout handling
             envelope = await asyncio.wait_for(self._receive(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             audit(event="network_receive_timeout", detail="no message within timeout")
             raise
         # Audit log
@@ -56,5 +57,5 @@ class Transport:
         return envelope
 
     # Helper for tests to inject a message into the inbox
-    def inject_incoming(self, envelope: Dict[str, Any]) -> None:
+    def inject_incoming(self, envelope: dict[str, Any]) -> None:
         self._inbox.append(envelope)

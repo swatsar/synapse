@@ -4,9 +4,8 @@ Trust Identity Registry - Deterministic Node Identity
 
 import hashlib
 import json
-from typing import Dict, Optional, List
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION = "1.0"
 
@@ -16,7 +15,7 @@ class NodeDescriptor:
     """Canonical node descriptor for identity registration"""
     node_id: str
     cluster_id: str
-    capabilities: List[str]
+    capabilities: list[str]
     protocol_version: str = PROTOCOL_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
@@ -37,7 +36,7 @@ class NodeIdentity:
     node_id: str
     cluster_id: str
     identity_hash: str
-    capabilities: List[str]
+    capabilities: list[str]
     protocol_version: str = PROTOCOL_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
@@ -51,8 +50,8 @@ class TrustIdentityRegistry:
     PROTOCOL_VERSION = PROTOCOL_VERSION
 
     def __init__(self):
-        self._identities: Dict[str, NodeIdentity] = {}
-        self._registry_hash: Optional[str] = None
+        self._identities: dict[str, NodeIdentity] = {}
+        self._registry_hash: str | None = None
 
     def register(self, descriptor: NodeDescriptor) -> NodeIdentity:
         """Register node identity with deterministic hash"""
@@ -72,7 +71,7 @@ class TrustIdentityRegistry:
 
         return identity
 
-    def get_identity(self, node_id: str) -> Optional[NodeIdentity]:
+    def get_identity(self, node_id: str) -> NodeIdentity | None:
         """Retrieve registered identity"""
         return self._identities.get(node_id)
 

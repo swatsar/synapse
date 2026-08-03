@@ -9,8 +9,8 @@ SPEC_VERSION: str = "3.1"
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Optional, Union
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger("synapse.observability")
 handler = logging.StreamHandler()
@@ -19,7 +19,7 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-_metrics: Dict[str, int] = {}
+_metrics: dict[str, int] = {}
 _audit_log: list = []
 
 def record_metric(name: str, value: int = 1) -> None:
@@ -28,7 +28,7 @@ def record_metric(name: str, value: int = 1) -> None:
 def get_metric(name: str) -> int:
     return _metrics.get(name, 0)
 
-def audit(event: Union[Dict[str, Any], str] = None, **kwargs) -> None:
+def audit(event: dict[str, Any] | str | None = None, **kwargs) -> None:
     """Record an audit event.
 
     Args:
@@ -42,7 +42,7 @@ def audit(event: Union[Dict[str, Any], str] = None, **kwargs) -> None:
     else:
         event_copy = event.copy()
     event_copy.update(kwargs)
-    event_copy["timestamp"] = datetime.now(timezone.utc).isoformat()
+    event_copy["timestamp"] = datetime.now(UTC).isoformat()
     _audit_log.append(event_copy)
     logger.info(f"AUDIT: {event_copy}")
 

@@ -1,21 +1,21 @@
 """Network package – production network runtime components."""
 from .remote_node_protocol import (
-    NodeIdentity,
-    RemoteMessage,
     HandshakeRequest,
     HandshakeResponse,
+    NodeIdentity,
+    RemoteMessage,
     RemoteNodeProtocol,
 )
-from .transport import Transport
 from .security import MessageSecurity
+from .transport import Transport
 
 __all__ = [
-    "NodeIdentity",
-    "RemoteMessage",
     "HandshakeRequest",
     "HandshakeResponse",
+    "MessageSecurity",
+    "NodeIdentity",
+    "RemoteMessage",
     "RemoteNodeProtocol",
     "Transport",
-    "MessageSecurity",
 ]
 PROTOCOL_VERSION: str = "1.0"

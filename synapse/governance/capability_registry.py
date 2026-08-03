@@ -5,8 +5,8 @@ Capability Registry for managing capabilities
 PROTOCOL_VERSION: str = "1.0"
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import UTC, datetime
+
 
 @dataclass
 class CapabilityMetadata:
@@ -16,13 +16,13 @@ class CapabilityMetadata:
     category: str
     risk_level: int
     protocol_version: str = "1.0"
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 class CapabilityRegistry:
     """Registry for managing capabilities"""
     
     def __init__(self):
-        self._capabilities: Dict[str, CapabilityMetadata] = {}
+        self._capabilities: dict[str, CapabilityMetadata] = {}
     
     def register(self, capability_id: str, metadata: CapabilityMetadata):
         """Register a new capability"""
@@ -31,11 +31,11 @@ class CapabilityRegistry:
         
         self._capabilities[capability_id] = metadata
     
-    def get_metadata(self, capability_id: str) -> Optional[CapabilityMetadata]:
+    def get_metadata(self, capability_id: str) -> CapabilityMetadata | None:
         """Get metadata for a capability"""
         return self._capabilities.get(capability_id)
     
-    def list_capabilities(self) -> List[str]:
+    def list_capabilities(self) -> list[str]:
         """List all registered capabilities"""
         return list(self._capabilities.keys())
     

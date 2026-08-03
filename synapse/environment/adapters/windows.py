@@ -7,11 +7,10 @@ Spec Version: 3.1
 
 import asyncio
 import platform
-import subprocess
-from typing import Dict, List, Optional, Any
 from pathlib import Path
+from typing import Any
 
-from synapse.environment.adapters.base import EnvironmentAdapter, PROTOCOL_VERSION
+from synapse.environment.adapters.base import EnvironmentAdapter
 
 
 class WindowsAdapter(EnvironmentAdapter):
@@ -31,7 +30,6 @@ class WindowsAdapter(EnvironmentAdapter):
         Returns:
             Path: User home directory (e.g., C:/Users/username)
         """
-        import os
         return Path.home()
 
     async def get_config_dir(self) -> Path:
@@ -67,9 +65,9 @@ class WindowsAdapter(EnvironmentAdapter):
         self, 
         command: str, 
         timeout: int = 60,
-        cwd: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        cwd: str | None = None,
+        env: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """Execute command using PowerShell.
 
         Args:
@@ -102,7 +100,7 @@ class WindowsAdapter(EnvironmentAdapter):
                 'returncode': process.returncode
             })
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return self._create_response({
                 'stdout': '',
                 'stderr': f'Command timed out after {timeout} seconds',
@@ -115,7 +113,7 @@ class WindowsAdapter(EnvironmentAdapter):
                 'returncode': -1
             })
 
-    async def get_os_info(self) -> Dict[str, Any]:
+    async def get_os_info(self) -> dict[str, Any]:
         """Get Windows system information.
 
         Returns:
@@ -130,7 +128,7 @@ class WindowsAdapter(EnvironmentAdapter):
             'hostname': platform.node()
         })
 
-    async def get_network_info(self) -> Dict[str, Any]:
+    async def get_network_info(self) -> dict[str, Any]:
         """Get Windows network information.
 
         Returns:
@@ -159,7 +157,7 @@ class WindowsAdapter(EnvironmentAdapter):
             'ip_addresses': ip_addresses
         })
 
-    async def get_resource_usage(self) -> Dict[str, Any]:
+    async def get_resource_usage(self) -> dict[str, Any]:
         """Get Windows resource usage.
 
         Returns:
@@ -263,7 +261,7 @@ class WindowsAdapter(EnvironmentAdapter):
         except Exception:
             return False
 
-    async def get_environment_variables(self) -> Dict[str, str]:
+    async def get_environment_variables(self) -> dict[str, str]:
         """Get all Windows environment variables.
 
         Returns:
@@ -301,7 +299,7 @@ class WindowsAdapter(EnvironmentAdapter):
 
         return True
 
-    async def get_process_list(self) -> List[Dict[str, Any]]:
+    async def get_process_list(self) -> list[dict[str, Any]]:
         """Get list of running processes on Windows.
 
         Returns:

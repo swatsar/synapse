@@ -7,11 +7,9 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-from enum import Enum
 import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -19,8 +17,8 @@ class TenantContext:
     """Tenant security context with cryptographic identity"""
     tenant_id: str
     tenant_hash: str
-    capabilities: List[str]
-    resource_quota: Dict[str, int]
+    capabilities: list[str]
+    resource_quota: dict[str, int]
     created_at: str
     protocol_version: str = "1.0"
 
@@ -32,7 +30,7 @@ class SchedulingRequest:
     tenant_id: str
     task_type: str
     priority: int
-    required_capabilities: List[str]
+    required_capabilities: list[str]
     execution_seed: int
     timestamp: str
     protocol_version: str = "1.0"
@@ -65,11 +63,11 @@ class TenantScheduler:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._tenant_contexts: Dict[str, TenantContext] = {}
+        self._tenant_contexts: dict[str, TenantContext] = {}
         self._decision_counter = 0
         self._lock = threading.Lock()
-        self._tenant_queues: Dict[str, List[SchedulingRequest]] = {}
-        self._scheduled_decisions: Dict[str, SchedulingDecision] = {}
+        self._tenant_queues: dict[str, list[SchedulingRequest]] = {}
+        self._scheduled_decisions: dict[str, SchedulingDecision] = {}
 
     def register_tenant(self, context: TenantContext):
         """Register tenant context for scheduling"""
@@ -120,7 +118,7 @@ class TenantScheduler:
                 request_id=request.request_id,
                 tenant_id=request.tenant_id,
                 node_id=node_id,
-                scheduled_at=datetime.utcnow().isoformat(),
+                scheduled_at=datetime.now(UTC).isoformat(),
                 execution_order=execution_order,
                 decision_hash=self._hash_decision(request, execution_order),
                 protocol_version=self.PROTOCOL_VERSION
@@ -131,7 +129,7 @@ class TenantScheduler:
 
             return decision
 
-    def get_decision(self, request_id: str) -> Optional[SchedulingDecision]:
+    def get_decision(self, request_id: str) -> SchedulingDecision | None:
         """Get scheduling decision by request ID"""
         return self._scheduled_decisions.get(request_id)
 
@@ -200,7 +198,7 @@ class TenantScheduler:
 
 
 # Export
-__all__ = ["TenantScheduler", "TenantContext", "SchedulingRequest", "SchedulingDecision"]
+__all__ = ["SchedulingDecision", "SchedulingRequest", "TenantContext", "TenantScheduler"]
 
 
 def compute_module_hash() -> str:

@@ -2,10 +2,9 @@
 Rollback Manager для Synapse.
 Spec v3.1 compliant с асинхронной реализацией и capability enforcement.
 """
-from typing import Dict, Optional, List
-from pydantic import BaseModel, Field
-from datetime import datetime, timezone
 import uuid
+
+from pydantic import BaseModel
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -14,9 +13,9 @@ SPEC_VERSION: str = "3.1"
 class RollbackResult(BaseModel):
     """Результат операции rollback."""
     success: bool
-    checkpoint_id: Optional[str] = None
-    reason: Optional[str] = None
-    rolled_back_state: Optional[Dict] = None
+    checkpoint_id: str | None = None
+    reason: str | None = None
+    rolled_back_state: dict | None = None
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -25,7 +24,7 @@ class RollbackRequest(BaseModel):
     checkpoint_id: str
     reason: str = "User requested"
     agent_id: str
-    trace_id: Optional[str] = None
+    trace_id: str | None = None
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -116,7 +115,7 @@ class RollbackManager:
             
             return RollbackResult(
                 success=False,
-                reason=f"Rollback failed: {str(e)}",
+                reason=f"Rollback failed: {e!s}",
                 protocol_version=PROTOCOL_VERSION
             )
     
@@ -138,7 +137,7 @@ class RollbackManager:
         else:
             return None
     
-    async def _restore_state(self, checkpoint_id) -> Dict:
+    async def _restore_state(self, checkpoint_id) -> dict:
         """Восстановление состояния из checkpoint."""
         if not self.checkpoint_manager:
             return {}
@@ -159,7 +158,7 @@ class RollbackManager:
         
         return {}
     
-    async def _audit_rollback(self, checkpoint_id: str, agent_id: str, reason: str, success: bool, error: str = None):
+    async def _audit_rollback(self, checkpoint_id: str, agent_id: str, reason: str, success: bool, error: str | None = None):
         """Audit logging для rollback операции."""
         if not self.audit:
             return
@@ -215,7 +214,6 @@ class RollbackManager:
             self.checkpoint_manager.restore(checkpoint_id)
         
         # Audit logging
-        if self.audit:
-            if hasattr(self.audit, 'record'):
-                self.audit.record("rollback_requested", {"checkpoint": str(checkpoint_id)})
-                self.audit.record("rollback_completed", {"checkpoint": str(checkpoint_id)})
+        if self.audit and hasattr(self.audit, 'record'):
+            self.audit.record("rollback_requested", {"checkpoint": str(checkpoint_id)})
+            self.audit.record("rollback_completed", {"checkpoint": str(checkpoint_id)})

@@ -1,7 +1,9 @@
 PROTOCOL_VERSION: str = "1.0"
 import pytest
-from synapse.core.models import ExecutionContext, SkillManifest, ResourceLimits
+
 from synapse.agents.runtime.agent import CognitiveAgent
+from synapse.core.models import ExecutionContext, ResourceLimits, SkillManifest
+
 
 @pytest.fixture
 def dummy_context():

@@ -2,11 +2,10 @@
 Cluster Manager for Synapse Control Plane.
 Manages node registration, health monitoring, and cluster state.
 """
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Dict, List, Optional, Set
 import hashlib
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -17,7 +16,7 @@ class NodeInfo:
     node_id: str
     public_key: str
     endpoint: str
-    capabilities: List[str]
+    capabilities: list[str]
     registered_at: datetime
     last_heartbeat: datetime
     status: str = "active"
@@ -28,7 +27,7 @@ class NodeInfo:
 class ClusterState:
     """Current state of the cluster"""
     cluster_id: str
-    nodes: Dict[str, NodeInfo]
+    nodes: dict[str, NodeInfo]
     state_hash: str
     timestamp: datetime
     protocol_version: str = PROTOCOL_VERSION
@@ -47,7 +46,7 @@ class ClusterManager:
     def __init__(self, cluster_id: str, heartbeat_timeout: int = 30):
         self.cluster_id = cluster_id
         self.heartbeat_timeout = heartbeat_timeout
-        self._nodes: Dict[str, NodeInfo] = {}
+        self._nodes: dict[str, NodeInfo] = {}
         self._state_version = 0
     
     async def register_node(self, node: NodeInfo) -> bool:
@@ -87,13 +86,13 @@ class ClusterManager:
             cluster_id=self.cluster_id,
             nodes=dict(self._nodes),
             state_hash=state_hash,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             protocol_version=PROTOCOL_VERSION
         )
     
-    async def get_active_nodes(self) -> List[NodeInfo]:
+    async def get_active_nodes(self) -> list[NodeInfo]:
         """Get list of active nodes"""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         active = []
         
         for node in self._nodes.values():

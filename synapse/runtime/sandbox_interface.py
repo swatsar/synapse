@@ -7,11 +7,10 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Protocol, Type
-from dataclasses import dataclass, field
-from enum import Enum
 import threading
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Protocol
 
 
 class SandboxType(str, Enum):
@@ -39,9 +38,9 @@ class ExecutionContract:
     """Contract for execution in sandbox"""
     contract_id: str
     tenant_id: str
-    capability_set: List[str]
+    capability_set: list[str]
     execution_domain: str
-    resource_limits: Dict[str, int]
+    resource_limits: dict[str, int]
     deterministic_seed: int
     timestamp: str
     contract_hash: str
@@ -53,7 +52,7 @@ class ExecutionResult:
     """Result of sandbox execution"""
     success: bool
     output: Any
-    error: Optional[str]
+    error: str | None
     execution_time_ms: int
     memory_used_mb: int
     result_hash: str
@@ -86,7 +85,7 @@ class SandboxInterface(Protocol):
         self,
         contract: ExecutionContract,
         code: str,
-        inputs: Dict[str, Any]
+        inputs: dict[str, Any]
     ) -> ExecutionResult:
         """
         Execute code in sandbox.
@@ -105,7 +104,7 @@ class SandboxInterface(Protocol):
         self,
         contract: ExecutionContract,
         code: str,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         expected_hash: str
     ) -> bool:
         """
@@ -136,8 +135,8 @@ class SandboxRegistry:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._sandboxes: Dict[SandboxType, SandboxInterface] = {}
-        self._default_type: Optional[SandboxType] = None
+        self._sandboxes: dict[SandboxType, SandboxInterface] = {}
+        self._default_type: SandboxType | None = None
         self._lock = threading.Lock()
 
     def register(
@@ -165,8 +164,8 @@ class SandboxRegistry:
 
     def get_sandbox(
         self,
-        sandbox_type: Optional[SandboxType] = None,
-        contract: Optional[ExecutionContract] = None
+        sandbox_type: SandboxType | None = None,
+        contract: ExecutionContract | None = None
     ) -> SandboxInterface:
         """
         Get sandbox for execution.
@@ -205,20 +204,20 @@ class SandboxRegistry:
 
             return self._sandboxes[self._default_type]
 
-    def list_sandboxes(self) -> List[SandboxType]:
+    def list_sandboxes(self) -> list[SandboxType]:
         """List registered sandbox types"""
         with self._lock:
             return list(self._sandboxes.keys())
 
     def get_capabilities(
         self,
-        sandbox_type: Optional[SandboxType] = None
+        sandbox_type: SandboxType | None = None
     ) -> SandboxCapabilities:
         """Get capabilities of sandbox"""
         sandbox = self.get_sandbox(sandbox_type)
         return sandbox.capabilities
 
-    def _select_for_contract(self, contract: ExecutionContract) -> Optional[SandboxInterface]:
+    def _select_for_contract(self, contract: ExecutionContract) -> SandboxInterface | None:
         """
         Deterministically select sandbox based on contract.
 
@@ -305,7 +304,7 @@ class ProcessSandbox:
         self,
         contract: ExecutionContract,
         code: str,
-        inputs: Dict[str, Any]
+        inputs: dict[str, Any]
     ) -> ExecutionResult:
         """Execute code in process sandbox"""
         import time
@@ -352,7 +351,7 @@ class ProcessSandbox:
         self,
         contract: ExecutionContract,
         code: str,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         expected_hash: str
     ) -> bool:
         """Verify replay"""
@@ -368,11 +367,11 @@ class ProcessSandbox:
 
 
 __all__ = [
-    "SandboxType",
-    "SandboxCapabilities",
     "ExecutionContract",
     "ExecutionResult",
+    "ProcessSandbox",
+    "SandboxCapabilities",
     "SandboxInterface",
     "SandboxRegistry",
-    "ProcessSandbox"
+    "SandboxType"
 ]

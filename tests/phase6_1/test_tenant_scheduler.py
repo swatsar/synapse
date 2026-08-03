@@ -8,7 +8,7 @@ PROTOCOL_VERSION = "1.0"
 import pytest
 import hashlib
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -93,7 +93,7 @@ class TestTenantSchedulerSpecification:
             tenant_hash=tenant_hash,
             capabilities=["compute:basic", "memory:read"],
             resource_quota={"cpu_seconds": 100, "memory_mb": 512},
-            created_at=datetime.utcnow().isoformat(),
+            created_at=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -107,7 +107,7 @@ class TestTenantSchedulerSpecification:
             priority=1,
             required_capabilities=["compute:basic"],
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -142,7 +142,7 @@ class TestTenantSchedulerSpecification:
             priority=1,
             required_capabilities=["admin:all"],  # Not in tenant capabilities
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -166,7 +166,7 @@ class TestTenantSchedulerSpecification:
                     priority=1,
                     required_capabilities=["compute:basic"],
                     execution_seed=42 + i,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(UTC).isoformat(),
                     protocol_version="1.0"
                 ))
 
@@ -194,7 +194,7 @@ class TestTenantSchedulerSpecification:
                 priority=1,
                 required_capabilities=["compute:basic"],
                 execution_seed=100 + i,
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 protocol_version="1.0"
             )
             decisions.append(scheduler.schedule(req))
@@ -212,7 +212,7 @@ class TestTenantSchedulerSpecification:
                 priority=1,
                 required_capabilities=["compute:basic"],
                 execution_seed=100 + i,  # Same seeds
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 protocol_version="1.0"
             )
             decisions2.append(scheduler.schedule(req))
@@ -241,7 +241,7 @@ class TestTenantSchedulerSpecification:
             priority=1,
             required_capabilities=["compute:basic"],
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -261,7 +261,7 @@ class TestTenantSchedulerSpecification:
             priority=1,
             required_capabilities=[],  # Empty - should still require something
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -279,7 +279,7 @@ class TestTenantSchedulerSpecification:
             priority=1,
             required_capabilities=["compute:basic"],
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -293,7 +293,7 @@ class TestTenantSchedulerSpecification:
             priority=1,
             required_capabilities=["compute:basic"],
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -655,7 +655,7 @@ class TestMultiTenantIsolation:
             priority=1,
             required_capabilities=["compute:basic"],
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 
@@ -666,7 +666,7 @@ class TestMultiTenantIsolation:
             priority=1,
             required_capabilities=["compute:basic"],
             execution_seed=42,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             protocol_version="1.0"
         )
 

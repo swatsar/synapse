@@ -2,9 +2,10 @@
 
 Pydantic models for the Synapse platform.
 """
-from typing import Any, Dict, List, Optional, ClassVar
+from datetime import UTC, datetime
+from typing import Any, ClassVar
+
 from pydantic import BaseModel, Field
-from datetime import datetime, timezone
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -32,12 +33,12 @@ class ExecutionContext(BaseModel):
     session_id: str
     agent_id: str
     trace_id: str
-    capabilities: List[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
     memory_store: Any = None
     logger: Any = None
     resource_limits: ResourceLimits = Field(default_factory=ResourceLimits)
     execution_seed: int = 42
-    checkpoint_id: Optional[str] = None
+    checkpoint_id: str | None = None
     
     model_config = {"arbitrary_types_allowed": True}
 
@@ -51,9 +52,9 @@ class SkillManifest(BaseModel):
     version: str = "1.0.0"
     description: str = ""
     author: str = ""
-    inputs: Dict[str, str] = Field(default_factory=dict)
-    outputs: Dict[str, str] = Field(default_factory=dict)
-    required_capabilities: List[str] = Field(default_factory=list)
+    inputs: dict[str, str] = Field(default_factory=dict)
+    outputs: dict[str, str] = Field(default_factory=dict)
+    required_capabilities: list[str] = Field(default_factory=list)
     risk_level: int = 1
     trust_level: str = "unverified"
     isolation_type: str = "subprocess"
@@ -65,9 +66,9 @@ class ActionPlan(BaseModel):
     protocol_version: ClassVar[str] = "1.0"
     
     goal: str
-    steps: List[Dict[str, Any]] = Field(default_factory=list)
+    steps: list[dict[str, Any]] = Field(default_factory=list)
     risk_level: int = 1
-    required_capabilities: List[str] = Field(default_factory=list)
+    required_capabilities: list[str] = Field(default_factory=list)
 
 
 class MemoryEntry(BaseModel):
@@ -77,8 +78,8 @@ class MemoryEntry(BaseModel):
     
     key: str
     value: Any
-    timestamp: float = Field(default_factory=lambda: datetime.now(timezone.utc).timestamp())
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: float = Field(default_factory=lambda: datetime.now(UTC).timestamp())
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class MemoryQuery(BaseModel):
@@ -89,4 +90,4 @@ class MemoryQuery(BaseModel):
     query_text: str
     limit: int = 10
     threshold: float = 0.7
-    filters: Dict[str, Any] = Field(default_factory=dict)
+    filters: dict[str, Any] = Field(default_factory=dict)

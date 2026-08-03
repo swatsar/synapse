@@ -10,23 +10,18 @@ Responsibilities:
 - cluster identity hash
 """
 
-from typing import Dict, List, Optional, Set
-from dataclasses import dataclass, field
 import hashlib
 import json
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
-from synapse.orchestrator_control.models import (
-    TrustedNodeDescriptor,
-    ClusterMembership,
-    PROTOCOL_VERSION
-)
+from synapse.orchestrator_control.models import PROTOCOL_VERSION, TrustedNodeDescriptor
 
 
 @dataclass
 class MembershipState:
     """Current membership state"""
-    nodes: Dict[str, TrustedNodeDescriptor]
+    nodes: dict[str, TrustedNodeDescriptor]
     membership_hash: str
     quorum_count: int
     last_updated: str
@@ -52,10 +47,10 @@ class ClusterMembershipAuthority:
     PROTOCOL_VERSION = PROTOCOL_VERSION
     
     def __init__(self, quorum_threshold: int = 2):
-        self._nodes: Dict[str, TrustedNodeDescriptor] = {}
+        self._nodes: dict[str, TrustedNodeDescriptor] = {}
         self._quorum_threshold = quorum_threshold
-        self._membership_hash: Optional[str] = None
-        self._last_updated: Optional[str] = None
+        self._membership_hash: str | None = None
+        self._last_updated: str | None = None
     
     def register_trusted_node(
         self,
@@ -75,7 +70,7 @@ class ClusterMembershipAuthority:
         
         # Update membership hash
         self._membership_hash = self._compute_membership_hash()
-        self._last_updated = datetime.utcnow().isoformat()
+        self._last_updated = datetime.now(UTC).isoformat()
         
         return descriptor.node_id
     
@@ -92,7 +87,7 @@ class ClusterMembershipAuthority:
         if node_id in self._nodes:
             del self._nodes[node_id]
             self._membership_hash = self._compute_membership_hash()
-            self._last_updated = datetime.utcnow().isoformat()
+            self._last_updated = datetime.now(UTC).isoformat()
             return True
         return False
     
@@ -119,7 +114,7 @@ class ClusterMembershipAuthority:
         """
         return node_id in self._nodes
     
-    def get_node(self, node_id: str) -> Optional[TrustedNodeDescriptor]:
+    def get_node(self, node_id: str) -> TrustedNodeDescriptor | None:
         """
         Get node descriptor.
         
@@ -131,7 +126,7 @@ class ClusterMembershipAuthority:
         """
         return self._nodes.get(node_id)
     
-    def list_nodes(self) -> List[Dict[str, any]]:
+    def list_nodes(self) -> list[dict[str, any]]:
         """
         List all trusted nodes.
         
@@ -163,7 +158,7 @@ class ClusterMembershipAuthority:
             nodes=self._nodes.copy(),
             membership_hash=self.compute_membership_hash(),
             quorum_count=len(self._nodes),
-            last_updated=self._last_updated or datetime.utcnow().isoformat()
+            last_updated=self._last_updated or datetime.now(UTC).isoformat()
         )
     
     def validate_quorum(self) -> bool:
@@ -249,12 +244,9 @@ class ClusterMembershipAuthority:
         
         # Check membership hash is consistent
         computed_hash = self._compute_membership_hash()
-        if self._membership_hash and self._membership_hash != computed_hash:
-            return False
-        
-        return True
+        return not (self._membership_hash and self._membership_hash != computed_hash)
     
-    def get_nodes_by_trust_level(self, trust_level: int) -> List[str]:
+    def get_nodes_by_trust_level(self, trust_level: int) -> list[str]:
         """
         Get nodes by trust level.
         
@@ -269,7 +261,7 @@ class ClusterMembershipAuthority:
             if node.trust_level == trust_level
         ]
     
-    def get_trusted_nodes(self) -> List[str]:
+    def get_trusted_nodes(self) -> list[str]:
         """
         Get all trusted node IDs.
         

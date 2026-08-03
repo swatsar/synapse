@@ -2,7 +2,13 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 import pytest
-from synapse.core.isolation_policy import IsolationEnforcementPolicy, RuntimeIsolationType, SkillTrustLevel
+
+from synapse.core.isolation_policy import (
+    IsolationEnforcementPolicy,
+    RuntimeIsolationType,
+    SkillTrustLevel,
+)
+
 
 @pytest.fixture
 def policy():

@@ -7,12 +7,12 @@ Adapted from LangSmith SDK tracing patterns (LANGSMITH_SDK_INTEGRATION.md §1).
 Synapse additions: security context, capability metadata, audit integration,
 protocol versioning, sensitive data filtering.
 """
-import uuid
 import logging
+import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -47,34 +47,34 @@ class TraceSpan:
     """
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     trace_id: str = ""
-    parent_span_id: Optional[str] = None
+    parent_span_id: str | None = None
     name: str = ""
     span_type: SpanType = SpanType.AGENT
-    start_time: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    end_time: Optional[str] = None
+    start_time: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    end_time: str | None = None
     status: SpanStatus = SpanStatus.UNSET
-    inputs: Optional[Dict[str, Any]] = None
-    outputs: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    inputs: dict[str, Any] | None = None
+    outputs: dict[str, Any] | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     # Synapse-specific
     protocol_version: str = PROTOCOL_VERSION
     session_id: str = ""
     agent_id: str = ""
-    security_context: Dict[str, Any] = field(default_factory=dict)
-    capability_checks: List[Dict[str, Any]] = field(default_factory=list)
-    resource_usage: Dict[str, Any] = field(default_factory=dict)
+    security_context: dict[str, Any] = field(default_factory=dict)
+    capability_checks: list[dict[str, Any]] = field(default_factory=list)
+    resource_usage: dict[str, Any] = field(default_factory=dict)
     is_sensitive: bool = False
 
-    def finish(self, status: SpanStatus = SpanStatus.OK, outputs: Any = None, error: str = None) -> None:
-        self.end_time = datetime.now(timezone.utc).isoformat()
+    def finish(self, status: SpanStatus = SpanStatus.OK, outputs: Any = None, error: str | None = None) -> None:
+        self.end_time = datetime.now(UTC).isoformat()
         self.status = status
         if outputs is not None:
             self.outputs = outputs if isinstance(outputs, dict) else {"result": outputs}
         if error:
             self.error = error
 
-    def duration_ms(self) -> Optional[float]:
+    def duration_ms(self) -> float | None:
         if self.end_time:
             try:
                 s = datetime.fromisoformat(self.start_time)
@@ -84,7 +84,7 @@ class TraceSpan:
                 pass  # noqa: silenced - _exc
         return None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "trace_id": self.trace_id,
@@ -119,8 +119,8 @@ class SecureTraceClient:
     def __init__(
         self,
         project_name: str = "synapse",
-        api_key: Optional[str] = None,
-        endpoint: Optional[str] = None,
+        api_key: str | None = None,
+        endpoint: str | None = None,
         sampling_rate: float = 1.0,
         filter_sensitive: bool = True,
     ):
@@ -130,8 +130,8 @@ class SecureTraceClient:
         self.sampling_rate = sampling_rate
         self.filter_sensitive = filter_sensitive
         # In-memory store (production would export to LangSmith/OTLP/etc.)
-        self._traces: Dict[str, List[TraceSpan]] = {}
-        self._active: Dict[str, TraceSpan] = {}  # span_id → span
+        self._traces: dict[str, list[TraceSpan]] = {}
+        self._active: dict[str, TraceSpan] = {}  # span_id → span
 
         audit(event="trace_client_initialized", project=project_name, protocol_version=PROTOCOL_VERSION)
 
@@ -145,8 +145,8 @@ class SecureTraceClient:
         session_id: str = "",
         agent_id: str = "",
         span_type: SpanType = SpanType.AGENT,
-        metadata: Optional[Dict] = None,
-        inputs: Optional[Dict] = None,
+        metadata: dict | None = None,
+        inputs: dict | None = None,
         is_sensitive: bool = False,
     ) -> TraceSpan:
         """Start a new root trace span."""
@@ -171,8 +171,8 @@ class SecureTraceClient:
         name: str,
         parent_span: TraceSpan,
         span_type: SpanType = SpanType.SKILL,
-        inputs: Optional[Dict] = None,
-        metadata: Optional[Dict] = None,
+        inputs: dict | None = None,
+        metadata: dict | None = None,
     ) -> TraceSpan:
         """Start a child span within an existing trace."""
         span = TraceSpan(
@@ -193,7 +193,7 @@ class SecureTraceClient:
         self,
         span: TraceSpan,
         outputs: Any = None,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         """Finish a span and record it."""
         status = SpanStatus.ERROR if error else SpanStatus.OK
@@ -201,18 +201,18 @@ class SecureTraceClient:
         span.finish(status=status, outputs=out, error=error)
         self._active.pop(span.id, None)
 
-    def get_trace(self, trace_id: str) -> List[TraceSpan]:
+    def get_trace(self, trace_id: str) -> list[TraceSpan]:
         """Return all spans for a trace."""
         return self._traces.get(trace_id, [])
 
-    def get_all_traces(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_traces(self) -> dict[str, list[dict[str, Any]]]:
         """Return all traces as serializable dicts."""
         return {
             tid: [s.to_dict() for s in spans]
             for tid, spans in self._traces.items()
         }
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return tracing statistics."""
         total_spans = sum(len(v) for v in self._traces.values())
         return {
@@ -227,7 +227,7 @@ class SecureTraceClient:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _filter(self, data: Optional[Dict]) -> Optional[Dict]:
+    def _filter(self, data: dict | None) -> dict | None:
         """Mask sensitive fields from trace data."""
         if not data or not self.filter_sensitive:
             return data

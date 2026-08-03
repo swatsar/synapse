@@ -8,11 +8,11 @@ Synapse additions: checkpoint integration, capability checks,
 audit logging, protocol versioning, rollback support.
 """
 import asyncio
-import uuid
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChainInput:
     """Input to a chain step."""
-    data: Dict[str, Any]
+    data: dict[str, Any]
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     session_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     protocol_version: str = PROTOCOL_VERSION
@@ -33,14 +33,14 @@ class ChainInput:
 class ChainOutput:
     """Output from a chain step."""
     result: Any
-    intermediate_steps: List[Dict[str, Any]] = field(default_factory=list)
+    intermediate_steps: list[dict[str, Any]] = field(default_factory=list)
     trace_id: str = ""
     session_id: str = ""
     success: bool = True
-    error: Optional[str] = None
+    error: str | None = None
     protocol_version: str = PROTOCOL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "result": self.result,
             "intermediate_steps": self.intermediate_steps,
@@ -75,7 +75,7 @@ class BaseChain(ABC):
     async def execute(self, input: ChainInput) -> ChainOutput:
         """Execute the chain."""
 
-    async def _create_checkpoint(self, input: ChainInput, state: Dict) -> Optional[str]:
+    async def _create_checkpoint(self, input: ChainInput, state: dict) -> str | None:
         if self.checkpoint:
             try:
                 cp = self.checkpoint.create_checkpoint(
@@ -140,7 +140,7 @@ class SequentialChain(BaseChain):
     Adapted from LangChain SequentialChain (LANGCHAIN_INTEGRATION.md §2.1).
     """
 
-    def __init__(self, chains: List[BaseChain], **kwargs):
+    def __init__(self, chains: list[BaseChain], **kwargs):
         super().__init__(name="sequential_chain", **kwargs)
         self.chains = chains
 
@@ -149,7 +149,7 @@ class SequentialChain(BaseChain):
         await self._create_checkpoint(input, {"step": 0, "total": len(self.chains)})
 
         current = input
-        steps: List[Dict[str, Any]] = []
+        steps: list[dict[str, Any]] = []
         for i, chain in enumerate(self.chains):
             try:
                 out = await chain.execute(current)
@@ -176,7 +176,7 @@ class ParallelChain(BaseChain):
     Adapted from LangChain parallel patterns (LANGCHAIN_INTEGRATION.md §2.1).
     """
 
-    def __init__(self, chains: List[BaseChain], merge_key: str = "results", **kwargs):
+    def __init__(self, chains: list[BaseChain], merge_key: str = "results", **kwargs):
         super().__init__(name="parallel_chain", **kwargs)
         self.chains = chains
         self.merge_key = merge_key
@@ -185,8 +185,8 @@ class ParallelChain(BaseChain):
         audit(event="parallel_chain_start", parallel_count=len(self.chains), trace_id=input.trace_id, protocol_version=PROTOCOL_VERSION)
         tasks = [chain.execute(input) for chain in self.chains]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        outputs: List[Any] = []
-        steps: List[Dict[str, Any]] = []
+        outputs: list[Any] = []
+        steps: list[dict[str, Any]] = []
         all_success = True
         for chain, res in zip(self.chains, results):
             if isinstance(res, Exception):
@@ -207,7 +207,7 @@ class RouterChain(BaseChain):
     Adapted from LangChain RouterChain (LANGCHAIN_INTEGRATION.md §2.1).
     """
 
-    def __init__(self, routes: Dict[str, BaseChain], default_chain: Optional[BaseChain] = None, **kwargs):
+    def __init__(self, routes: dict[str, BaseChain], default_chain: BaseChain | None = None, **kwargs):
         super().__init__(name="router_chain", **kwargs)
         self.routes = routes
         self.default = default_chain

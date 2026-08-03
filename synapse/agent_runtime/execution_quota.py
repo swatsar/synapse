@@ -4,10 +4,8 @@ Execution Quota - Resource Limits for Agent Execution
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, Optional, Any
-from datetime import datetime, UTC
 import time
+from dataclasses import dataclass
 
 
 @dataclass
@@ -25,7 +23,7 @@ class QuotaState:
     steps_used: int = 0
     time_used_ms: int = 0
     capability_calls_used: int = 0
-    start_time: Optional[float] = None
+    start_time: float | None = None
     protocol_version: str = "1.0"
 
 

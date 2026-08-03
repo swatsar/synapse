@@ -6,12 +6,11 @@ Specification: 3.1
 Implements the semantic (vector) memory layer using ChromaDB.
 Falls back to SQLite FTS when ChromaDB is unavailable.
 """
-import json
 import hashlib
 import logging
 import time
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 logger = logging.getLogger(__name__)
@@ -32,7 +31,7 @@ class VectorMemoryStore:
     def __init__(
         self,
         collection_name: str = "synapse_memory",
-        persist_directory: Optional[str] = None,
+        persist_directory: str | None = None,
         embedding_model: str = "text-embedding-3-small",
     ):
         self.collection_name = collection_name
@@ -40,7 +39,7 @@ class VectorMemoryStore:
         self.embedding_model = embedding_model
         self._client = None
         self._collection = None
-        self._fallback_store: List[Dict] = []
+        self._fallback_store: list[dict] = []
         self._initialized = False
 
     async def _init(self) -> bool:
@@ -49,7 +48,7 @@ class VectorMemoryStore:
             return self._client is not None
         self._initialized = True
         try:
-            import chromadb  # noqa: PLC0415
+            import chromadb
             if self.persist_directory:
                 self._client = chromadb.PersistentClient(path=self.persist_directory)
             else:
@@ -67,7 +66,7 @@ class VectorMemoryStore:
             logger.warning("ChromaDB init failed (%s) — using keyword fallback", e)
             return False
 
-    def _embed_fallback(self, text: str) -> List[float]:
+    def _embed_fallback(self, text: str) -> list[float]:
         """Deterministic hash-based embedding when LLM/ChromaDB unavailable."""
         import struct
         digest = hashlib.sha512(text.encode()).digest()
@@ -79,13 +78,13 @@ class VectorMemoryStore:
     async def add_document(
         self,
         text: str,
-        doc_id: Optional[str] = None,
-        metadata: Optional[Dict] = None,
+        doc_id: str | None = None,
+        metadata: dict | None = None,
     ) -> str:
         """Embed and store a document."""
         doc_id = doc_id or hashlib.sha256(f"{text}{time.time()}".encode()).hexdigest()[:16]
         meta = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "protocol_version": PROTOCOL_VERSION,
             **(metadata or {}),
         }
@@ -112,14 +111,14 @@ class VectorMemoryStore:
         self,
         query_text: str,
         limit: int = 5,
-        where: Optional[Dict] = None,
-    ) -> List[Dict[str, Any]]:
+        where: dict | None = None,
+    ) -> list[dict[str, Any]]:
         """Semantic similarity search."""
         chroma_ok = await self._init()
         if chroma_ok and self._collection is not None:
             try:
                 embedding = await self._get_embedding(query_text)
-                kwargs: Dict[str, Any] = {
+                kwargs: dict[str, Any] = {
                     "query_embeddings": [embedding],
                     "n_results": min(limit, max(1, self._collection.count())),
                     "include": ["documents", "metadatas", "distances"],
@@ -173,16 +172,16 @@ class VectorMemoryStore:
                 pass  # noqa: silenced - _exc
         return len(self._fallback_store)
 
-    async def _get_embedding(self, text: str) -> List[float]:
+    async def _get_embedding(self, text: str) -> list[float]:
         """Get text embedding via litellm or fallback."""
         try:
-            import litellm  # noqa: PLC0415
+            import litellm
             response = litellm.embedding(model=self.embedding_model, input=[text])
             return response.data[0]["embedding"]
         except Exception:
             return self._embed_fallback(text)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "collection": self.collection_name,
             "backend": "chromadb" if self._client else "in_memory_keyword",

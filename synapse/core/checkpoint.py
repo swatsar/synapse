@@ -2,11 +2,12 @@
 
 Provides checkpoint creation and state management for rollback.
 """
-import uuid
 import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, ClassVar
+import uuid
+from datetime import UTC, datetime
+from typing import Any, ClassVar
+
 from pydantic import BaseModel, Field
 
 PROTOCOL_VERSION: str = "1.0"
@@ -27,12 +28,12 @@ class Checkpoint(BaseModel):
     checkpoint_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     agent_id: str = "default"
     session_id: str = "default"
-    state: Dict[str, Any] = Field(default_factory=dict)
-    created_at: float = Field(default_factory=lambda: datetime.now(timezone.utc).timestamp())
+    state: dict[str, Any] = Field(default_factory=dict)
+    created_at: float = Field(default_factory=lambda: datetime.now(UTC).timestamp())
     is_active: bool = True
     security_hash: str = ""  # v3.1: Security hash for integrity verification
     _instance_protocol_version: str = "1.0"
-    _original_state: Dict[str, Any] = None  # Store original state for rollback
+    _original_state: dict[str, Any] = None  # Store original state for rollback
     
     def __init__(self, **data):
         super().__init__(**data)
@@ -41,7 +42,7 @@ class Checkpoint(BaseModel):
         if not self.security_hash and self.state:
             self.security_hash = self._compute_hash(self.state)
     
-    def _compute_hash(self, state: Dict[str, Any]) -> str:
+    def _compute_hash(self, state: dict[str, Any]) -> str:
         """Compute SHA-256 hash of state for integrity verification."""
         state_json = json.dumps(state, sort_keys=True, default=str)
         return hashlib.sha256(state_json.encode()).hexdigest()
@@ -60,7 +61,7 @@ class Checkpoint(BaseModel):
         Returns:
             True if checkpoint is fresh
         """
-        now = datetime.now(timezone.utc).timestamp()
+        now = datetime.now(UTC).timestamp()
         return (now - self.created_at) < max_age_seconds
     
     def verify_integrity(self) -> bool:
@@ -74,7 +75,7 @@ class Checkpoint(BaseModel):
         expected_hash = self._compute_hash(self.state)
         return self.security_hash == expected_hash
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert checkpoint to dictionary.
         
         Returns:
@@ -92,7 +93,7 @@ class Checkpoint(BaseModel):
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Checkpoint":
+    def from_dict(cls, data: dict[str, Any]) -> "Checkpoint":
         """Create checkpoint from dictionary.
         
         Args:
@@ -122,11 +123,11 @@ class CheckpointManager:
         """
         self.cap_manager = cap_manager
         self.audit = audit
-        self._checkpoints: Dict[str, Checkpoint] = {}
+        self._checkpoints: dict[str, Checkpoint] = {}
     
     def create_checkpoint(
         self,
-        state: Dict[str, Any],
+        state: dict[str, Any],
         agent_id: str = "default",
         session_id: str = "default"
     ) -> Checkpoint:
@@ -159,7 +160,7 @@ class CheckpointManager:
         
         return checkpoint
     
-    def get_checkpoint(self, checkpoint_id: uuid.UUID) -> Optional[Checkpoint]:
+    def get_checkpoint(self, checkpoint_id: uuid.UUID) -> Checkpoint | None:
         """Get checkpoint by ID.
         
         Args:
@@ -170,7 +171,7 @@ class CheckpointManager:
         """
         return self._checkpoints.get(str(checkpoint_id))
     
-    def get_state(self, checkpoint_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+    def get_state(self, checkpoint_id: uuid.UUID) -> dict[str, Any] | None:
         """Get state from checkpoint.
         
         Args:
@@ -182,7 +183,7 @@ class CheckpointManager:
         cp = self.get_checkpoint(checkpoint_id)
         return cp.state if cp else None
     
-    def update_state(self, checkpoint_id: uuid.UUID, state: Dict[str, Any]) -> bool:
+    def update_state(self, checkpoint_id: uuid.UUID, state: dict[str, Any]) -> bool:
         """Update checkpoint state.
         
         Args:
@@ -203,7 +204,7 @@ class CheckpointManager:
             return True
         return False
     
-    def restore(self, checkpoint_id: uuid.UUID) -> Optional[Dict[str, Any]]:
+    def restore(self, checkpoint_id: uuid.UUID) -> dict[str, Any] | None:
         """Restore state from checkpoint to original.
         
         Args:

@@ -9,9 +9,9 @@ to prevent race conditions in concurrent access scenarios.
 
 PROTOCOL_VERSION: str = "1.0"
 import asyncio
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timezone
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from typing import Any
 
 
 class AsyncSafeDict:
@@ -19,7 +19,7 @@ class AsyncSafeDict:
 
     def __init__(self, name: str = "storage"):
         self.name = name
-        self._data: Dict[str, Any] = {}
+        self._data: dict[str, Any] = {}
         self._lock = asyncio.Lock()
         self._read_lock = asyncio.Lock()
         self._write_count = 0
@@ -68,17 +68,17 @@ class AsyncSafeDict:
         async with self.read_lock():
             return key in self._data
 
-    async def keys(self) -> List[str]:
+    async def keys(self) -> list[str]:
         """Safely get all keys."""
         async with self.read_lock():
             return list(self._data.keys())
 
-    async def values(self) -> List[Any]:
+    async def values(self) -> list[Any]:
         """Safely get all values."""
         async with self.read_lock():
             return list(self._data.values())
 
-    async def items(self) -> List[tuple]:
+    async def items(self) -> list[tuple]:
         """Safely get all items."""
         async with self.read_lock():
             return list(self._data.items())
@@ -93,7 +93,7 @@ class AsyncSafeDict:
         async with self.read_lock():
             return len(self._data)
 
-    async def stats(self) -> Dict[str, Any]:
+    async def stats(self) -> dict[str, Any]:
         """Get storage statistics."""
         async with self.read_lock():
             return {
@@ -101,7 +101,7 @@ class AsyncSafeDict:
                 "count": len(self._data),
                 "write_count": self._write_count,
                 "read_count": self._read_count,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
 
 
@@ -111,7 +111,7 @@ class AsyncSafeList:
     def __init__(self, name: str = "list_storage", max_size: int = 10000):
         self.name = name
         self.max_size = max_size
-        self._data: List[Any] = []
+        self._data: list[Any] = []
         self._lock = asyncio.Lock()
         self._read_lock = asyncio.Lock()
         self._append_count = 0
@@ -152,7 +152,7 @@ class AsyncSafeList:
             except IndexError:
                 return default
 
-    async def slice(self, start: int = 0, end: Optional[int] = None) -> List[Any]:
+    async def slice(self, start: int = 0, end: int | None = None) -> list[Any]:
         """Safely get a slice of the list."""
         async with self.read_lock():
             return self._data[start:end]
@@ -167,7 +167,7 @@ class AsyncSafeList:
         async with self.write_lock():
             self._data.clear()
 
-    async def stats(self) -> Dict[str, Any]:
+    async def stats(self) -> dict[str, Any]:
         """Get storage statistics."""
         async with self.read_lock():
             return {
@@ -175,7 +175,7 @@ class AsyncSafeList:
                 "count": len(self._data),
                 "max_size": self.max_size,
                 "append_count": self._append_count,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
 
 

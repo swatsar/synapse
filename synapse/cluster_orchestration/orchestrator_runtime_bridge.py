@@ -11,9 +11,9 @@ Bridge between cluster orchestrator and DeterministicRuntimeAPI with:
 
 import hashlib
 import json
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -53,13 +53,13 @@ class OrchestratorRuntimeBridge:
     PROTOCOL_VERSION: str = "1.0"
     
     def __init__(self):
-        self._execution_proofs: Dict[str, ExecutionProof] = {}
-        self._pending_executions: Dict[str, Dict] = {}
+        self._execution_proofs: dict[str, ExecutionProof] = {}
+        self._pending_executions: dict[str, dict] = {}
     
     async def execute_distributed(self, 
                                    contract_id: str, 
-                                   input_data: Dict[str, Any],
-                                   node_id: str = None) -> ExecutionResult:
+                                   input_data: dict[str, Any],
+                                   node_id: str | None = None) -> ExecutionResult:
         """
         Execute a contract on distributed runtime.
         
@@ -82,7 +82,7 @@ class OrchestratorRuntimeBridge:
             contract_id=contract_id,
             execution_hash=execution_hash,
             audit_root=self._compute_audit_root(execution_hash),
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.now(UTC).isoformat()
         )
         
         self._execution_proofs[proof_id] = proof
@@ -116,16 +116,13 @@ class OrchestratorRuntimeBridge:
         
         # Verify hash consistency
         expected_audit_root = self._compute_audit_root(proof.execution_hash)
-        if proof.audit_root != expected_audit_root:
-            return False
-        
-        return True
+        return proof.audit_root == expected_audit_root
     
-    def get_proof(self, proof_id: str) -> Optional[ExecutionProof]:
+    def get_proof(self, proof_id: str) -> ExecutionProof | None:
         """Get execution proof by ID"""
         return self._execution_proofs.get(proof_id)
     
-    def _compute_execution_hash(self, contract_id: str, input_data: Dict[str, Any]) -> str:
+    def _compute_execution_hash(self, contract_id: str, input_data: dict[str, Any]) -> str:
         """Compute deterministic execution hash"""
         data = {
             "contract_id": contract_id,

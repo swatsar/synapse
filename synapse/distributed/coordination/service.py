@@ -1,9 +1,9 @@
 PROTOCOL_VERSION: str = "1.0"
 import asyncio
 import time
-from typing import Any, Dict, List
 
 from synapse.security.capability_manager import CapabilityManager
+
 
 class ClusterCoordinationService:
     """Deterministic coordination service for a cluster of nodes.
@@ -17,8 +17,8 @@ class ClusterCoordinationService:
 
     def __init__(self, caps: CapabilityManager):
         self._caps = caps
-        self._node_registry: List[str] = []
-        self._event_log: List[Dict] = []
+        self._node_registry: list[str] = []
+        self._event_log: list[dict] = []
         self._log_lock: asyncio.Lock = None  # lazy per-loop
 
     def _get_lock(self) -> asyncio.Lock:
@@ -32,7 +32,7 @@ class ClusterCoordinationService:
             if node_id not in self._node_registry:
                 self._node_registry.append(node_id)
 
-    async def broadcast(self, node_id: str, payload: Dict) -> None:
+    async def broadcast(self, node_id: str, payload: dict) -> None:
         await self._caps.check_capability(["coordination:broadcast"])
         async with self._get_lock():
             event = {
@@ -43,7 +43,7 @@ class ClusterCoordinationService:
             }
             self._event_log.append(event)
 
-    async def fetch_log(self) -> List[Dict]:
+    async def fetch_log(self) -> list[dict]:
         await self._caps.check_capability(["coordination:read"])
         async with self._get_lock():
             # Return a copy to avoid external mutation

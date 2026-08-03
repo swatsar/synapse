@@ -2,10 +2,9 @@
 Deterministic Scheduler for Synapse Control Plane.
 Provides deterministic task distribution across nodes.
 """
-from dataclasses import dataclass
-from typing import Dict, List, Optional
 import hashlib
 import json
+from dataclasses import dataclass
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -14,7 +13,7 @@ PROTOCOL_VERSION: str = "1.0"
 class Task:
     """Task to be scheduled"""
     task_id: str
-    required_capabilities: List[str]
+    required_capabilities: list[str]
     priority: int
     payload: dict
     execution_seed: int
@@ -45,9 +44,9 @@ class DeterministicScheduler:
     
     async def schedule(
         self,
-        tasks: List[Task],
-        nodes: List[dict]
-    ) -> List[ScheduledTask]:
+        tasks: list[Task],
+        nodes: list[dict]
+    ) -> list[ScheduledTask]:
         """
         Schedule tasks across nodes deterministically.
         
@@ -89,7 +88,7 @@ class DeterministicScheduler:
         
         return scheduled
     
-    def _has_capabilities(self, node: dict, required: List[str]) -> bool:
+    def _has_capabilities(self, node: dict, required: list[str]) -> bool:
         """Check if node has required capabilities"""
         node_caps = set(node.get("capabilities", []))
         return all(cap in node_caps for cap in required)

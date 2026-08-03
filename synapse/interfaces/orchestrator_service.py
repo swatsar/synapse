@@ -4,21 +4,21 @@ Orchestrator Service API
 
 PROTOCOL_VERSION: str = "1.0"
 
-from typing import Dict, Any, Optional
-from datetime import datetime, UTC
+from typing import Any
 
+from synapse.core.binding import BindingManager
 from synapse.orchestrator.orchestrator_agent import OrchestratorAgent
 from synapse.orchestrator.task_model import Task
-from synapse.core.binding import BindingManager
+
 
 class OrchestratorService:
     """Service API for orchestrator"""
     
-    def __init__(self, binding_manager: Optional[BindingManager] = None):
+    def __init__(self, binding_manager: BindingManager | None = None):
         self.binding_manager = binding_manager or BindingManager()
         self.orchestrator = OrchestratorAgent(binding_manager=self.binding_manager)
     
-    async def accept_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def accept_task(self, task_data: dict[str, Any]) -> dict[str, Any]:
         """Accept and process a task"""
         agent_id = task_data.get("agent_id")
         capabilities = task_data.get("capabilities", task_data.get("required_capabilities", []))
@@ -43,7 +43,7 @@ class OrchestratorService:
             "protocol_version": "1.0"
         }
     
-    async def get_trace(self, trace_id: str) -> Optional[Dict[str, Any]]:
+    async def get_trace(self, trace_id: str) -> dict[str, Any] | None:
         """Get execution trace by ID"""
         return {
             "trace_id": trace_id,

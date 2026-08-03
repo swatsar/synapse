@@ -13,7 +13,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -28,13 +28,13 @@ class ActionStep:
     step_id: str
     action: str
     skill: str
-    params: Dict[str, Any] = field(default_factory=dict)
-    required_capabilities: List[str] = field(default_factory=list)
+    params: dict[str, Any] = field(default_factory=dict)
+    required_capabilities: list[str] = field(default_factory=list)
     risk_level: int = 1
-    depends_on: List[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
     protocol_version: str = PROTOCOL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "step_id": self.step_id,
             "action": self.action,
@@ -52,13 +52,13 @@ class ActionPlan:
     """Complete execution plan for a task."""
     plan_id: str
     task: str
-    steps: List[ActionStep] = field(default_factory=list)
+    steps: list[ActionStep] = field(default_factory=list)
     risk_level: int = 1
-    required_capabilities: List[str] = field(default_factory=list)
-    memory_context: List[Dict] = field(default_factory=list)
+    required_capabilities: list[str] = field(default_factory=list)
+    memory_context: list[dict] = field(default_factory=list)
     protocol_version: str = PROTOCOL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "plan_id": self.plan_id,
             "task": self.task,
@@ -130,7 +130,7 @@ class PlannerAgent:
         )
 
     async def create_plan(
-        self, task: str, context: Optional[Dict] = None
+        self, task: str, context: dict | None = None
     ) -> ActionPlan:
         """Create an ActionPlan for the given task.
 
@@ -164,7 +164,7 @@ class PlannerAgent:
             steps = self._plan_heuristic(task)
 
         # Step 4: Assemble
-        all_caps: List[str] = []
+        all_caps: list[str] = []
         max_risk = 1
         for s in steps:
             all_caps.extend(s.required_capabilities)
@@ -189,7 +189,7 @@ class PlannerAgent:
 
         return plan
 
-    async def _recall_relevant(self, task: str) -> List[Dict]:
+    async def _recall_relevant(self, task: str) -> list[dict]:
         """Query semantic memory for related past experiences."""
         if not self.memory:
             return []
@@ -205,7 +205,7 @@ class PlannerAgent:
             logger.warning("Memory recall failed: %s", e)
             return []
 
-    async def _get_available_skills(self) -> List[str]:
+    async def _get_available_skills(self) -> list[str]:
         """Get list of active skill names from registry."""
         if not self.skill_registry:
             return ["read_file", "write_file", "web_search", "code_generator"]
@@ -218,9 +218,9 @@ class PlannerAgent:
     async def _plan_with_llm(
         self,
         task: str,
-        memory_context: List[Dict],
-        available_skills: List[str],
-    ) -> List[ActionStep]:
+        memory_context: list[dict],
+        available_skills: list[str],
+    ) -> list[ActionStep]:
         """Use LLM to decompose task into steps."""
         memory_text = "\n".join(
             f"- {m.get('text', m)}" for m in memory_context[:3]
@@ -255,10 +255,10 @@ class PlannerAgent:
             logger.warning("LLM planning failed: %s", e)
             return self._plan_heuristic(task)
 
-    def _plan_heuristic(self, task: str) -> List[ActionStep]:
+    def _plan_heuristic(self, task: str) -> list[ActionStep]:
         """Heuristic plan generation based on task keywords."""
         t = task.lower()
-        steps: List[ActionStep] = []
+        steps: list[ActionStep] = []
 
         if any(k in t for k in ["read", "open", "load", "get file"]):
             steps.append(ActionStep(
@@ -298,17 +298,17 @@ class PlannerAgent:
             ))
         return steps
 
-    def _assess_risk(self, task: str, steps: List[ActionStep]) -> int:
+    def _assess_risk(self, task: str, steps: list[ActionStep]) -> int:
         return max((s.risk_level for s in steps), default=1)
 
-    def _extract_capabilities(self, steps: List[ActionStep]) -> List[str]:
-        caps: List[str] = []
+    def _extract_capabilities(self, steps: list[ActionStep]) -> list[str]:
+        caps: list[str] = []
         for s in steps:
             caps.extend(s.required_capabilities)
         return list(set(caps))
 
-    async def _generate_steps_with_llm(self, task: str) -> List[ActionStep]:
+    async def _generate_steps_with_llm(self, task: str) -> list[ActionStep]:
         return await self._plan_with_llm(task, [], [])
 
-    async def _generate_steps_heuristic(self, task: str) -> List[ActionStep]:
+    async def _generate_steps_heuristic(self, task: str) -> list[ActionStep]:
         return self._plan_heuristic(task)

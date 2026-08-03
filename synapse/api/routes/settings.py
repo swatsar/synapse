@@ -2,60 +2,61 @@
 
 Protocol Version: 1.0
 """
+import os
+from datetime import UTC, datetime
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Optional, Any, List
-from datetime import datetime, timezone
-import os
 
 PROTOCOL_VERSION: str = "1.0"
 
 router = APIRouter()
 
 # In-memory storage
-system_settings: Dict[str, Any] = {
+system_settings: dict[str, Any] = {
     "log_level": "INFO",
     "max_agents": 10,
     "protocol_version": PROTOCOL_VERSION
 }
 
-security_settings: Dict[str, Any] = {
+security_settings: dict[str, Any] = {
     "require_approval_for_risk": 3,
     "rate_limit_per_minute": 60,
     "protocol_version": PROTOCOL_VERSION
 }
 
-memory_settings: Dict[str, Any] = {
+memory_settings: dict[str, Any] = {
     "vector_db": "chromadb",
     "sql_db": "postgresql",
     "protocol_version": PROTOCOL_VERSION
 }
 
-connector_settings: Dict[str, Any] = {
+connector_settings: dict[str, Any] = {
     "telegram": {"enabled": False, "token": ""},
     "discord": {"enabled": False, "token": ""},
     "protocol_version": PROTOCOL_VERSION
 }
 
-env_vars: Dict[str, str] = {}
-backups: List[Dict] = []
+env_vars: dict[str, str] = {}
+backups: list[dict] = []
 
 
 # === Models ===
 
 class SystemSettingsUpdate(BaseModel):
-    log_level: Optional[str] = None
-    max_agents: Optional[int] = None
+    log_level: str | None = None
+    max_agents: int | None = None
 
 
 class SecuritySettingsUpdate(BaseModel):
-    require_approval_for_risk: Optional[int] = None
-    rate_limit_per_minute: Optional[int] = None
+    require_approval_for_risk: int | None = None
+    rate_limit_per_minute: int | None = None
 
 
 class TelegramSettingsUpdate(BaseModel):
-    enabled: Optional[bool] = None
-    token: Optional[str] = None
+    enabled: bool | None = None
+    token: str | None = None
 
 
 class EnvVarCreate(BaseModel):
@@ -64,7 +65,7 @@ class EnvVarCreate(BaseModel):
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # === System Settings ===
@@ -142,8 +143,7 @@ async def set_env_var(data: EnvVarCreate):
 @router.delete("/env/{key}", status_code=204)
 async def delete_env_var(key: str):
     """Delete an environment variable."""
-    if key in env_vars:
-        del env_vars[key]
+    env_vars.pop(key, None)
     if key in os.environ:
         del os.environ[key]
 
@@ -153,7 +153,7 @@ async def delete_env_var(key: str):
 @router.post("/backup")
 async def create_backup():
     """Create a backup."""
-    backup_id = f"backup_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+    backup_id = f"backup_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
     backup = {
         "backup_id": backup_id,
         "id": backup_id,  # Both for compatibility

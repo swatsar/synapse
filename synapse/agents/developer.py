@@ -14,13 +14,12 @@ Implements the full CreateSkill pipeline:
 On every step an audit event is emitted.
 """
 import ast
-import hashlib
 import logging
 import re
 import textwrap
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from synapse.observability.logger import audit
 
@@ -62,13 +61,13 @@ class GeneratedSkill:
     description: str = ""
     code: str = ""
     tests: str = ""
-    required_capabilities: List[str] = field(default_factory=list)
+    required_capabilities: list[str] = field(default_factory=list)
     risk_level: int = 2
-    security_issues: List[str] = field(default_factory=list)
+    security_issues: list[str] = field(default_factory=list)
     passed_ast_scan: bool = False
     protocol_version: str = PROTOCOL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "skill_id": self.skill_id,
             "name": self.name,
@@ -205,8 +204,8 @@ class DeveloperAgent:
     async def generate_skill(
         self,
         task_description: str,
-        seed: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        seed: int | None = None,
+    ) -> dict[str, Any]:
         """Full CreateSkill pipeline.
 
         Returns a dict with 'skill' (GeneratedSkill) and 'status'.
@@ -279,7 +278,7 @@ class DeveloperAgent:
             "protocol_version": PROTOCOL_VERSION,
         }
 
-    async def register_skill(self, skill: GeneratedSkill) -> Dict[str, Any]:
+    async def register_skill(self, skill: GeneratedSkill) -> dict[str, Any]:
         """Register an approved GeneratedSkill in the SkillRegistry."""
         if not self.skill_registry:
             return {"status": "error", "error": "No skill registry configured"}
@@ -287,8 +286,8 @@ class DeveloperAgent:
             return {"status": "error", "error": "Skill failed AST security scan"}
 
         try:
-            from synapse.core.models import SkillManifest, ResourceLimits
             from synapse.core.isolation_policy import RuntimeIsolationType
+            from synapse.core.models import ResourceLimits, SkillManifest
 
             manifest = SkillManifest(
                 name=skill.name,
@@ -375,7 +374,7 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
         skip_def = False
         for line in lines:
             stripped = line.strip()
-            if stripped.startswith("async def execute") or stripped.startswith("def execute"):
+            if stripped.startswith(("async def execute", "def execute")):
                 skip_def = True
                 continue
             if skip_def and stripped.startswith('"""'):
@@ -447,7 +446,7 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
             '}'
         )
 
-    def _ast_security_scan(self, code: str) -> List[str]:
+    def _ast_security_scan(self, code: str) -> list[str]:
         """AST-based security scan. Returns list of issues (empty = safe)."""
         issues = []
         try:
@@ -481,7 +480,7 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
 
         return issues
 
-    def _infer_capabilities(self, text: str) -> List[str]:
+    def _infer_capabilities(self, text: str) -> list[str]:
         """Infer required capabilities from task description."""
         caps = []
         t = text.lower()
@@ -499,7 +498,7 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
             caps.append("memory:read")  # default minimal cap
         return caps
 
-    def _infer_risk(self, caps: List[str]) -> int:
+    def _infer_risk(self, caps: list[str]) -> int:
         """Infer risk level 1-5 from capability list."""
         risk_map = {
             "fs:delete": 4, "fs:execute": 5, "os:process": 4,
@@ -534,7 +533,7 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
                 return {"status": "blocked", "error": "Skill failed security scan"}
             return blocked_handler
 
-        namespace: Dict[str, Any] = {}
+        namespace: dict[str, Any] = {}
         try:
             # Skills reach this point ONLY after:
             # 1. AST security scan passes (no os/sys/subprocess/eval/exec imports)
@@ -555,7 +554,7 @@ RESPOND WITH ONLY PYTHON CODE, no markdown, no explanations."""
 
         return noop_handler
 
-    def create_prompt(self, task_description: str, seed: Optional[int] = None) -> str:
+    def create_prompt(self, task_description: str, seed: int | None = None) -> str:
         name = self._task_to_skill_name(task_description)
         class_name = self._to_class_name(name)
         return self._build_prompt(task_description, name, class_name)

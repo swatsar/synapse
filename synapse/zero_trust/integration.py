@@ -4,14 +4,16 @@ Zero-Trust Integration - Distributed Execution
 
 import hashlib
 import json
-from typing import Dict, List
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-from .identity import TrustIdentityRegistry, NodeDescriptor
-from .authorization import ExecutionAuthorizationToken, AuthorizationRequest, AuthorizationChain
-from .policy import TrustPolicyEngine, PolicyRequest
-from .enforcement import ZeroTrustEnforcer
+from .authorization import (
+    AuthorizationChain,
+    AuthorizationRequest,
+    ExecutionAuthorizationToken,
+)
+from .identity import NodeDescriptor, TrustIdentityRegistry
+from .policy import PolicyRequest, TrustPolicyEngine
 
 PROTOCOL_VERSION = "1.0"
 
@@ -21,7 +23,7 @@ class CrossNodePermission:
     """Permission for cross-node execution"""
     source_node: str
     target_node: str
-    capabilities: List[str]
+    capabilities: list[str]
     permission_hash: str
     protocol_version: str = PROTOCOL_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -89,7 +91,7 @@ class ZeroTrustIntegration:
         return hashlib.sha256(canonical.encode()).hexdigest()
 
     def issue_cross_node_permission(self, source_node: str, target_node: str,
-                                     capabilities: List[str]) -> CrossNodePermission:
+                                     capabilities: list[str]) -> CrossNodePermission:
         """Issue cross-node permission"""
         permission_data = {
             "source_node": source_node,

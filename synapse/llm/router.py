@@ -1,9 +1,8 @@
 """LLM Provider Layer - Production Ready."""
-from typing import Dict, Any, Optional, List
-from enum import IntEnum
 import asyncio
 import hashlib
-import json
+from enum import IntEnum
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -19,15 +18,15 @@ class LLMRouter:
     protocol_version: str = PROTOCOL_VERSION
 
     def __init__(self):
-        self._providers: Dict[str, Any] = {}
-        self._safe_provider_name: Optional[str] = None
+        self._providers: dict[str, Any] = {}
+        self._safe_provider_name: str | None = None
         self._timeout: float = 30.0
 
     def register(self, provider: Any) -> None:
         """Register an LLM provider."""
         self._providers[provider.name] = provider
 
-    def list_providers(self) -> List[str]:
+    def list_providers(self) -> list[str]:
         """List registered providers."""
         return list(self._providers.keys())
 
@@ -39,7 +38,7 @@ class LLMRouter:
         """Set timeout for LLM requests."""
         self._timeout = seconds
 
-    def select_provider(self, required_capability: Optional[str] = None) -> Any:
+    def select_provider(self, required_capability: str | None = None) -> Any:
         """Select provider based on priority and capabilities."""
         # Sort by priority (lower = higher priority)
         sorted_providers = sorted(
@@ -58,7 +57,7 @@ class LLMRouter:
 
         raise RuntimeError("No available provider")
 
-    async def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate(self, prompt: str, **kwargs) -> dict[str, Any]:
         """Generate response with fallback handling."""
         sorted_providers = sorted(
             self._providers.values(),
@@ -77,7 +76,7 @@ class LLMRouter:
                     timeout=self._timeout
                 )
                 return result
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = TimeoutError(f"Provider {provider.name} timed out")
                 continue
             except Exception as e:
@@ -93,7 +92,7 @@ class LLMRouter:
             raise last_error
         raise RuntimeError("No available provider")
 
-    def create_prompt_envelope(self, prompt: str) -> Dict[str, Any]:
+    def create_prompt_envelope(self, prompt: str) -> dict[str, Any]:
         """Create deterministic prompt envelope."""
         # Hash-based deterministic envelope
         prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()

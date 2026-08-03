@@ -3,13 +3,12 @@ Zero-Trust Execution Enforcement
 """
 
 import hashlib
-from typing import Dict, Optional, List
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
-from .identity import TrustIdentityRegistry, NodeDescriptor
-from .authorization import ExecutionAuthorizationToken, AuthorizationRequest
-from .policy import TrustPolicyEngine, PolicyRequest
+from .authorization import AuthorizationRequest, ExecutionAuthorizationToken
+from .identity import NodeDescriptor, TrustIdentityRegistry
+from .policy import TrustPolicyEngine
 
 PROTOCOL_VERSION = "1.0"
 
@@ -18,8 +17,8 @@ PROTOCOL_VERSION = "1.0"
 class ExecutionResult:
     """Result of zero-trust execution attempt"""
     success: bool
-    error: Optional[str] = None
-    execution_hash: Optional[str] = None
+    error: str | None = None
+    execution_hash: str | None = None
     protocol_version: str = PROTOCOL_VERSION
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
@@ -35,9 +34,9 @@ class ZeroTrustEnforcer:
     def __init__(self):
         self._identity_registry = TrustIdentityRegistry()
         self._policy_engine = TrustPolicyEngine()
-        self._tokens: Dict[str, ExecutionAuthorizationToken] = {}
+        self._tokens: dict[str, ExecutionAuthorizationToken] = {}
 
-    def register_identity(self, node_id: str, cluster_id: str, capabilities: List[str] = None):
+    def register_identity(self, node_id: str, cluster_id: str, capabilities: list[str] | None = None):
         """Register node identity with capabilities"""
         descriptor = NodeDescriptor(
             node_id=node_id,
@@ -48,7 +47,7 @@ class ZeroTrustEnforcer:
         self._identity_registry.register(descriptor)
 
     def issue_token(self, tenant_id: str, node_id: str,
-                    capabilities: List[str]) -> ExecutionAuthorizationToken:
+                    capabilities: list[str]) -> ExecutionAuthorizationToken:
         """Issue authorization token"""
         request = AuthorizationRequest(
             tenant_id=tenant_id,
@@ -61,8 +60,8 @@ class ZeroTrustEnforcer:
         self._tokens[token.token_id] = token
         return token
 
-    def execute(self, node_id: Optional[str], action: str,
-                resource: str, token: Optional[ExecutionAuthorizationToken] = None,
+    def execute(self, node_id: str | None, action: str,
+                resource: str, token: ExecutionAuthorizationToken | None = None,
                 policy_approved: bool = True) -> ExecutionResult:
         """Execute with zero-trust enforcement"""
 

@@ -6,25 +6,25 @@ Protocol Version: 1.0
 Spec Version: 3.1
 """
 
-from synapse.environment.base import Environment, EnvironmentAdapter
 from synapse.environment.adapters import (
-    WindowsAdapter,
     LinuxAdapter,
     MacOSAdapter,
-    get_environment_adapter
+    WindowsAdapter,
+    get_environment_adapter,
 )
-from synapse.environment.local_os import LocalOS
+from synapse.environment.base import Environment, EnvironmentAdapter
 from synapse.environment.docker_env import DockerEnv
+from synapse.environment.local_os import LocalOS
 
 __all__ = [
+    'DockerEnv',
     'Environment',
     'EnvironmentAdapter',
-    'WindowsAdapter',
     'LinuxAdapter',
-    'MacOSAdapter',
-    'get_environment_adapter',
     'LocalOS',
-    'DockerEnv'
+    'MacOSAdapter',
+    'WindowsAdapter',
+    'get_environment_adapter'
 ]
 
 PROTOCOL_VERSION: str = "1.0"

@@ -1,8 +1,6 @@
 """Connector Security - Rate limiting and security utilities."""
-from typing import Dict, List, Optional
-from dataclasses import dataclass, field
-from datetime import datetime
 import time
+from dataclasses import dataclass, field
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -13,7 +11,7 @@ class RateLimiter:
     def __init__(self, max_requests: int = 100, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self._requests: Dict[str, List[float]] = {}
+        self._requests: dict[str, list[float]] = {}
     
     def check(self, user_id: str) -> bool:
         """Check if user is within rate limit."""
@@ -40,7 +38,7 @@ class SecurityContext:
     """Security context for connector operations."""
     user_id: str
     source: str
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     rate_limit_remaining: int = 100
     is_authenticated: bool = False
     protocol_version: str = PROTOCOL_VERSION
@@ -51,8 +49,8 @@ class ConnectorSecurity:
     protocol_version: str = PROTOCOL_VERSION
     
     def __init__(self):
-        self._rate_limiters: Dict[str, RateLimiter] = {}
-        self._capability_cache: Dict[str, List[str]] = {}
+        self._rate_limiters: dict[str, RateLimiter] = {}
+        self._capability_cache: dict[str, list[str]] = {}
     
     def get_rate_limiter(self, source: str, max_requests: int = 100, window_seconds: int = 60) -> RateLimiter:
         """Get or create rate limiter for source."""

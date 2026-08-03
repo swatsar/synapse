@@ -4,11 +4,11 @@ Formal Plan Model for Deterministic Planning
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set
-from datetime import datetime, UTC
 import hashlib
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -16,8 +16,8 @@ class PlanStep:
     """Immutable plan step"""
     step_id: str
     action: str
-    required_capabilities: Set[str]
-    parameters: Dict[str, Any]
+    required_capabilities: set[str]
+    parameters: dict[str, Any]
     order: int
     protocol_version: str = "1.0"
     
@@ -26,7 +26,7 @@ class PlanStep:
         data = {
             "step_id": self.step_id,
             "action": self.action,
-            "required_capabilities": sorted(list(self.required_capabilities)),
+            "required_capabilities": sorted(self.required_capabilities),
             "parameters": self.parameters,
             "order": self.order,
             "protocol_version": self.protocol_version
@@ -39,8 +39,8 @@ class Plan:
     """Immutable deterministic plan"""
     id: str
     task_id: str
-    steps: List[PlanStep]
-    required_capabilities: Set[str]
+    steps: list[PlanStep]
+    required_capabilities: set[str]
     policy_hash: str
     execution_seed: int
     created_at: str
@@ -52,7 +52,7 @@ class Plan:
             "id": self.id,
             "task_id": self.task_id,
             "steps": [step.to_canonical() for step in sorted(self.steps, key=lambda s: s.order)],
-            "required_capabilities": sorted(list(self.required_capabilities)),
+            "required_capabilities": sorted(self.required_capabilities),
             "policy_hash": self.policy_hash,
             "execution_seed": self.execution_seed,
             "protocol_version": self.protocol_version
@@ -64,7 +64,7 @@ class Plan:
         """Get number of steps"""
         return len(self.steps)
     
-    def get_all_capabilities(self) -> Set[str]:
+    def get_all_capabilities(self) -> set[str]:
         """Get all required capabilities"""
         caps = set(self.required_capabilities)
         for step in self.steps:
@@ -84,10 +84,10 @@ class PlanBuilder:
         self.task_id = task_id
         self.execution_seed = execution_seed
         self.policy_hash = policy_hash
-        self._steps: List[PlanStep] = []
-        self._capabilities: Set[str] = set()
+        self._steps: list[PlanStep] = []
+        self._capabilities: set[str] = set()
     
-    def add_step(self, action: str, capabilities: Set[str], parameters: Dict[str, Any] = None) -> 'PlanBuilder':
+    def add_step(self, action: str, capabilities: set[str], parameters: dict[str, Any] | None = None) -> 'PlanBuilder':
         """Add a step to the plan"""
         step_id = hashlib.sha256(
             f"{self.task_id}:{len(self._steps)}:{action}".encode()

@@ -3,20 +3,23 @@ PROTOCOL_VERSION: str = "1.0"
 Capability Issuer for issuing capabilities to agents
 """
 
-from typing import Dict, Set, Optional
 from datetime import datetime, timedelta
-from synapse.governance.capability_registry import CapabilityRegistry, CapabilityMetadata
+
 from synapse.governance.capability_policy import CapabilityPolicyEngine, PolicyViolation
+from synapse.governance.capability_registry import (
+    CapabilityRegistry,
+)
+
 
 class CapabilityIssuer:
     """Issues capabilities to agents"""
     
-    def __init__(self, registry: CapabilityRegistry, policy_engine: Optional[CapabilityPolicyEngine] = None):
+    def __init__(self, registry: CapabilityRegistry, policy_engine: CapabilityPolicyEngine | None = None):
         self.registry = registry
         self.policy_engine = policy_engine or CapabilityPolicyEngine()
-        self._agent_capabilities: Dict[str, Dict[str, datetime]] = {}
+        self._agent_capabilities: dict[str, dict[str, datetime]] = {}
     
-    def issue(self, agent_id: str, capability_id: str, expires_at: Optional[datetime] = None):
+    def issue(self, agent_id: str, capability_id: str, expires_at: datetime | None = None):
         """Issue a capability to an agent"""
         metadata = self.registry.get_metadata(capability_id)
         if not metadata:
@@ -48,7 +51,7 @@ class CapabilityIssuer:
         """Validate capability for agent"""
         return self.has_capability(agent_id, capability_id)
     
-    def get_agent_capabilities(self, agent_id: str) -> Set[str]:
+    def get_agent_capabilities(self, agent_id: str) -> set[str]:
         """Get all active capabilities for an agent"""
         if agent_id not in self._agent_capabilities:
             return set()

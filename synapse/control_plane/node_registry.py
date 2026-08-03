@@ -2,10 +2,9 @@
 Node Registry for Synapse Control Plane.
 Maintains registry of all cluster nodes.
 """
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
-import hashlib
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -16,7 +15,7 @@ class NodeRegistration:
     node_id: str
     public_key: str
     certificate: str
-    capabilities: List[str]
+    capabilities: list[str]
     registered_at: datetime
     status: str
     protocol_version: str = PROTOCOL_VERSION
@@ -33,7 +32,7 @@ class NodeRegistry:
     """
     
     def __init__(self):
-        self._registrations: Dict[str, NodeRegistration] = {}
+        self._registrations: dict[str, NodeRegistration] = {}
     
     async def register(self, registration: NodeRegistration) -> bool:
         """Register a new node"""
@@ -54,11 +53,11 @@ class NodeRegistry:
         del self._registrations[node_id]
         return True
     
-    async def get_node(self, node_id: str) -> Optional[NodeRegistration]:
+    async def get_node(self, node_id: str) -> NodeRegistration | None:
         """Get node by ID"""
         return self._registrations.get(node_id)
     
-    async def list_nodes(self) -> List[NodeRegistration]:
+    async def list_nodes(self) -> list[NodeRegistration]:
         """List all registered nodes"""
         return list(self._registrations.values())
     

@@ -2,11 +2,10 @@
 Node Identity for Synapse Distributed Execution.
 Provides cryptographic node identity and verification.
 """
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional
 import hashlib
 import secrets
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -19,7 +18,7 @@ class NodeIdentity:
     private_key: str  # In production, this would be secured
     certificate: str
     created_at: datetime
-    expires_at: Optional[datetime]
+    expires_at: datetime | None
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -36,7 +35,7 @@ class NodeIdentityManager:
     def __init__(self):
         self._identities: dict = {}
     
-    async def generate_identity(self, node_id: Optional[str] = None) -> NodeIdentity:
+    async def generate_identity(self, node_id: str | None = None) -> NodeIdentity:
         """Generate a new node identity"""
         if node_id is None:
             node_id = self._generate_node_id()
@@ -53,7 +52,7 @@ class NodeIdentityManager:
             public_key=public_key,
             private_key=private_key,
             certificate=certificate,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
             expires_at=None,
             protocol_version=PROTOCOL_VERSION
         )
@@ -78,10 +77,7 @@ class NodeIdentityManager:
             return False
         
         # Check expiration
-        if identity.expires_at and datetime.utcnow() > identity.expires_at:
-            return False
-        
-        return True
+        return not (identity.expires_at and datetime.now(UTC) > identity.expires_at)
     
     async def revoke_identity(self, node_id: str) -> bool:
         """Revoke a node identity"""

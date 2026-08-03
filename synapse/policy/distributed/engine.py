@@ -2,6 +2,7 @@ PROTOCOL_VERSION: str = "1.0"
 from synapse.policy.engine import PolicyEngine
 from synapse.security.capability_manager import CapabilityManager
 
+
 class DistributedPolicyEngine(PolicyEngine):
     """PolicyEngine that also enforces capability federation across nodes.
 

@@ -4,12 +4,13 @@ Distributed Execution Node Protocol
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime, UTC
 import hashlib
 import json
 import secrets
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
 
 @dataclass(frozen=True)
 class NodeIdentity:
@@ -68,7 +69,7 @@ class ExecutionTrace:
     workflow_id: str
     node_id: str
     state_hash: str
-    steps: List[Dict[str, Any]]
+    steps: list[dict[str, Any]]
     execution_time_ms: int
     timestamp: str
     signature: str
@@ -97,7 +98,7 @@ class NodeHandshake:
         self.identity = node_identity
         self.secret_key = secret_key
     
-    def create_handshake_request(self) -> Dict[str, Any]:
+    def create_handshake_request(self) -> dict[str, Any]:
         """Create handshake request"""
         timestamp = datetime.now(UTC).isoformat()
         challenge = secrets.token_hex(16)
@@ -110,7 +111,7 @@ class NodeHandshake:
             "protocol_version": "1.0"
         }
     
-    def verify_handshake_response(self, response: Dict[str, Any]) -> bool:
+    def verify_handshake_response(self, response: dict[str, Any]) -> bool:
         """Verify handshake response"""
         required_fields = ["node_id", "signature", "timestamp"]
         return all(field in response for field in required_fields)

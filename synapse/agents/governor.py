@@ -3,9 +3,9 @@
 Phase 11 - Continuous Self-Improvement & Adaptive Governance.
 """
 import hashlib
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -15,7 +15,7 @@ class GovernanceAction:
     """Action to be taken by governor."""
     action_type: str
     target: str
-    parameters: Dict[str, Any]
+    parameters: dict[str, Any]
     risk_level: int
     seed: int
     protocol_version: str = "1.0"
@@ -36,10 +36,10 @@ class ActionResult:
 @dataclass
 class GovernanceDecision:
     """Decision made by governor based on analysis."""
-    analysis: Dict[str, Any]
-    bottlenecks: List[Dict[str, Any]]
-    actions: List[Dict[str, Any]]
-    feedback: Dict[str, Any]
+    analysis: dict[str, Any]
+    bottlenecks: list[dict[str, Any]]
+    actions: list[dict[str, Any]]
+    feedback: dict[str, Any]
     protocol_version: str = "1.0"
 
 
@@ -72,7 +72,7 @@ class GovernorAgent:
         if self.audit_logger:
             self.audit_logger.record({
                 "event": "governance_analysis_started",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             })
         
         # Get system metrics
@@ -100,7 +100,7 @@ class GovernorAgent:
                 "event": "governance_analysis_completed",
                 "bottlenecks_count": len(bottlenecks),
                 "actions_count": len(actions),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             })
         
         return GovernanceDecision(
@@ -154,7 +154,7 @@ class GovernorAgent:
                     "action_type": action.action_type,
                     "target": action.target,
                     "success": True,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 })
             
             return ActionResult(
@@ -175,9 +175,9 @@ class GovernorAgent:
     
     def _detect_bottlenecks(
         self,
-        system_metrics: Dict[str, Any],
-        skill_metrics: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        system_metrics: dict[str, Any],
+        skill_metrics: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Detect bottlenecks from metrics."""
         bottlenecks = []
         
@@ -227,7 +227,7 @@ class GovernorAgent:
         
         return bottlenecks
     
-    def _generate_actions(self, bottlenecks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _generate_actions(self, bottlenecks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Generate actions to address bottlenecks."""
         actions = []
         
@@ -268,9 +268,9 @@ class GovernorAgent:
     
     def _create_feedback(
         self,
-        bottlenecks: List[Dict[str, Any]],
-        actions: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        bottlenecks: list[dict[str, Any]],
+        actions: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Create feedback for optimizer and policy engine."""
         return {
             "optimizer": {

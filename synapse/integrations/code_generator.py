@@ -8,13 +8,13 @@ Protocol Version: 1.0
 Specification: 3.1
 """
 
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-import re
 import ast
 import logging
+import re
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 logger = logging.getLogger(__name__)
@@ -42,9 +42,9 @@ class GeneratedCode:
     code: str
     language: CodeLanguage
     security_level: CodeSecurityLevel = CodeSecurityLevel.SAFE
-    security_issues: List[str] = field(default_factory=list)
-    tests: Optional[str] = None
-    documentation: Optional[str] = None
+    security_issues: list[str] = field(default_factory=list)
+    tests: str | None = None
+    documentation: str | None = None
     protocol_version: str = PROTOCOL_VERSION
     trace_id: str = ""
 
@@ -64,7 +64,7 @@ class CodeGenerator:
 
     PROTOCOL_VERSION: str = PROTOCOL_VERSION
 
-    DANGEROUS_PATTERNS: Dict[CodeLanguage, List[str]] = {
+    DANGEROUS_PATTERNS: dict[CodeLanguage, list[str]] = {
         CodeLanguage.PYTHON: [
             "eval(", "exec(", "os.system(", "subprocess.Popen(",
             "__import__", "compile(", "input(",
@@ -101,7 +101,7 @@ class CodeGenerator:
         self,
         task_description: str,
         language: CodeLanguage = CodeLanguage.PYTHON,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> GeneratedCode:
         """Generate code for a task with security scanning and tests."""
         context = context or {}
@@ -245,9 +245,9 @@ class CodeGenerator:
         self,
         code: str,
         language: CodeLanguage,
-    ) -> Tuple[CodeSecurityLevel, List[str]]:
+    ) -> tuple[CodeSecurityLevel, list[str]]:
         """Scan code for security issues using patterns + AST."""
-        issues: List[str] = []
+        issues: list[str] = []
         dangerous = self.DANGEROUS_PATTERNS.get(language, [])
 
         for pattern in dangerous:
@@ -294,14 +294,14 @@ class CodeGenerator:
 
         # Fallback: static analysis
         if language == CodeLanguage.PYTHON:
-            func_names: List[str] = []
+            func_names: list[str] = []
             try:
                 tree = ast.parse(code)
                 for node in ast.walk(tree):
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                         if not node.name.startswith("_"):
                             func_names.append(node.name)
-            except SyntaxError as _exc:  # noqa
+            except SyntaxError as _exc:
                 pass  # noqa: silenced - _exc
 
             test_lines = [
@@ -350,11 +350,11 @@ class CodeGenerator:
             "## Language",
             language.value,
             "",
-            f"## Protocol Version",
+            "## Protocol Version",
             PROTOCOL_VERSION,
             "",
             "## Generated At",
-            datetime.now(timezone.utc).isoformat(),
+            datetime.now(UTC).isoformat(),
             "",
             "## Code",
             f"```{language.value}",

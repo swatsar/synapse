@@ -7,10 +7,10 @@ PROTOCOL_VERSION = "1.0"
 
 import hashlib
 import json
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
 import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -37,8 +37,8 @@ class TenantStatePartition:
     PROTOCOL_VERSION = "1.0"
 
     def __init__(self):
-        self._state: Dict[str, Dict[str, StateEntry]] = {}
-        self._state_hashes: Dict[str, str] = {}
+        self._state: dict[str, dict[str, StateEntry]] = {}
+        self._state_hashes: dict[str, str] = {}
         self._lock = threading.Lock()
 
     def update_state(
@@ -46,7 +46,7 @@ class TenantStatePartition:
         tenant_id: str,
         key: str,
         value: Any,
-        requesting_tenant: Optional[str] = None
+        requesting_tenant: str | None = None
     ) -> StateEntry:
         """
         Update tenant state.
@@ -79,7 +79,7 @@ class TenantStatePartition:
                 tenant_id=tenant_id,
                 key=key,
                 value=value,
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 state_hash=self._hash_state(tenant_id, key, value),
                 protocol_version=self.PROTOCOL_VERSION
             )
@@ -95,8 +95,8 @@ class TenantStatePartition:
         self,
         tenant_id: str,
         key: str,
-        requesting_tenant: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        requesting_tenant: str | None = None
+    ) -> dict[str, Any] | None:
         """
         Get tenant state.
 
@@ -148,7 +148,7 @@ class TenantStatePartition:
         self,
         tenant_id: str,
         key: str,
-        requesting_tenant: Optional[str] = None
+        requesting_tenant: str | None = None
     ) -> bool:
         """
         Delete tenant state.
@@ -184,7 +184,7 @@ class TenantStatePartition:
 
             return True
 
-    def list_keys(self, tenant_id: str) -> List[str]:
+    def list_keys(self, tenant_id: str) -> list[str]:
         """List all state keys for tenant"""
         with self._lock:
             if tenant_id not in self._state:
@@ -231,4 +231,4 @@ class TenantStatePartition:
         ).hexdigest()
 
 
-__all__ = ["TenantStatePartition", "StateEntry"]
+__all__ = ["StateEntry", "TenantStatePartition"]

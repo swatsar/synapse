@@ -3,7 +3,8 @@
 Protocol Version: 1.0
 """
 from fastapi import APIRouter
-from synapse.api.routes import providers, agents, settings
+
+from synapse.api.routes import agents, providers, settings
 
 PROTOCOL_VERSION: str = "1.0"
 

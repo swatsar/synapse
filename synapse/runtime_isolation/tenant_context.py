@@ -9,9 +9,9 @@ TenantContext provides:
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import FrozenSet, Optional, Dict, Any
 import fnmatch
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -26,10 +26,10 @@ class TenantContext:
     """
     tenant_id: str
     domain_id: str
-    issued_capabilities: FrozenSet[str]
+    issued_capabilities: frozenset[str]
     execution_quota: int
     protocol_version: str = "1.0"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         """Validate tenant context after initialization"""
@@ -73,7 +73,7 @@ class TenantContext:
             total_quota=self.execution_quota
         )
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation"""
         return {
             "tenant_id": self.tenant_id,
@@ -85,7 +85,7 @@ class TenantContext:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TenantContext":
+    def from_dict(cls, data: dict[str, Any]) -> "TenantContext":
         """Create TenantContext from dictionary"""
         return cls(
             tenant_id=data["tenant_id"],

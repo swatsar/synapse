@@ -13,15 +13,12 @@ Copyright (c) 2024 LangChain, Inc.
 Copyright (c) 2026 Synapse Contributors
 """
 
-from typing import Dict, List, Optional, Any, Callable, TypeVar, Generic
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-import asyncio
-import hashlib
-import json
 import uuid
-from abc import ABC, abstractmethod
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 # Protocol versioning
 PROTOCOL_VERSION: str = "1.0"
@@ -50,16 +47,16 @@ class StateNode:
     id: str
     name: str
     action: Callable
-    required_capabilities: List[str] = field(default_factory=list)
+    required_capabilities: list[str] = field(default_factory=list)
     risk_level: int = 1
     timeout_seconds: int = 60
     status: NodeStatus = NodeStatus.PENDING
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
     isolation_type: str = "container"
-    resource_limits: Dict[str, int] = field(default_factory=dict)
+    resource_limits: dict[str, int] = field(default_factory=dict)
     requires_human_approval: bool = False
 
 
@@ -69,24 +66,24 @@ class StateEdge:
     source: str
     target: str
     edge_type: EdgeType = EdgeType.NORMAL
-    condition: Optional[Callable] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    condition: Callable | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
-    validation_rules: List[str] = field(default_factory=list)
+    validation_rules: list[str] = field(default_factory=list)
 
 
 @dataclass
 class GraphState:
     """State of the graph execution"""
-    messages: List[Dict[str, Any]] = field(default_factory=list)
-    agent_outputs: List[Dict[str, Any]] = field(default_factory=list)
-    current_node: Optional[str] = None
-    completed_nodes: List[str] = field(default_factory=list)
-    failed_nodes: List[str] = field(default_factory=list)
-    interrupted_at: Optional[str] = None
-    checkpoint_id: Optional[str] = None
+    messages: list[dict[str, Any]] = field(default_factory=list)
+    agent_outputs: list[dict[str, Any]] = field(default_factory=list)
+    current_node: str | None = None
+    completed_nodes: list[str] = field(default_factory=list)
+    failed_nodes: list[str] = field(default_factory=list)
+    interrupted_at: str | None = None
+    checkpoint_id: str | None = None
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
@@ -95,8 +92,8 @@ class GraphState:
     agent_id: str = ""
     created_at: str = ""
     updated_at: str = ""
-    security_context: Dict[str, Any] = field(default_factory=dict)
-    audit_trail: List[Dict[str, Any]] = field(default_factory=list)
+    security_context: dict[str, Any] = field(default_factory=dict)
+    audit_trail: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -106,18 +103,18 @@ class GraphCheckpoint:
     graph_id: str
     session_id: str
     trace_id: str
-    state: Dict[str, Any]
-    current_node: Optional[str]
-    completed_nodes: List[str]
-    failed_nodes: List[str]
+    state: dict[str, Any]
+    current_node: str | None
+    completed_nodes: list[str]
+    failed_nodes: list[str]
     created_at: str
-    expires_at: Optional[str] = None
+    expires_at: str | None = None
     is_valid: bool = True
     
     # Synapse additions
     protocol_version: str = PROTOCOL_VERSION
-    security_hash: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    security_hash: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class SecureStateGraph:
@@ -159,11 +156,11 @@ class SecureStateGraph:
         self.audit = audit_logger
         
         # Graph structure
-        self.nodes: Dict[str, StateNode] = {}
-        self.edges: List[StateEdge] = []
-        self.entry_point: Optional[str] = None
-        self.finish_node: Optional[str] = None
-        self.interrupt_before: List[str] = []
+        self.nodes: dict[str, StateNode] = {}
+        self.edges: list[StateEdge] = []
+        self.entry_point: str | None = None
+        self.finish_node: str | None = None
+        self.interrupt_before: list[str] = []
     
     async def add_node(self, node: StateNode) -> 'SecureStateGraph':
         """Add a node to the graph"""
@@ -191,7 +188,7 @@ class SecureStateGraph:
         self.finish_node = node_id
         return self
     
-    def set_interrupt_before(self, node_ids: List[str]) -> 'SecureStateGraph':
+    def set_interrupt_before(self, node_ids: list[str]) -> 'SecureStateGraph':
         """Set nodes that require human approval before execution"""
         for node_id in node_ids:
             if node_id not in self.nodes:
@@ -200,7 +197,7 @@ class SecureStateGraph:
         self.interrupt_before = node_ids
         return self
     
-    async def execute(self, initial_state: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, initial_state: dict[str, Any]) -> dict[str, Any]:
         """
         Execute the graph with security checks.
         
@@ -286,9 +283,9 @@ class SecureStateGraph:
         
         return state.__dict__
     
-    async def _initialize_state(self, initial_data: Dict[str, Any]) -> GraphState:
+    async def _initialize_state(self, initial_data: dict[str, Any]) -> GraphState:
         """Initialize state from initial data"""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         
         return self.state_schema(
             **initial_data,
@@ -323,7 +320,7 @@ class SecureStateGraph:
         self,
         node: StateNode,
         state: GraphState
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Check if node has required capabilities"""
         if not node.required_capabilities:
             return {"approved": True}
@@ -340,7 +337,7 @@ class SecureStateGraph:
         self,
         node_id: str,
         state: GraphState
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Request human approval for node execution"""
         if not self.security:
             return {"approved": True}
@@ -358,10 +355,10 @@ class SecureStateGraph:
     async def _update_state(
         self,
         state: GraphState,
-        result: Dict[str, Any]
+        result: dict[str, Any]
     ) -> GraphState:
         """Update state with node result"""
-        state.updated_at = datetime.now(timezone.utc).isoformat()
+        state.updated_at = datetime.now(UTC).isoformat()
         state.agent_outputs.append(result)
         state.audit_trail.append({
             "event": "state_updated",
@@ -375,7 +372,7 @@ class SecureStateGraph:
         self,
         current_node_id: str,
         state: GraphState
-    ) -> Optional[str]:
+    ) -> str | None:
         """Determine next node to execute"""
         if current_node_id == self.finish_node:
             return None
@@ -434,7 +431,7 @@ class SecureStateGraph:
         self,
         node: StateNode,
         state: GraphState,
-        result: Dict[str, Any]
+        result: dict[str, Any]
     ):
         """Audit node end"""
         if self.audit:

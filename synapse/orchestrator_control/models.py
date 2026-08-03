@@ -5,12 +5,10 @@ Protocol Version: 1.0
 This module defines data structures for the orchestrator control plane.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from datetime import datetime
 import hashlib
 import json
-
+from dataclasses import dataclass, field
+from typing import Any
 
 PROTOCOL_VERSION = "1.0"
 
@@ -20,7 +18,7 @@ class ExecutionRequest:
     """Request for execution submission"""
     tenant_id: str
     contract_id: str
-    input_data: Dict[str, Any]
+    input_data: dict[str, Any]
     protocol_version: str = PROTOCOL_VERSION
     
     def compute_hash(self) -> str:
@@ -99,10 +97,10 @@ class ExecutionStatus:
     status: str  # pending, running, completed, failed
     tenant_id: str
     contract_id: str
-    node_id: Optional[str] = None
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    error: Optional[str] = None
+    node_id: str | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    error: str | None = None
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -110,7 +108,7 @@ class ExecutionStatus:
 class ClusterMembership:
     """Cluster membership state"""
     membership_hash: str
-    nodes: List[str]
+    nodes: list[str]
     quorum_count: int
     timestamp: str
     protocol_version: str = PROTOCOL_VERSION
@@ -122,7 +120,7 @@ class AuditLogEntry:
     audit_id: str
     operation: str
     tenant_id: str
-    execution_id: Optional[str]
+    execution_id: str | None
     timestamp: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION

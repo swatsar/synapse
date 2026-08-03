@@ -5,8 +5,8 @@ Specification: 3.1
 """
 
 PROTOCOL_VERSION: str = "1.0"
-from typing import Optional, Dict, Any
 from enum import Enum
+from typing import Any
 
 
 class ErrorCode(str, Enum):
@@ -33,8 +33,8 @@ class SynapseError(Exception):
         message: str,
         error_code: ErrorCode = ErrorCode.INTERNAL_ERROR,
         status_code: int = 500,
-        details: Optional[Dict[str, Any]] = None,
-        caused_by: Optional[Exception] = None
+        details: dict[str, Any] | None = None,
+        caused_by: Exception | None = None
     ):
         self.message = message
         self.error_code = error_code
@@ -43,7 +43,7 @@ class SynapseError(Exception):
         self.caused_by = caused_by
         super().__init__(message)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API response."""
         return {
             "error": self.error_code.value,
@@ -57,7 +57,7 @@ class SynapseError(Exception):
 class AuthenticationError(SynapseError):
     """Raised when authentication fails."""
 
-    def __init__(self, message: str = "Authentication failed", details: Optional[Dict] = None):
+    def __init__(self, message: str = "Authentication failed", details: dict | None = None):
         super().__init__(
             message=message,
             error_code=ErrorCode.UNAUTHORIZED,
@@ -69,7 +69,7 @@ class AuthenticationError(SynapseError):
 class AuthorizationError(SynapseError):
     """Raised when authorization fails."""
 
-    def __init__(self, capability: str, details: Optional[Dict] = None):
+    def __init__(self, capability: str, details: dict | None = None):
         d = {"required_capability": capability}
         if details:
             d.update(details)
@@ -84,7 +84,7 @@ class AuthorizationError(SynapseError):
 class ValidationError(SynapseError):
     """Raised when input validation fails."""
 
-    def __init__(self, field: str, reason: str, details: Optional[Dict] = None):
+    def __init__(self, field: str, reason: str, details: dict | None = None):
         d = {"field": field, "reason": reason}
         if details:
             d.update(details)
@@ -99,7 +99,7 @@ class ValidationError(SynapseError):
 class NotFoundError(SynapseError):
     """Raised when a resource is not found."""
 
-    def __init__(self, resource_type: str, resource_id: str, details: Optional[Dict] = None):
+    def __init__(self, resource_type: str, resource_id: str, details: dict | None = None):
         d = {"resource_type": resource_type, "resource_id": resource_id}
         if details:
             d.update(details)
@@ -114,7 +114,7 @@ class NotFoundError(SynapseError):
 class SecurityViolationError(SynapseError):
     """Raised when a security violation is detected."""
 
-    def __init__(self, violation: str, details: Optional[Dict] = None):
+    def __init__(self, violation: str, details: dict | None = None):
         super().__init__(
             message=f"Security violation: {violation}",
             error_code=ErrorCode.SECURITY_VIOLATION,
@@ -126,7 +126,7 @@ class SecurityViolationError(SynapseError):
 class RateLimitError(SynapseError):
     """Raised when rate limit is exceeded."""
 
-    def __init__(self, limit: int, retry_after: int = 60, details: Optional[Dict] = None):
+    def __init__(self, limit: int, retry_after: int = 60, details: dict | None = None):
         d = {"limit": limit, "retry_after_seconds": retry_after}
         if details:
             d.update(details)
@@ -141,7 +141,7 @@ class RateLimitError(SynapseError):
 class ResourceExhaustedError(SynapseError):
     """Raised when system resources are exhausted."""
 
-    def __init__(self, resource: str, details: Optional[Dict] = None):
+    def __init__(self, resource: str, details: dict | None = None):
         super().__init__(
             message=f"Resource exhausted: {resource}",
             error_code=ErrorCode.RESOURCE_EXHAUSTED,
@@ -153,7 +153,7 @@ class ResourceExhaustedError(SynapseError):
 class TimeoutError(SynapseError):
     """Raised when an operation times out."""
 
-    def __init__(self, operation: str, timeout_ms: int, details: Optional[Dict] = None):
+    def __init__(self, operation: str, timeout_ms: int, details: dict | None = None):
         super().__init__(
             message=f"Operation '{operation}' timed out after {timeout_ms}ms",
             error_code=ErrorCode.TIMEOUT,
@@ -165,7 +165,7 @@ class TimeoutError(SynapseError):
 class ConflictError(SynapseError):
     """Raised when there's a conflict."""
 
-    def __init__(self, message: str, details: Optional[Dict] = None):
+    def __init__(self, message: str, details: dict | None = None):
         super().__init__(
             message=message,
             error_code=ErrorCode.CONFLICT,
@@ -177,7 +177,7 @@ class ConflictError(SynapseError):
 class BadRequestError(SynapseError):
     """Raised when request is malformed."""
 
-    def __init__(self, message: str, details: Optional[Dict] = None):
+    def __init__(self, message: str, details: dict | None = None):
         super().__init__(
             message=message,
             error_code=ErrorCode.BAD_REQUEST,
@@ -186,9 +186,10 @@ class BadRequestError(SynapseError):
         )
 
 
+import logging
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -201,14 +202,24 @@ async def synapse_error_handler(request: Request, exc: SynapseError) -> JSONResp
 
 async def generic_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handle unexpected exceptions."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.error(f"Unhandled exception: {exc}")
     error = SynapseError(message="Internal server error", error_code=ErrorCode.INTERNAL_ERROR, status_code=500)
     return JSONResponse(status_code=error.status_code, content=error.to_dict())
 
 
 __all__ = [
-    "ErrorCode", "SynapseError", "AuthenticationError", "AuthorizationError",
-    "ValidationError", "NotFoundError", "SecurityViolationError", "RateLimitError",
-    "ResourceExhaustedError", "TimeoutError", "ConflictError", "BadRequestError",
-    "synapse_error_handler", "generic_error_handler"
+    "AuthenticationError",
+    "AuthorizationError",
+    "BadRequestError",
+    "ConflictError",
+    "ErrorCode",
+    "NotFoundError",
+    "RateLimitError",
+    "ResourceExhaustedError",
+    "SecurityViolationError",
+    "SynapseError",
+    "TimeoutError",
+    "ValidationError",
+    "generic_error_handler",
+    "synapse_error_handler"
 ]

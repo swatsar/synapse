@@ -5,6 +5,7 @@ SPEC_VERSION: str = "3.1"
 """
 from ..audit import AuditLogger
 
+
 class TelemetryEngine:
     def __init__(self):
         self.logger = AuditLogger()

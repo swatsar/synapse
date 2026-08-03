@@ -7,11 +7,10 @@ Implements the CapabilityScope enum as defined in the architecture spec.
 Each capability is a typed token that grants specific, scoped access.
 Follows the Principle of Least Privilege.
 """
-from enum import Enum
-from typing import Optional, List
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from enum import Enum
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -111,11 +110,11 @@ class CapabilityToken:
     """
     token_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     scope: CapabilityScope = CapabilityScope.FILESYSTEM_READ
-    path_constraint: Optional[str] = None   # e.g. "/workspace/**"
+    path_constraint: str | None = None   # e.g. "/workspace/**"
     issued_to: str = "agent"
     issued_by: str = "system"
-    issued_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    expires_at: Optional[str] = None
+    issued_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    expires_at: str | None = None
     protocol_version: str = PROTOCOL_VERSION
 
     @property
@@ -135,7 +134,7 @@ class CapabilityToken:
         if not self.expires_at:
             return False
         expires = datetime.fromisoformat(self.expires_at)
-        return datetime.now(timezone.utc) > expires
+        return datetime.now(UTC) > expires
 
     def matches(self, required_scope: str) -> bool:
         """Check if this token satisfies a required scope string."""
@@ -148,9 +147,7 @@ class CapabilityToken:
         if "*" in full:
             return fnmatch.fnmatch(required_scope, full)
         # Prefix match (e.g. token "fs:read" covers "fs:read:/workspace/file")
-        if required_scope.startswith(full):
-            return True
-        return False
+        return bool(required_scope.startswith(full))
 
     def to_dict(self):
         return {
@@ -171,13 +168,13 @@ def make_token(
     scope: CapabilityScope,
     issued_to: str,
     issued_by: str = "orchestrator",
-    path: Optional[str] = None,
-    ttl_hours: Optional[int] = None,
+    path: str | None = None,
+    ttl_hours: int | None = None,
 ) -> CapabilityToken:
     """Factory for creating capability tokens."""
     expires_at = None
     if ttl_hours:
-        expires = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
+        expires = datetime.now(UTC) + timedelta(hours=ttl_hours)
         expires_at = expires.isoformat()
     return CapabilityToken(
         scope=scope,
@@ -189,7 +186,7 @@ def make_token(
 
 
 # Default safe capability set for new agents
-DEFAULT_AGENT_CAPABILITIES: List[CapabilityScope] = [
+DEFAULT_AGENT_CAPABILITIES: list[CapabilityScope] = [
     CapabilityScope.FILESYSTEM_READ,
     CapabilityScope.MEMORY_READ,
     CapabilityScope.MEMORY_WRITE,

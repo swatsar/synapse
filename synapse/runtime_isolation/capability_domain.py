@@ -8,9 +8,9 @@ CapabilityDomain limits the scope of capabilities and prevents:
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import FrozenSet, Optional, Dict, Any, Set
 import fnmatch
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -23,10 +23,10 @@ class CapabilityDomain:
     - Capability escalation across domain
     """
     domain_id: str
-    allowed_capabilities: FrozenSet[str]
-    tenant_id: Optional[str] = None
+    allowed_capabilities: frozenset[str]
+    tenant_id: str | None = None
     protocol_version: str = "1.0"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     
     def __post_init__(self):
         """Validate capability domain after initialization"""
@@ -79,7 +79,7 @@ class CapabilityDomain:
         """
         return self.validate_capability_scope(capability)
     
-    def get_capabilities_for_tenant(self, tenant_id: str) -> FrozenSet[str]:
+    def get_capabilities_for_tenant(self, tenant_id: str) -> frozenset[str]:
         """Get capabilities for a specific tenant"""
         if self.tenant_id and self.tenant_id != tenant_id:
             return frozenset()  # No capabilities for different tenant
@@ -91,7 +91,7 @@ class CapabilityDomain:
             return True  # No tenant restriction
         return self.tenant_id == tenant_id
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation"""
         return {
             "domain_id": self.domain_id,
@@ -102,7 +102,7 @@ class CapabilityDomain:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CapabilityDomain":
+    def from_dict(cls, data: dict[str, Any]) -> "CapabilityDomain":
         """Create CapabilityDomain from dictionary"""
         return cls(
             domain_id=data["domain_id"],

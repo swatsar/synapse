@@ -3,7 +3,7 @@ Phase 5 Control Plane Tests.
 Tests for distributed orchestrator mesh, deterministic scheduling, and cluster management.
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import sys
 import os
 
@@ -35,8 +35,8 @@ class TestClusterManager:
             public_key="pk1",
             endpoint="localhost:8080",
             capabilities=["fs:read", "fs:write"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         result = await manager.register_node(node)
@@ -52,8 +52,8 @@ class TestClusterManager:
             public_key="pk1",
             endpoint="localhost:8080",
             capabilities=["fs:read"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         await manager.register_node(node)
@@ -70,8 +70,8 @@ class TestClusterManager:
             public_key="pk1",
             endpoint="localhost:8080",
             capabilities=["fs:read"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         await manager.register_node(node)
@@ -88,8 +88,8 @@ class TestClusterManager:
             public_key="pk1",
             endpoint="localhost:8080",
             capabilities=["fs:read"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         node2 = NodeInfo(
@@ -97,8 +97,8 @@ class TestClusterManager:
             public_key="pk2",
             endpoint="localhost:8081",
             capabilities=["fs:write"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         await manager.register_node(node1)
@@ -119,8 +119,8 @@ class TestClusterManager:
             public_key="pk1",
             endpoint="localhost:8080",
             capabilities=["fs:read"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         await manager.register_node(node)
@@ -238,7 +238,7 @@ class TestNodeRegistry:
             public_key="pk1",
             certificate="cert1",
             capabilities=["fs:read"],
-            registered_at=datetime.utcnow(),
+            registered_at=datetime.now(UTC),
             status="active"
         )
         
@@ -255,7 +255,7 @@ class TestNodeRegistry:
             public_key="pk1",
             certificate="cert1",
             capabilities=["fs:read"],
-            registered_at=datetime.utcnow(),
+            registered_at=datetime.now(UTC),
             status="active"
         )
         
@@ -321,7 +321,7 @@ class TestStateHashConsensus:
         for node_id in ["node1", "node2", "node3"]:
             state_hash = StateHash(
                 hash_value="abc123",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 node_id=node_id,
                 execution_id="exec1"
             )
@@ -341,14 +341,14 @@ class TestStateHashConsensus:
         # Submit different hashes
         await consensus.submit_hash(StateHash(
             hash_value="hash1",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             node_id="node1",
             execution_id="exec1"
         ))
         
         await consensus.submit_hash(StateHash(
             hash_value="hash2",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             node_id="node2",
             execution_id="exec1"
         ))
@@ -435,7 +435,7 @@ class TestControlPlaneSecurity:
             public_key="fake_key",
             private_key="fake_private",
             certificate="fake_cert",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(UTC),
             expires_at=None
         )
         
@@ -453,7 +453,7 @@ class TestControlPlaneSecurity:
             public_key="pk1",
             certificate="cert1",
             capabilities=["fs:read"],
-            registered_at=datetime.utcnow(),
+            registered_at=datetime.now(UTC),
             status="active"
         )
         
@@ -480,8 +480,8 @@ class TestControlPlaneIntegration:
             public_key="pk1",
             endpoint="localhost:8080",
             capabilities=["fs:read", "fs:write"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         node2 = NodeInfo(
@@ -489,8 +489,8 @@ class TestControlPlaneIntegration:
             public_key="pk2",
             endpoint="localhost:8081",
             capabilities=["fs:read", "fs:write"],
-            registered_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow()
+            registered_at=datetime.now(UTC),
+            last_heartbeat=datetime.now(UTC)
         )
         
         await cluster.register_node(node1)
@@ -535,7 +535,7 @@ class TestControlPlaneIntegration:
         for node_id in ["node1", "node2", "node3"]:
             await consensus.submit_hash(StateHash(
                 hash_value=hash_value,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 node_id=node_id,
                 execution_id="exec1"
             ))

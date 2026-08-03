@@ -3,9 +3,9 @@
 Phase 11 - Continuous Self-Improvement & Adaptive Governance.
 """
 import hashlib
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -14,7 +14,7 @@ PROTOCOL_VERSION: str = "1.0"
 class PolicyUpdate:
     """Policy update request."""
     policy_name: str
-    updates: Dict[str, Any]
+    updates: dict[str, Any]
     reason: str
     risk_level: int
     seed: int
@@ -50,7 +50,7 @@ class AdaptivePolicyManager:
         self.audit_logger = audit_logger
         self.cluster_manager = cluster_manager
         self.policy_engine = policy_engine
-        self.policies: Dict[str, Dict[str, Any]] = {}
+        self.policies: dict[str, dict[str, Any]] = {}
         self.protocol_version = PROTOCOL_VERSION
     
     def _generate_id(self, seed: int, policy_name: str) -> str:
@@ -69,7 +69,7 @@ class AdaptivePolicyManager:
                 "update_id": update_id,
                 "policy_name": update.policy_name,
                 "reason": update.reason,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             })
         
         # Check if approval required
@@ -115,7 +115,7 @@ class AdaptivePolicyManager:
                     "policy_name": update.policy_name,
                     "success": True,
                     "cluster_propagated": cluster_propagated,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 })
             
             return PolicyUpdateResult(
@@ -135,7 +135,7 @@ class AdaptivePolicyManager:
                     "update_id": update_id,
                     "policy_name": update.policy_name,
                     "error": str(e),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 })
             
             return PolicyUpdateResult(
@@ -146,15 +146,15 @@ class AdaptivePolicyManager:
                 error=str(e)
             )
     
-    def get_policy(self, policy_name: str) -> Optional[Dict[str, Any]]:
+    def get_policy(self, policy_name: str) -> dict[str, Any] | None:
         """Get current policy state."""
         return self.policies.get(policy_name)
     
-    def get_all_policies(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_policies(self) -> dict[str, dict[str, Any]]:
         """Get all policies."""
         return self.policies.copy()
     
-    async def analyze_and_suggest(self) -> Dict[str, Any]:
+    async def analyze_and_suggest(self) -> dict[str, Any]:
         """Analyze telemetry and suggest policy updates."""
         suggestions = []
         
@@ -183,5 +183,5 @@ class AdaptivePolicyManager:
         
         return {
             "suggestions": suggestions,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }

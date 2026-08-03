@@ -1,12 +1,11 @@
 PROTOCOL_VERSION: str = "1.0"
 import asyncio
-import pathlib
-import subprocess
 from typing import Any
 
 from synapse.environment.base import Environment
-from synapse.security.execution_guard import ExecutionGuard
 from synapse.security.capability_manager import CapabilityManager
+from synapse.security.execution_guard import ExecutionGuard
+
 
 class LocalOS(Environment):
     """Concrete environment that runs on the host OS.

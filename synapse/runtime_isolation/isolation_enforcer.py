@@ -10,13 +10,14 @@ IsolationEnforcer provides:
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
 import hashlib
 import json
-from synapse.runtime_isolation.tenant_context import TenantContext
-from synapse.runtime_isolation.execution_domain import ExecutionDomain
+from dataclasses import dataclass, field
+from typing import Any
+
 from synapse.runtime_isolation.capability_domain import CapabilityDomain
+from synapse.runtime_isolation.execution_domain import ExecutionDomain
+from synapse.runtime_isolation.tenant_context import TenantContext
 
 
 @dataclass
@@ -113,8 +114,8 @@ class IsolationEnforcer:
     async def verify_replay_identity(
         self,
         domain: ExecutionDomain,
-        execution_result: Dict[str, Any],
-        replay_result: Dict[str, Any]
+        execution_result: dict[str, Any],
+        replay_result: dict[str, Any]
     ) -> bool:
         """
         Verify that replay produces identical results.
@@ -179,10 +180,10 @@ class IsolationEnforcer:
         allowed: bool
     ) -> None:
         """Log enforcement action"""
-        from datetime import datetime
+        from datetime import UTC, datetime
         
         self._enforcement_log.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "type": enforcement_type,
             "source": source,
             "target": target,
@@ -190,7 +191,7 @@ class IsolationEnforcer:
             "protocol_version": self.protocol_version
         })
     
-    def _compute_result_hash(self, result: Dict[str, Any]) -> str:
+    def _compute_result_hash(self, result: dict[str, Any]) -> str:
         """Compute deterministic hash of result"""
         # Remove non-deterministic metadata
         clean_result = {
@@ -205,7 +206,7 @@ class IsolationEnforcer:
         """Get enforcement log"""
         return list(self._enforcement_log)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation"""
         return {
             "protocol_version": self.protocol_version,

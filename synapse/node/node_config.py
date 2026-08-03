@@ -5,7 +5,8 @@ Node Configuration
 PROTOCOL_VERSION: str = "1.0"
 
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
+
 
 @dataclass
 class NodeConfig:
@@ -17,7 +18,7 @@ class NodeConfig:
     execution_timeout_seconds: int = 300
     protocol_version: str = "1.0"
     environment: str = "production"
-    capabilities: Dict[str, Any] = None
+    capabilities: dict[str, Any] = None
     
     def __post_init__(self):
         if self.capabilities is None:

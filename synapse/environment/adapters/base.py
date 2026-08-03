@@ -6,8 +6,8 @@ Spec Version: 3.1
 """
 
 import abc
-from typing import Dict, List, Optional, Any
 from pathlib import Path
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -36,7 +36,6 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             Path: User home directory path
         """
-        pass
 
     @abc.abstractmethod
     async def get_config_dir(self) -> Path:
@@ -45,7 +44,6 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             Path: Configuration directory path
         """
-        pass
 
     @abc.abstractmethod
     async def get_data_dir(self) -> Path:
@@ -54,7 +52,6 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             Path: Data directory path
         """
-        pass
 
     @abc.abstractmethod
     async def get_temp_dir(self) -> Path:
@@ -63,16 +60,15 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             Path: Temporary directory path
         """
-        pass
 
     @abc.abstractmethod
     async def execute_command(
         self, 
         command: str, 
         timeout: int = 60,
-        cwd: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
+        cwd: str | None = None,
+        env: dict[str, str] | None = None
+    ) -> dict[str, Any]:
         """Execute a shell command.
 
         Args:
@@ -84,34 +80,30 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             Dict with stdout, stderr, returncode, protocol_version
         """
-        pass
 
     @abc.abstractmethod
-    async def get_os_info(self) -> Dict[str, Any]:
+    async def get_os_info(self) -> dict[str, Any]:
         """Get operating system information.
 
         Returns:
             Dict with os, version, architecture, protocol_version
         """
-        pass
 
     @abc.abstractmethod
-    async def get_network_info(self) -> Dict[str, Any]:
+    async def get_network_info(self) -> dict[str, Any]:
         """Get network information.
 
         Returns:
             Dict with hostname, ip_addresses, protocol_version
         """
-        pass
 
     @abc.abstractmethod
-    async def get_resource_usage(self) -> Dict[str, Any]:
+    async def get_resource_usage(self) -> dict[str, Any]:
         """Get system resource usage.
 
         Returns:
             Dict with cpu_percent, memory_percent, disk_percent, protocol_version
         """
-        pass
 
     @abc.abstractmethod
     async def path_exists(self, path: str) -> bool:
@@ -123,7 +115,6 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             bool: True if path exists
         """
-        pass
 
     @abc.abstractmethod
     async def create_directory(
@@ -142,16 +133,14 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             bool: True if successful
         """
-        pass
 
     @abc.abstractmethod
-    async def get_environment_variables(self) -> Dict[str, str]:
+    async def get_environment_variables(self) -> dict[str, str]:
         """Get all environment variables.
 
         Returns:
             Dict of environment variables
         """
-        pass
 
     @abc.abstractmethod
     async def set_environment_variable(
@@ -170,16 +159,14 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             bool: True if successful
         """
-        pass
 
     @abc.abstractmethod
-    async def get_process_list(self) -> List[Dict[str, Any]]:
+    async def get_process_list(self) -> list[dict[str, Any]]:
         """Get list of running processes.
 
         Returns:
             List of process info dicts
         """
-        pass
 
     @abc.abstractmethod
     async def kill_process(self, pid: int) -> bool:
@@ -191,9 +178,8 @@ class EnvironmentAdapter(abc.ABC):
         Returns:
             bool: True if successful
         """
-        pass
 
-    def _create_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _create_response(self, data: dict[str, Any]) -> dict[str, Any]:
         """Create a response with protocol version.
 
         Args:

@@ -1,10 +1,12 @@
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
+
 import pytest
-import asyncio
-from synapse.security.execution_guard import ExecutionGuard, ResourceLimitError
+
 from synapse.core.models import ResourceLimits
+from synapse.security.execution_guard import ExecutionGuard, ResourceLimitError
+
 
 # Dummy async skill for testing – will be used by ExecutionGuard
 async def dummy_skill():

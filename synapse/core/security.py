@@ -5,24 +5,30 @@ Spec v3.1 compliant с полной реализацией токенов и п�
 Protocol Version: 1.0
 Specification: 3.1
 """
-from typing import Dict, List, Optional, Set, Any, Callable
-from pydantic import BaseModel, Field, ConfigDict
-from datetime import datetime, timezone, timedelta
-import uuid
 import fnmatch
+import uuid
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from synapse.observability.logger import audit
 
 PROTOCOL_VERSION: str = "1.0"
 
 # Re-export CapabilityScope for convenience
-from synapse.core.capability_scope import CapabilityScope, CapabilityToken, make_token  # noqa: F401
+from synapse.core.capability_scope import (  # noqa: F401
+    CapabilityScope,
+    CapabilityToken,
+    make_token,
+)
+
 SPEC_VERSION: str = "3.1"
 
 
 class CapabilityError(Exception):
     """Exception raised when capability check fails."""
-    pass
 
 
 class CapabilityToken(BaseModel):
@@ -30,10 +36,10 @@ class CapabilityToken(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     capability: str
     scope: str
-    expires_at: Optional[str] = None
+    expires_at: str | None = None
     issued_to: str
     issued_by: str
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     protocol_version: str = PROTOCOL_VERSION
 
     model_config = ConfigDict(frozen=True)
@@ -42,8 +48,8 @@ class CapabilityToken(BaseModel):
 class SecurityCheckResult(BaseModel):
     """Результат проверки безопасности."""
     approved: bool
-    blocked_capabilities: List[str] = []
-    reason: Optional[str] = None
+    blocked_capabilities: list[str] = []
+    reason: str | None = None
     requires_human_approval: bool = False
     protocol_version: str = PROTOCOL_VERSION
 
@@ -55,8 +61,8 @@ class CapabilityManager:
     """
 
     def __init__(self, audit_logger=None):
-        self._tokens: Dict[str, CapabilityToken] = {}
-        self._agent_capabilities: Dict[str, Set[str]] = {}
+        self._tokens: dict[str, CapabilityToken] = {}
+        self._agent_capabilities: dict[str, set[str]] = {}
         self.audit = audit_logger
         self.protocol_version = PROTOCOL_VERSION
 
@@ -65,13 +71,13 @@ class CapabilityManager:
         capability: str,
         issued_to: str,
         issued_by: str,
-        expires_in_hours: Optional[int] = None
+        expires_in_hours: int | None = None
     ) -> CapabilityToken:
         """Выдача токена возможности."""
         expires_at = None
         if expires_in_hours:
             expires_at = (
-                datetime.now(timezone.utc) +
+                datetime.now(UTC) +
                 timedelta(hours=expires_in_hours)
             ).isoformat()
 
@@ -101,7 +107,7 @@ class CapabilityManager:
 
     async def check_capabilities(
         self,
-        required: List[str],
+        required: list[str],
         agent_id: str
     ) -> SecurityCheckResult:
         """
@@ -145,7 +151,7 @@ class CapabilityManager:
         for token in agent_tokens:
             if token.expires_at:
                 expires = datetime.fromisoformat(token.expires_at)
-                if datetime.now(timezone.utc) > expires:
+                if datetime.now(UTC) > expires:
                     continue
 
             if self._match_capability(token.capability, capability):
@@ -162,9 +168,7 @@ class CapabilityManager:
             return True
         if '*' in token_cap:
             return fnmatch.fnmatch(required_cap, token_cap)
-        if required_cap.startswith(token_cap):
-            return True
-        return False
+        return bool(required_cap.startswith(token_cap))
 
     def _extract_scope(self, capability: str) -> str:
         """Извлечение scope из capability строки."""
@@ -194,30 +198,30 @@ class CapabilityManager:
                 return True
         return False
 
-    async def get_agent_capabilities(self, agent_id: str) -> List[str]:
+    async def get_agent_capabilities(self, agent_id: str) -> list[str]:
         """Получение списка capabilities агента."""
         capabilities = []
         for token in self._tokens.values():
             if token.issued_to == agent_id:
                 if token.expires_at:
                     expires = datetime.fromisoformat(token.expires_at)
-                    if datetime.now(timezone.utc) > expires:
+                    if datetime.now(UTC) > expires:
                         continue
                 capabilities.append(token.capability)
         return capabilities
 
-    async def list_capabilities(self) -> List[str]:
+    async def list_capabilities(self) -> list[str]:
         """List all registered capability types (non-expired)."""
         caps = set()
         for token in self._tokens.values():
             if token.expires_at:
                 expires = datetime.fromisoformat(token.expires_at)
-                if datetime.now(timezone.utc) > expires:
+                if datetime.now(UTC) > expires:
                     continue
             caps.add(token.capability)
         return list(caps)
 
-    async def require(self, capabilities: List[str], agent_id: str = "default") -> bool:
+    async def require(self, capabilities: list[str], agent_id: str = "default") -> bool:
         """
         Legacy method for backward compatibility.
         Raises CapabilityError if capabilities are missing.
@@ -240,11 +244,11 @@ class CapabilityContract(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     capability: str
     scope: str
-    constraints: Dict[str, Any] = Field(default_factory=dict)
-    expires_at: Optional[str] = None
+    constraints: dict[str, Any] = Field(default_factory=dict)
+    expires_at: str | None = None
     issued_to: str
     issued_by: str
-    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     protocol_version: str = PROTOCOL_VERSION
 
     model_config = ConfigDict(frozen=True)
@@ -254,15 +258,15 @@ class CapabilityContract(BaseModel):
         if not self.expires_at:
             return False
         expires = datetime.fromisoformat(self.expires_at)
-        return datetime.now(timezone.utc) > expires
+        return datetime.now(UTC) > expires
 
 
 class EnforcementResult(BaseModel):
     """Результат enforcement."""
     approved: bool
     enforced: bool = False
-    reason: Optional[str] = None
-    capability: Optional[str] = None
+    reason: str | None = None
+    capability: str | None = None
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -314,12 +318,12 @@ class AuditEvent(BaseModel):
     """Событие аудита."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     event_type: str
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    agent_id: Optional[str] = None
-    capability: Optional[str] = None
-    action: Optional[str] = None
+    timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    agent_id: str | None = None
+    capability: str | None = None
+    action: str | None = None
     result: str = "logged"
-    details: Dict[str, Any] = Field(default_factory=dict)
+    details: dict[str, Any] = Field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -330,13 +334,13 @@ class AuditMechanism:
     """
 
     def __init__(self):
-        self._events: List[AuditEvent] = []
+        self._events: list[AuditEvent] = []
         self.protocol_version = PROTOCOL_VERSION
 
     async def emit_event(
         self,
         event_type: str,
-        details: Dict[str, Any]
+        details: dict[str, Any]
     ) -> str:
         """Публикация события аудита."""
         event = AuditEvent(
@@ -352,10 +356,10 @@ class AuditMechanism:
 
     async def get_events(
         self,
-        event_type: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        event_type: str | None = None,
+        agent_id: str | None = None,
         limit: int = 100
-    ) -> List[AuditEvent]:
+    ) -> list[AuditEvent]:
         """Получение событий аудита."""
         events = self._events
 
@@ -373,8 +377,8 @@ class AuditMechanism:
     def log_action(
         self,
         action: str,
-        result: Dict[str, Any],
-        context: Dict[str, Any] = None
+        result: dict[str, Any],
+        context: dict[str, Any] | None = None
     ):
         """Compatibility method for CapabilityManager."""
         import asyncio
@@ -406,8 +410,8 @@ class AuditMechanism:
 class GuardResult(BaseModel):
     """Результат guard."""
     allowed: bool
-    result: Optional[Any] = None
-    error: Optional[str] = None
+    result: Any | None = None
+    error: str | None = None
     protocol_version: str = PROTOCOL_VERSION
 
 
@@ -422,13 +426,13 @@ class RuntimeGuard:
         self.protocol_version = PROTOCOL_VERSION
         self._active: bool = False
 
-    def emit_event(self, event_type: str, details: Dict[str, Any]) -> str:
+    def emit_event(self, event_type: str, details: dict[str, Any]) -> str:
         """Публикация события аудита."""
         if self.audit:
             return self.audit.emit_event(event_type, details)
         return str(uuid.uuid4())
 
-    async def activate(self, context: Optional[Dict[str, Any]] = None) -> GuardResult:
+    async def activate(self, context: dict[str, Any] | None = None) -> GuardResult:
         """Activate the runtime guard."""
         self._active = True
         return GuardResult(allowed=True, result={"activated": True, "context": context or {}})
@@ -440,7 +444,7 @@ class RuntimeGuard:
     async def guard(
         self,
         action: Callable,
-        capabilities: List[str],
+        capabilities: list[str],
         agent_id: str,
         capability_manager: 'CapabilityManager',
         audit: 'AuditMechanism' = None
@@ -486,8 +490,8 @@ class RuntimeGuard:
     def log_action(
         self,
         action: str,
-        result: Dict[str, Any],
-        context: Dict[str, Any] = None
+        result: dict[str, Any],
+        context: dict[str, Any] | None = None
     ):
         """Compatibility method for CapabilityManager."""
         self.emit_event(
@@ -516,10 +520,10 @@ class SecurityManager:
 
     def __init__(
         self,
-        capability_manager: Optional[CapabilityManager] = None,
-        permission_enforcer: Optional[PermissionEnforcer] = None,
-        audit_mechanism: Optional[AuditMechanism] = None,
-        runtime_guard: Optional[RuntimeGuard] = None
+        capability_manager: CapabilityManager | None = None,
+        permission_enforcer: PermissionEnforcer | None = None,
+        audit_mechanism: AuditMechanism | None = None,
+        runtime_guard: RuntimeGuard | None = None
     ):
         self.capability_manager = capability_manager or CapabilityManager()
         self.permission_enforcer = permission_enforcer or PermissionEnforcer()
@@ -537,8 +541,8 @@ class SecurityManager:
 
     async def check_capabilities(
         self,
-        required_capabilities: Optional[List[str]] = None,
-        context: Optional[Dict[str, Any]] = None
+        required_capabilities: list[str] | None = None,
+        context: dict[str, Any] | None = None
     ) -> SecurityCheckResult:
         """Check if the system has the required capabilities."""
         agent_id = (context or {}).get("agent_id", "default")
@@ -559,8 +563,8 @@ class SecurityManager:
 
     async def log_security_event(
         self,
-        event: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        event: dict[str, Any],
+        context: dict[str, Any] | None = None
     ):
         """Log a security event for audit purposes."""
         context = context or {}
@@ -576,7 +580,7 @@ class SecurityManager:
 
     async def activate_runtime_guard(
         self,
-        context: Optional[Dict[str, Any]] = None
+        context: dict[str, Any] | None = None
     ) -> GuardResult:
         """Activate the runtime guard for security enforcement."""
         return await self.runtime_guard.activate(context)
@@ -584,7 +588,7 @@ class SecurityManager:
     async def assess_risk(
         self,
         operation: str,
-        context: Optional[Dict[str, Any]] = None
+        context: dict[str, Any] | None = None
     ) -> int:
         """Assess the risk level of an operation. Returns 1 (low) to 5 (high)."""
         high_risk_operations = ["execute_command", "write_file", "network_scan"]
@@ -597,7 +601,7 @@ class SecurityManager:
         else:
             return 1
 
-    async def get_security_report(self) -> Dict[str, Any]:
+    async def get_security_report(self) -> dict[str, Any]:
         """Get a comprehensive security report."""
         return {
             "protocol_version": self.protocol_version,

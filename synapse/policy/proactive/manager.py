@@ -6,12 +6,8 @@ from __future__ import annotations
 
 import hashlib
 import uuid
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-import asyncio
-import random
-
+from dataclasses import dataclass
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -20,8 +16,8 @@ PROTOCOL_VERSION: str = "1.0"
 class ProactiveRule:
     """Rule for proactive policy management."""
     name: str
-    condition: Dict[str, Any]
-    action: Dict[str, Any]
+    condition: dict[str, Any]
+    action: dict[str, Any]
     risk_level: int
     cluster_wide: bool = False
     protocol_version: str = "1.0"
@@ -44,7 +40,7 @@ class ProactiveAction:
 class RuleCreationResult:
     """Result of rule creation."""
     success: bool
-    rule_id: Optional[str] = None
+    rule_id: str | None = None
     cluster_propagated: bool = False
 
 
@@ -55,13 +51,13 @@ class ProactivePolicyManager:
 
     def __init__(
         self,
-        resource_manager: Optional[Any] = None,
-        telemetry: Optional[Any] = None,
-        policy_engine: Optional[Any] = None,
-        capability_manager: Optional[Any] = None,
-        cluster_manager: Optional[Any] = None,
-        human_approval: Optional[Any] = None,
-        rollback_manager: Optional[Any] = None
+        resource_manager: Any | None = None,
+        telemetry: Any | None = None,
+        policy_engine: Any | None = None,
+        capability_manager: Any | None = None,
+        cluster_manager: Any | None = None,
+        human_approval: Any | None = None,
+        rollback_manager: Any | None = None
     ):
         self.resource_manager = resource_manager
         self.telemetry = telemetry
@@ -70,8 +66,8 @@ class ProactivePolicyManager:
         self.cluster_manager = cluster_manager
         self.human_approval = human_approval
         self.rollback_manager = rollback_manager
-        self.audit_logger: Optional[Any] = None
-        self._rules: Dict[str, ProactiveRule] = {}
+        self.audit_logger: Any | None = None
+        self._rules: dict[str, ProactiveRule] = {}
 
     def _generate_rule_id(self, rule: ProactiveRule) -> str:
         """Generate deterministic rule ID."""
@@ -113,7 +109,7 @@ class ProactivePolicyManager:
             cluster_propagated=cluster_propagated
         )
 
-    def _evaluate_condition(self, condition: Dict[str, Any], metrics: Dict[str, Any]) -> bool:
+    def _evaluate_condition(self, condition: dict[str, Any], metrics: dict[str, Any]) -> bool:
         """Evaluate if condition is met."""
         for key, condition_value in condition.items():
             metric_value = metrics.get(key, 0)
@@ -143,7 +139,7 @@ class ProactivePolicyManager:
 
         return True
 
-    async def evaluate_and_act(self, metrics: Dict[str, Any]) -> ProactiveAction:
+    async def evaluate_and_act(self, metrics: dict[str, Any]) -> ProactiveAction:
         """Evaluate metrics and take proactive action."""
         # Get telemetry data if available
         if self.telemetry and hasattr(self.telemetry, 'get_metrics'):
@@ -317,7 +313,7 @@ class ProactivePolicyManager:
 
         return action
 
-    async def predict_violation(self, action_context: Dict[str, Any]) -> Dict[str, Any]:
+    async def predict_violation(self, action_context: dict[str, Any]) -> dict[str, Any]:
         """Predict if an action would cause a policy violation."""
         # Get historical violation trends
         violation_risk = 0.0
@@ -348,7 +344,7 @@ class ProactivePolicyManager:
             'recommendation': 'block' if violation_risk > 0.8 else 'approve'
         }
 
-    async def evaluate_action(self, action_context: Dict[str, Any]) -> Any:
+    async def evaluate_action(self, action_context: dict[str, Any]) -> Any:
         """Evaluate an action for policy compliance."""
         prediction = await self.predict_violation(action_context)
 

@@ -2,11 +2,10 @@
 Orchestrator Mesh for Synapse Control Plane.
 Coordinates execution across multiple nodes.
 """
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Dict, List, Optional
 import hashlib
 import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -15,7 +14,7 @@ PROTOCOL_VERSION: str = "1.0"
 class MeshState:
     """State of the orchestrator mesh"""
     mesh_id: str
-    active_orchestrators: List[str]
+    active_orchestrators: list[str]
     state_hash: str
     timestamp: datetime
     protocol_version: str = PROTOCOL_VERSION
@@ -47,8 +46,8 @@ class OrchestratorMesh:
     def __init__(self, mesh_id: str, node_id: str):
         self.mesh_id = mesh_id
         self.node_id = node_id
-        self._orchestrators: Dict[str, dict] = {}
-        self._message_log: List[MeshMessage] = []
+        self._orchestrators: dict[str, dict] = {}
+        self._message_log: list[MeshMessage] = []
     
     async def join_mesh(self, orchestrator_id: str, metadata: dict) -> bool:
         """Join the orchestrator mesh"""
@@ -58,7 +57,7 @@ class OrchestratorMesh:
         self._orchestrators[orchestrator_id] = {
             "id": orchestrator_id,
             "metadata": metadata,
-            "joined_at": datetime.utcnow().isoformat()
+            "joined_at": datetime.now(UTC).isoformat()
         }
         
         return True
@@ -81,7 +80,7 @@ class OrchestratorMesh:
             receiver_id="broadcast",
             message_type=message_type,
             payload=payload,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             signature=self._sign_message(message_id, payload),
             protocol_version=PROTOCOL_VERSION
         )
@@ -97,7 +96,7 @@ class OrchestratorMesh:
             mesh_id=self.mesh_id,
             active_orchestrators=list(self._orchestrators.keys()),
             state_hash=state_hash,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             protocol_version=PROTOCOL_VERSION
         )
     

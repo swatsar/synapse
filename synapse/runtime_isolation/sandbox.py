@@ -10,16 +10,17 @@ DeterministicSandbox provides:
 
 PROTOCOL_VERSION: str = "1.0"
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, Callable, Awaitable
 import asyncio
 import hashlib
 import json
 import time
-from datetime import datetime
-from synapse.runtime_isolation.tenant_context import TenantContext
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
 from synapse.runtime_isolation.execution_domain import ExecutionDomain
-from synapse.runtime_isolation.capability_domain import CapabilityDomain
+from synapse.runtime_isolation.tenant_context import TenantContext
 
 
 @dataclass
@@ -34,9 +35,9 @@ class DeterministicSandbox:
     - Replay identity
     """
     sandbox_id: str
-    resource_quota: Dict[str, int]
+    resource_quota: dict[str, int]
     protocol_version: str = "1.0"
-    _internal_state: Dict[str, Any] = field(default_factory=dict)
+    _internal_state: dict[str, Any] = field(default_factory=dict)
     _execution_history: list = field(default_factory=list)
     
     def __post_init__(self):
@@ -46,10 +47,10 @@ class DeterministicSandbox:
     
     async def execute(
         self,
-        workflow: Callable[[Dict], Dict],
-        context: Dict[str, Any],
+        workflow: Callable[[dict], dict],
+        context: dict[str, Any],
         domain: ExecutionDomain
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Execute workflow in sandbox with domain isolation.
         
@@ -90,7 +91,7 @@ class DeterministicSandbox:
             
             # Record execution
             self._execution_history.append({
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "context_hash": self._compute_context_hash(context),
                 "result_hash": self._compute_result_hash(result),
                 "domain_id": domain.domain_id
@@ -99,14 +100,14 @@ class DeterministicSandbox:
             return result
             
         except Exception as e:
-            raise RuntimeError(f"Sandbox execution failed: {str(e)}")
+            raise RuntimeError(f"Sandbox execution failed: {e!s}")
     
     async def replay(
         self,
-        workflow: Callable[[Dict], Dict],
-        context: Dict[str, Any],
+        workflow: Callable[[dict], dict],
+        context: dict[str, Any],
         domain: ExecutionDomain
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Replay execution with identical context.
         
@@ -115,7 +116,7 @@ class DeterministicSandbox:
         # Replay is identical to execute for deterministic sandbox
         return await self.execute(workflow, context, domain)
     
-    async def enforce_domain(self, context: Dict, domain: ExecutionDomain) -> None:
+    async def enforce_domain(self, context: dict, domain: ExecutionDomain) -> None:
         """Enforce domain isolation"""
         if not domain:
             raise ValueError("Execution domain is required")
@@ -124,7 +125,7 @@ class DeterministicSandbox:
         if not domain.domain_id or not domain.tenant_id:
             raise ValueError("Invalid execution domain")
     
-    async def enforce_capabilities(self, context: Dict, domain: ExecutionDomain) -> None:
+    async def enforce_capabilities(self, context: dict, domain: ExecutionDomain) -> None:
         """Enforce capability requirements"""
         required_caps = context.get("required_capabilities", [])
         
@@ -166,9 +167,9 @@ class DeterministicSandbox:
     async def execute_for_tenant(
         self,
         tenant: TenantContext,
-        workflow: Callable[[Dict], Dict],
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        workflow: Callable[[dict], dict],
+        context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Execute workflow for specific tenant"""
         # This should fail if sandbox is not configured for tenant
         raise PermissionError(
@@ -182,7 +183,7 @@ class DeterministicSandbox:
             memory_mb <= self.resource_quota.get("memory_mb", 0)
         )
     
-    def check_quota_from_context(self, context: Dict) -> bool:
+    def check_quota_from_context(self, context: dict) -> bool:
         """Check quota from context"""
         required_cpu = context.get("cpu_seconds", 0)
         required_memory = context.get("memory_mb", 0)
@@ -192,15 +193,15 @@ class DeterministicSandbox:
         
         return True
     
-    def get_internal_state(self) -> Dict[str, Any]:
+    def get_internal_state(self) -> dict[str, Any]:
         """Get internal sandbox state"""
         return dict(self._internal_state)
     
-    def update_internal_state(self, updates: Dict[str, Any]) -> None:
+    def update_internal_state(self, updates: dict[str, Any]) -> None:
         """Update internal sandbox state"""
         self._internal_state.update(updates)
     
-    def _compute_context_hash(self, context: Dict) -> str:
+    def _compute_context_hash(self, context: dict) -> str:
         """Compute deterministic hash of context"""
         # Remove non-deterministic fields
         clean_context = {k: v for k, v in context.items() if not k.startswith("_")}
@@ -208,13 +209,13 @@ class DeterministicSandbox:
             json.dumps(clean_context, sort_keys=True).encode()
         ).hexdigest()
     
-    def _compute_result_hash(self, result: Dict) -> str:
+    def _compute_result_hash(self, result: dict) -> str:
         """Compute deterministic hash of result"""
         return hashlib.sha256(
             json.dumps(result, sort_keys=True).encode()
         ).hexdigest()
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation"""
         return {
             "sandbox_id": self.sandbox_id,

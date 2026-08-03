@@ -4,25 +4,26 @@ Secure Execution Context and Executor
 
 PROTOCOL_VERSION: str = "1.0"
 
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, field
-from datetime import datetime, UTC
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 from synapse.core.audit import AuditLog
 from synapse.core.observability import ObservabilityCore
+
 
 @dataclass
 class SecureExecutionContext:
     """Secure execution context with capabilities"""
     agent_id: str
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     protocol_version: str = "1.0"
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
-    execution_seed: Optional[int] = None
+    execution_seed: int | None = None
     
     def has_capability(self, capability: str) -> bool:
         """Check if context has a specific capability"""
@@ -36,7 +37,7 @@ class SecureWorkflowExecutor:
         self.audit_log = audit_log or AuditLog()
         self.observability = observability or ObservabilityCore()
     
-    async def execute(self, workflow, context: SecureExecutionContext) -> Dict[str, Any]:
+    async def execute(self, workflow, context: SecureExecutionContext) -> dict[str, Any]:
         """Execute workflow with capability enforcement"""
         from synapse.core.workflow_engine import WorkflowDefinition
         

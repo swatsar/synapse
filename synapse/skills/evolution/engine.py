@@ -3,10 +3,8 @@
 Implements SYSTEM_SPEC_v3.1 Phase 9 - Autonomous Skill Evolution.
 """
 import hashlib
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, field
-from datetime import datetime
-
+from dataclasses import dataclass
+from typing import Any
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
@@ -16,7 +14,7 @@ SPEC_VERSION: str = "3.1"
 class EvolutionPlan:
     """Plan for skill evolution."""
     skill_name: str
-    target_improvements: List[str]
+    target_improvements: list[str]
     estimated_effort: float
     risk_level: int
     protocol_version: str = "1.0"
@@ -28,8 +26,8 @@ class EvolutionResult:
     success: bool
     skill_name: str
     new_version: str
-    changes: List[str]
-    checkpoint_id: Optional[str] = None
+    changes: list[str]
+    checkpoint_id: str | None = None
     protocol_version: str = "1.0"
 
 
@@ -63,7 +61,7 @@ class SkillEvolutionEngine:
         self.checkpoint_manager = checkpoint_manager
         self.rollback_manager = rollback_manager
     
-    def should_evolve(self, skill_metrics: Dict[str, Any]) -> bool:
+    def should_evolve(self, skill_metrics: dict[str, Any]) -> bool:
         """Determine if skill should be evolved based on metrics.
         
         Args:
@@ -80,15 +78,12 @@ class SkillEvolutionEngine:
             return True
         
         # Evolve if latency is too high
-        if latency_ms > self.PERFORMANCE_THRESHOLD_LATENCY_MS:
-            return True
-        
-        return False
+        return latency_ms > self.PERFORMANCE_THRESHOLD_LATENCY_MS
     
     def plan_evolution(
         self,
-        skill_spec: Dict[str, Any],
-        seed: Optional[int] = None
+        skill_spec: dict[str, Any],
+        seed: int | None = None
     ) -> EvolutionPlan:
         """Create deterministic evolution plan.
         
@@ -121,8 +116,8 @@ class SkillEvolutionEngine:
     
     async def evolve_skill(
         self,
-        skill_spec: Dict[str, Any],
-        seed: Optional[int] = None
+        skill_spec: dict[str, Any],
+        seed: int | None = None
     ) -> EvolutionResult:
         """Evolve a skill.
         
@@ -146,7 +141,7 @@ class SkillEvolutionEngine:
             })
         
         # Create evolution plan
-        plan = self.plan_evolution(skill_spec, seed)
+        self.plan_evolution(skill_spec, seed)
         
         # Simulate evolution (in real implementation, would call DeveloperAgent)
         return EvolutionResult(
@@ -161,7 +156,7 @@ class SkillEvolutionEngine:
         skill_name: str,
         error: str,
         checkpoint_id: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Handle failed evolution by triggering rollback.
         
         Args:
@@ -189,7 +184,7 @@ class SkillEvolutionEngine:
         
         return {"success": False, "reason": "no_rollback_manager"}
     
-    async def restore_cluster_state(self, checkpoint_id: str) -> Dict[str, Any]:
+    async def restore_cluster_state(self, checkpoint_id: str) -> dict[str, Any]:
         """Restore cluster state from checkpoint.
         
         Args:
@@ -204,7 +199,7 @@ class SkillEvolutionEngine:
         
         return {"success": False, "reason": "no_checkpoint_manager"}
     
-    async def verify_capabilities(self, capabilities: List[str]) -> bool:
+    async def verify_capabilities(self, capabilities: list[str]) -> bool:
         """Verify capabilities after restore.
         
         Args:
