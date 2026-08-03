@@ -435,7 +435,6 @@ class SecureBrowserController:
     ) -> BrowserActionResult:
         """Execute browser action via Playwright if available, else httpx fallback."""
         try:
-            from playwright.async_api import async_playwright
             return await self._execute_with_playwright(action, url, selector, value, timeout)
         except ImportError:
             pass
