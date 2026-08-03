@@ -112,7 +112,7 @@ class TelegramConnector(BaseConnector):
         )
         if code_preview:
             text += f"\n```python\n{code_preview[:500]}\n```"
-        text += f"\n\nОтветьте `/approve {approval_id}` или `/reject {approval_id}`"
+        text += f"\n\nRespond with `/approve {approval_id}` or `/reject {approval_id}`"
 
         if self._bot:
             try:

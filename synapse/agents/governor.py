@@ -164,7 +164,7 @@ class GovernorAgent:
                 status="completed"
             )
             
-        except Exception as e:
+        except RuntimeError as e:
             return ActionResult(
                 success=False,
                 action_id=action_id,

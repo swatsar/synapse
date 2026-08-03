@@ -104,7 +104,7 @@ class OptimizerAgent:
             try:
                 prompt = self._build_code_optimization_prompt(request)
                 optimized_code = await self.llm_provider.generate(prompt)
-            except Exception:
+            except RuntimeError:
                 optimized_code = self._generate_fallback_code(request)
         else:
             optimized_code = self._generate_fallback_code(request)
@@ -141,7 +141,7 @@ class OptimizerAgent:
             try:
                 prompt = self._build_prompt_optimization_prompt(request)
                 optimized_prompt = await self.llm_provider.generate(prompt)
-            except Exception:
+            except RuntimeError:
                 optimized_prompt = self._generate_fallback_prompt(request)
         else:
             optimized_prompt = self._generate_fallback_prompt(request)

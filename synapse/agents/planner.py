@@ -201,7 +201,7 @@ class PlannerAgent:
             # Fallback to basic search
             results = await self.memory.search(task)
             return results[:3]
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError) as e:
             logger.warning("Memory recall failed: %s", e)
             return []
 
@@ -212,7 +212,7 @@ class PlannerAgent:
         try:
             skills = await self.skill_registry.list_active()
             return [s.get("name", "") for s in skills if s.get("name")]
-        except Exception:
+        except RuntimeError:
             return []
 
     async def _plan_with_llm(
@@ -251,7 +251,7 @@ class PlannerAgent:
                     depends_on=s.get("depends_on", []),
                 ))
             return steps if steps else self._plan_heuristic(task)
-        except Exception as e:
+        except (json.JSONDecodeError, RuntimeError, ValueError, TypeError) as e:
             logger.warning("LLM planning failed: %s", e)
             return self._plan_heuristic(task)
 
