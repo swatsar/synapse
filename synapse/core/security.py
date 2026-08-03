@@ -18,31 +18,13 @@ from synapse.observability.logger import audit
 PROTOCOL_VERSION: str = "1.0"
 
 # Re-export CapabilityScope for convenience
-from synapse.core.capability_scope import (  # noqa: F401
-    CapabilityScope,
-    CapabilityToken,
-    make_token,
-)
+from synapse.core.capability_scope import CapabilityScope, CapabilityToken  # noqa: F401
 
 SPEC_VERSION: str = "3.1"
 
 
 class CapabilityError(Exception):
     """Exception raised when capability check fails."""
-
-
-class CapabilityToken(BaseModel):
-    """Токен возможности с ограниченной областью действия."""
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    capability: str
-    scope: str
-    expires_at: str | None = None
-    issued_to: str
-    issued_by: str
-    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
-    protocol_version: str = PROTOCOL_VERSION
-
-    model_config = ConfigDict(frozen=True)
 
 
 class SecurityCheckResult(BaseModel):
@@ -82,20 +64,20 @@ class CapabilityManager:
             ).isoformat()
 
         token = CapabilityToken(
-            capability=capability,
-            scope=self._extract_scope(capability),
+            scope=capability,
+            path_constraint=self._extract_scope(capability),
             expires_at=expires_at,
             issued_to=issued_to,
             issued_by=issued_by
         )
 
-        self._tokens[token.id] = token
+        self._tokens[token.token_id] = token
 
         if self.audit:
             audit(
                 action="capability_token_issued",
                 result={
-                    'token_id': token.id,
+                    'token_id': token.token_id,
                     'capability': capability,
                     'issued_to': issued_to,
                     'protocol_version': PROTOCOL_VERSION

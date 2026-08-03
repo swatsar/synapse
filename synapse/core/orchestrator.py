@@ -115,18 +115,26 @@ class Orchestrator:
         This is the main orchestration method that implements the 7-step
         cognitive cycle: Perception → Recall → Plan → Action → Observe → Evaluate → Learn
         """
-        # Parse the event to extract goals
-        goals = self._parse_event(event)
+        # Extract goals from event directly (no _parse_event method needed)
+        goals = event.get("goals", [])
+        if not goals and event.get("content"):
+            goals = [event.get("content")]
 
         # Execute the first goal
         if goals:
-            return await self.run_goal(goals[0])
+            return await self.run_goal({"content": goals[0], "type": event.get("type", "unknown")})
 
         return CognitiveCycleResult(
             success=False,
-            result=None,
-            reasoning="No valid goals extracted from event",
-            protocol_version=self.protocol_version
+            perceived=None,
+            recalled=None,
+            plan=None,
+            security_result=None,
+            action_result=None,
+            observation=None,
+            evaluation=None,
+            learning=None,
+            error="No valid goals extracted from event"
         )
 
     async def run_goal(self, goal: dict[str, Any]) -> CognitiveCycleResult:
@@ -150,7 +158,7 @@ class Orchestrator:
 
         return await self.execute_cycle(event)
 
-
+    async def _execute_full_cycle(self, event: dict[str, Any]) -> CognitiveCycleResult:
         """Execute full 7-step cognitive cycle.
         
         Args:
@@ -773,11 +781,16 @@ def build_orchestrator(
     from synapse.agents.developer import DeveloperAgent
     from synapse.agents.planner import PlannerAgent
     from synapse.core.checkpoint import CheckpointManager
+    from synapse.core.determinism import DeterministicIDGenerator, DeterministicSeedManager
     from synapse.core.security import SecurityManager
     from synapse.learning.engine import LearningEngine
     from synapse.llm.provider import LiteLLMProvider
     from synapse.memory.store import MemoryStore
     from synapse.memory.vector_store import VectorMemoryStore
+
+    # Initialize determinism components
+    seed_manager = DeterministicSeedManager()
+    id_generator = DeterministicIDGenerator()
 
     # LLM
     llm = LiteLLMProvider(
@@ -809,8 +822,10 @@ def build_orchestrator(
     security = SecurityManager()
     checkpoint_mgr = CheckpointManager()
 
-    # Assemble orchestrator
+    # Assemble orchestrator with required seed_manager and id_generator
     orch = Orchestrator(
+        seed_manager=seed_manager,
+        id_generator=id_generator,
         security_manager=security,
         memory_store=memory,
         checkpoint_manager=checkpoint_mgr,
