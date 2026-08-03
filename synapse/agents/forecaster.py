@@ -94,7 +94,7 @@ class ForecasterAgent:
     ) -> list[dict[str, Any]]:
         """Generate predictions using LLM or ML models."""
         predictions = []
-        rng = random.Random(request.seed)
+        rng = random.Random(request.seed)  # noqa: S311 - non-cryptographic use for simulation
 
         # Use LLM if available
         if self.llm and hasattr(self.llm, 'generate'):
@@ -108,7 +108,7 @@ class ForecasterAgent:
                     'forecast': str(response),
                     'confidence': rng.uniform(0.7, 0.95)
                 })
-            except Exception as _exc:  # noqa
+            except Exception as _exc:  # noqa: S110 - intentionally silencing LLM errors, fallback to trend-based prediction
                 pass  # noqa: silenced - _exc
 
         # Fallback to trend-based prediction
