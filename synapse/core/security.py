@@ -63,9 +63,20 @@ class CapabilityManager:
                 timedelta(hours=expires_in_hours)
             ).isoformat()
 
+        # Parse capability string into scope and path_constraint
+        parts = capability.split(':', 2)
+        if len(parts) >= 3:
+            # Format: namespace:action:path (e.g., "fs:read:/workspace/**")
+            scope_str = f"{parts[0]}:{parts[1]}"
+            path_constraint = parts[2]
+        else:
+            # Simple format without path (e.g., "test:capability")
+            scope_str = capability
+            path_constraint = None
+
         token = CapabilityToken(
-            scope=capability,
-            path_constraint=self._extract_scope(capability),
+            scope=scope_str,
+            path_constraint=path_constraint,
             expires_at=expires_at,
             issued_to=issued_to,
             issued_by=issued_by
