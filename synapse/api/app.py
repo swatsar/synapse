@@ -28,7 +28,7 @@ PROTOCOL_VERSION: str = "1.0"
 app = FastAPI(
     title="Synapse Agent Platform",
     description="Universal Autonomous Agent Platform API",
-    version="3.4.0",
+    version="3.4.1",
 )
 
 # Phase 2 Middleware — registered as pure async functions (no BaseHTTPMiddleware)
@@ -120,7 +120,7 @@ async def health_check():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "version": "3.4.0",
+        "version": "3.4.1",
         "protocol_version": PROTOCOL_VERSION,
         "timestamp": datetime.now(UTC).isoformat()
     }
@@ -583,7 +583,7 @@ def create_app(orchestrator=None, checkpoint_manager=None, rollback_manager=None
     # Create new app instance
     app = FastAPI(
         title="Synapse API",
-        version="3.4.0",
+        version="3.4.1",
         description="Synapse Agent Platform API"
     )
     
@@ -598,7 +598,7 @@ def create_app(orchestrator=None, checkpoint_manager=None, rollback_manager=None
     async def health():
         return {
             "status": "healthy",
-            "version": "3.4.0",
+            "version": "3.4.1",
             "protocol_version": PROTOCOL_VERSION
         }
     
