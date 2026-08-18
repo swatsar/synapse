@@ -167,13 +167,14 @@ environment/
 
 ### Layer 10: Zero-Trust Fabric (`synapse/zero_trust/`)
 
-Phase 8 (in progress):
+Phase 8 (✅ Complete):
 ```
 identity.py      — TrustIdentityRegistry
 attestation.py   — RemoteAttestationVerifier
 policy.py        — TrustPolicyEngine
 enforcement.py   — ZeroTrustEnforcement
 authorization.py — ExecutionAuthorizationToken
+integration.py   — Zero-Trust Integration Layer
 ```
 
 ---

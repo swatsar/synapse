@@ -47,12 +47,41 @@ PROTOCOL_VERSION: str = "1.0"
 
 ```python
 class CapabilityScope(str, Enum):
+    # Filesystem
     FILESYSTEM_READ = "fs:read"
     FILESYSTEM_WRITE = "fs:write"
+    FILESYSTEM_DELETE = "fs:delete"
+    FILESYSTEM_EXECUTE = "fs:execute"
+
+    # Network
     NETWORK_HTTP = "net:http"
+    NETWORK_SCAN = "net:scan"
+    NETWORK_LISTEN = "net:listen"
+
+    # OS Process
     PROCESS_SPAWN = "os:process"
+    PROCESS_KILL = "os:kill"
+
+    # IoT / Devices
     DEVICE_IOT = "iot:control"
+    DEVICE_READ = "iot:read"
+
+    # System
     SYSTEM_INFO = "sys:info"
+    SYSTEM_CONFIG = "sys:config"
+    SYSTEM_SHUTDOWN = "sys:shutdown"
+
+    # Memory
+    MEMORY_READ = "memory:read"
+    MEMORY_WRITE = "memory:write"
+
+    # Code / Skills
+    CODE_GENERATE = "code:generate"
+    CODE_EXECUTE = "code:execute"
+
+    # Consensus / Cluster
+    CONSENSUS_PROPOSE = "consensus:propose"
+    CONSENSUS_DECIDE = "consensus:decide"
 ```
 
 ## Execution Trust Levels
