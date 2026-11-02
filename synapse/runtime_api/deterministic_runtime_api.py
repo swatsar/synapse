@@ -95,8 +95,8 @@ class ExecutionContract:
         # Verify required fields
         if not self.tenant_id:
             return False
-        if not self.capability_set:
-            return False
+        # An empty capability set is valid: it grants no capabilities (least
+        # privilege). Functions requiring capabilities still fail verification.
         return not self.deterministic_seed < 0
 
     def verify_capability(self, capability: str) -> bool:
@@ -179,7 +179,7 @@ class DeterministicRuntimeAPI:
         self._functions: dict[str, Callable] = {}
         self._lock = asyncio.Lock()
 
-    async def register_function(
+    def register_function(
         self,
         name: str,
         func: Callable,
@@ -196,12 +196,11 @@ class DeterministicRuntimeAPI:
         Returns:
             True if successful
         """
-        async with self._lock:
-            self._functions[name] = {
-                "func": func,
-                "required_capabilities": required_capabilities
-            }
-            return True
+        self._functions[name] = {
+            "func": func,
+            "required_capabilities": required_capabilities
+        }
+        return True
 
     def create_contract(
         self,

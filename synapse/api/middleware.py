@@ -19,21 +19,7 @@ from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
-_rate_limit_counts: dict[str, list[float]] = defaultdict(list)
-_rate_limit_last_cleanup: float = time.time()
 _CLEANUP_INTERVAL = 300
-
-
-def _cleanup_rate_limits() -> None:
-    global _rate_limit_last_cleanup
-    now = time.time()
-    if now - _rate_limit_last_cleanup < _CLEANUP_INTERVAL:
-        return
-    _rate_limit_last_cleanup = now
-    for ip in list(_rate_limit_counts.keys()):
-        _rate_limit_counts[ip] = [ts for ts in _rate_limit_counts[ip] if now - ts < 60]
-        if not _rate_limit_counts[ip]:
-            del _rate_limit_counts[ip]
 
 
 def make_request_logging_middleware() -> Callable:
@@ -64,35 +50,60 @@ def make_security_headers_middleware() -> Callable:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; "
+            "style-src 'self'; connect-src 'self'; "
+            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        )
         return response
 
     return middleware
 
 
 def make_rate_limit_middleware(requests_per_minute: int = 60) -> Callable:
+    # Each application instance owns its limiter. A module-level bucket makes
+    # separate embedded apps and test clients throttle one another.
+    rate_limit_counts: dict[str, list[float]] = defaultdict(list)
+    last_cleanup = time.time()
+
     async def middleware(request: Request, call_next: Callable):
-        if request.url.path in ["/health", "/metrics"]:
+        nonlocal last_cleanup
+        path = request.url.path
+        is_event_poll = (
+            request.method == "GET"
+            and path.startswith("/api/v1/sessions/")
+            and path.endswith("/events")
+        )
+        if is_event_poll or path in ["/health", "/metrics"] or not path.startswith(("/api/", "/task", "/checkpoint", "/rollback")):
             return await call_next(request)
-        _cleanup_rate_limits()
-        client_ip = request.client.host if request.client else "unknown"
         now = time.time()
-        _rate_limit_counts[client_ip] = [
-            ts for ts in _rate_limit_counts[client_ip] if now - ts < 60
+        if now - last_cleanup >= _CLEANUP_INTERVAL:
+            last_cleanup = now
+            for ip in list(rate_limit_counts):
+                rate_limit_counts[ip] = [ts for ts in rate_limit_counts[ip] if now - ts < 60]
+                if not rate_limit_counts[ip]:
+                    del rate_limit_counts[ip]
+        client_ip = request.client.host if request.client else "unknown"
+        rate_limit_counts[client_ip] = [
+            ts for ts in rate_limit_counts[client_ip] if now - ts < 60
         ]
-        count = len(_rate_limit_counts[client_ip])
+        count = len(rate_limit_counts[client_ip])
         if count >= requests_per_minute:
             return JSONResponse(
                 status_code=429,
                 content={"error": "RATE_LIMITED", "message": "Rate limit exceeded", "protocol_version": "1.0"},
                 headers={"Retry-After": "60"},
             )
-        _rate_limit_counts[client_ip].append(now)
+        rate_limit_counts[client_ip].append(now)
         response = await call_next(request)
         response.headers["X-RateLimit-Limit"] = str(requests_per_minute)
         response.headers["X-RateLimit-Remaining"] = str(max(0, requests_per_minute - count - 1))
         return response
 
+    def reset() -> None:
+        rate_limit_counts.clear()
+
+    middleware.reset = reset
     return middleware
 
 

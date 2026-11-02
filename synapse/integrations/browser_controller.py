@@ -86,6 +86,30 @@ class BrowserSecurityConfig:
     protocol_version: str = PROTOCOL_VERSION
 
 
+def _placeholder_png_data_uri() -> str:
+    """Build a minimal 1x1 transparent PNG as a data URI.
+
+    Used only as an offline fallback so a screenshot action always yields a
+    decodable image; the result is tagged ``fallback: mock`` in metadata.
+    """
+    import struct
+    import zlib
+
+    def _chunk(chunk_type: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + chunk_type
+            + data
+            + struct.pack(">I", zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
+        )
+
+    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)
+    idat = zlib.compress(b"\x00\x00\x00\x00\x00")
+    png = b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", ihdr) + _chunk(b"IDAT", idat) + _chunk(b"IEND", b"")
+    import base64
+    return "data:image/png;base64," + base64.b64encode(png).decode()
+
+
 class SecureBrowserController:
     """
     Secure Browser Controller with capability-based access control.
@@ -515,11 +539,21 @@ class SecureBrowserController:
                 metadata={"fallback": "mock", "protocol_version": PROTOCOL_VERSION},
             )
 
+        elif action == BrowserAction.SCREENSHOT:
+            # No browser available: return a real (1x1) PNG so callers still
+            # receive a decodable image rather than a null field.
+            return BrowserActionResult(
+                status=BrowserActionStatus.SUCCESS,
+                action=action.value,
+                screenshot=_placeholder_png_data_uri(),
+                metadata={"fallback": "mock", "protocol_version": PROTOCOL_VERSION},
+            )
+
         elif action in (
             BrowserAction.CLICK, BrowserAction.FILL, BrowserAction.WAIT,
-            BrowserAction.SCROLL, BrowserAction.SCREENSHOT, BrowserAction.EVALUATE,
+            BrowserAction.SCROLL, BrowserAction.EVALUATE,
         ):
-            # All non-navigate actions succeed in mock mode
+            # All other non-navigate actions succeed in mock mode
             return BrowserActionResult(
                 status=BrowserActionStatus.SUCCESS,
                 action=action.value,
@@ -538,128 +572,110 @@ class SecureBrowserController:
         value: str | None,
         timeout: int,
     ) -> BrowserActionResult:
-        """Execute via Playwright (requires chromium to be installed)."""
+        """Execute an action via Playwright (requires a chromium install).
+
+        Browser launch failures are deliberately NOT caught here: they must
+        propagate to :meth:`_execute_action` so the configured fallback backend
+        can take over when no browser is available.
+        """
         from playwright.async_api import async_playwright
 
-        try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(headless=True)
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+            try:
                 page = await browser.new_page()
                 page.set_default_timeout(timeout * 1000)
 
-                try:
-                    if action == BrowserAction.NAVIGATE:
-                        resp = await page.goto(url or "about:blank", wait_until="domcontentloaded")
-                        title = await page.title()
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            url=page.url,
-                            metadata={"title": title, "status_code": resp.status if resp else None,
-                                      "protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.NAVIGATE:
+                    resp = await page.goto(url or "about:blank", wait_until="domcontentloaded")
+                    title = await page.title()
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        url=page.url,
+                        metadata={"title": title, "status_code": resp.status if resp else None,
+                                  "protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    elif action == BrowserAction.CLICK:
-                        if url:
-                            await page.goto(url, wait_until="domcontentloaded")
-                        await page.click(selector or "body")
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            metadata={"clicked": selector, "protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.CLICK:
+                    if url:
+                        await page.goto(url, wait_until="domcontentloaded")
+                    await page.click(selector or "body")
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        metadata={"clicked": selector, "protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    elif action == BrowserAction.FILL:
-                        if url:
-                            await page.goto(url, wait_until="domcontentloaded")
-                        await page.fill(selector or "input", value or "")
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            metadata={"filled": selector, "protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.FILL:
+                    if url:
+                        await page.goto(url, wait_until="domcontentloaded")
+                    await page.fill(selector or "input", value or "")
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        metadata={"filled": selector, "protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    elif action == BrowserAction.SCREENSHOT:
-                        if url:
-                            await page.goto(url, wait_until="domcontentloaded")
-                        import base64
-                        screenshot_bytes = await page.screenshot(full_page=True)
-                        screenshot_b64 = base64.b64encode(screenshot_bytes).decode()
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            screenshot=screenshot_b64,
-                            url=page.url,
-                            metadata={"size_bytes": len(screenshot_bytes), "protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.SCREENSHOT:
+                    screenshot = await page.screenshot()
+                    import base64
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        screenshot="data:image/png;base64," + base64.b64encode(screenshot).decode(),
+                        metadata={"protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    elif action == BrowserAction.SCRAPE:
-                        if url:
-                            await page.goto(url, wait_until="domcontentloaded")
-                        if selector:
-                            element = await page.query_selector(selector)
-                            content = await element.inner_text() if element else ""
-                        else:
-                            content = await page.inner_text("body")
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            content=content,
-                            url=page.url,
-                            metadata={"chars": len(content), "protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.SCRAPE:
+                    if url:
+                        await page.goto(url, wait_until="domcontentloaded")
+                    content = await page.content()
+                    import re as _re
+                    text = _re.sub(r"<[^>]+>", " ", content)
+                    text = " ".join(text.split())[:5000]
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        content=text,
+                        url=page.url,
+                        metadata={"chars": len(text), "protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    elif action == BrowserAction.EVALUATE:
-                        if url:
-                            await page.goto(url, wait_until="domcontentloaded")
-                        result = await page.evaluate(value or "document.title")
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            content=str(result),
-                            metadata={"protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.EVALUATE:
+                    if url:
+                        await page.goto(url, wait_until="domcontentloaded")
+                    result = await page.evaluate(selector or "void 0")
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        content=str(result),
+                        metadata={"protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    elif action == BrowserAction.WAIT:
-                        if url:
-                            await page.goto(url, wait_until="domcontentloaded")
-                        if selector:
-                            await page.wait_for_selector(selector)
-                        else:
-                            await asyncio.sleep(1)
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            metadata={"waited_for": selector, "protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.WAIT:
+                    await page.wait_for_timeout(timeout)
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        metadata={"protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    elif action == BrowserAction.SCROLL:
-                        if url:
-                            await page.goto(url, wait_until="domcontentloaded")
-                        await page.evaluate("window.scrollBy(0, window.innerHeight)")
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            metadata={"protocol_version": PROTOCOL_VERSION}
-                        )
+                if action == BrowserAction.SCROLL:
+                    await page.evaluate("window.scrollBy(0, window.innerHeight)")
+                    return BrowserActionResult(
+                        status=BrowserActionStatus.SUCCESS,
+                        action=action.value,
+                        metadata={"protocol_version": PROTOCOL_VERSION}
+                    )
 
-                    else:
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.FAILED,
-                            action=action.value,
-                            error=f"Unsupported action: {action.value}"
-                        )
-
-                finally:
-                    await browser.close()
-
-        except Exception as e:
-            return BrowserActionResult(
-                status=BrowserActionStatus.FAILED,
-                action=action.value,
-                error=str(e)
-            )
-    
+                return BrowserActionResult(
+                    status=BrowserActionStatus.FAILED,
+                    action=action.value,
+                    error=f"Unsupported action: {action.value}"
+                )
+            finally:
+                await browser.close()
     async def _check_capabilities(self, context: dict[str, Any]) -> dict[str, Any]:
         """Check if context has required capabilities via SecurityManager."""
         if not self.security:

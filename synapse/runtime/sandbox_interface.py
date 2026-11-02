@@ -56,10 +56,8 @@ class ExecutionContract:
         deterministic_seed: int
     ) -> "ExecutionContract":
         """Create new execution contract"""
-        import hashlib
-        import json
         from datetime import UTC, datetime
-        
+
         contract_id = cls._generate_contract_id(
             tenant_id, capability_set, deterministic_seed
         )
@@ -91,15 +89,20 @@ class ExecutionContract:
         # Verify required fields
         if not self.tenant_id:
             return False
-        if not self.capability_set:
-            return False
+        # An empty capability set is valid: it grants no capabilities (least
+        # privilege).
         return not self.deterministic_seed < 0
+
+    def verify_capability(self, capability: str) -> bool:
+        """Check if a capability is granted by this contract."""
+        return capability in self.capability_set
+
+    def verify_capabilities(self, capabilities: list[str]) -> bool:
+        """Check if all capabilities are granted by this contract."""
+        return all(capability in self.capability_set for capability in capabilities)
 
     def _calculate_hash(self) -> str:
         """Calculate contract hash"""
-        import hashlib
-        import json
-        
         data = {
             "contract_id": self.contract_id,
             "tenant_id": self.tenant_id,
@@ -121,7 +124,6 @@ class ExecutionContract:
         seed: int
     ) -> str:
         """Generate deterministic contract ID"""
-        import hashlib
         data = f"{tenant_id}:{sorted(capability_set)}:{seed}:1.0"
         hash_part = hashlib.sha256(data.encode()).hexdigest()[:16]
         return f"contract_{hash_part}"
@@ -218,7 +220,7 @@ class SandboxRegistry:
         self._sandboxes: dict[SandboxType, SandboxInterface] = {}
         self._default_type: SandboxType | None = None
 
-    async def register(
+    def register(
         self,
         sandbox: SandboxInterface,
         is_default: bool = False

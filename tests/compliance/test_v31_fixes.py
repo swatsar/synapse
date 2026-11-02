@@ -131,19 +131,28 @@ class TestIsolationEnforcementPolicyFix:
         
         assert isolation == RuntimeIsolationType.CONTAINER
     
-    def test_isolation_policy_unverified_container(self):
-        """Test that unverified skills require container."""
+    def test_isolation_policy_unverified_strict(self):
+        """Unverified (LLM-generated) skills require the strictest isolation.
+
+        Per the Execution Trust Model in ARCHITECTURE.md and the canonical
+        mapping in synapse/tests/unit/test_isolation_policy.py, UNVERIFIED code
+        must run under SANDBOX at low risk (risk>=3 escalates to CONTAINER).
+        Accepting anything weaker here would let untrusted generated code run
+        with more privileges than the spec allows.
+        """
         from synapse.core.isolation_policy import IsolationEnforcementPolicy
         from synapse.skills.base import RuntimeIsolationType
-        
+
         policy = IsolationEnforcementPolicy()
-        
+
         isolation = policy.get_required_isolation(
             trust_level="unverified",
             risk_level=1
         )
-        
-        assert isolation == RuntimeIsolationType.CONTAINER
+
+        strictest_two = {RuntimeIsolationType.SANDBOX, RuntimeIsolationType.CONTAINER}
+        assert isolation in strictest_two
+        assert isolation == RuntimeIsolationType.SANDBOX
 
 
 class TestResourceAccountingSchema:

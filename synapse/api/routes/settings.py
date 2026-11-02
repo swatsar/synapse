@@ -1,57 +1,25 @@
-"""Settings API Routes.
-
-Protocol Version: 1.0
-"""
+"""Read-only runtime settings and consistent SQLite backups."""
+import logging
 import os
+import uuid
 from datetime import UTC, datetime
-from typing import Any
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, Field
 
-PROTOCOL_VERSION: str = "1.0"
-
+PROTOCOL_VERSION = "1.0"
 router = APIRouter()
 
-# In-memory storage
-system_settings: dict[str, Any] = {
-    "log_level": "INFO",
-    "max_agents": 10,
-    "protocol_version": PROTOCOL_VERSION
-}
-
-security_settings: dict[str, Any] = {
-    "require_approval_for_risk": 3,
-    "rate_limit_per_minute": 60,
-    "protocol_version": PROTOCOL_VERSION
-}
-
-memory_settings: dict[str, Any] = {
-    "vector_db": "chromadb",
-    "sql_db": "postgresql",
-    "protocol_version": PROTOCOL_VERSION
-}
-
-connector_settings: dict[str, Any] = {
-    "telegram": {"enabled": False, "token": None},  # noqa: S105 - placeholder, not a credential
-    "discord": {"enabled": False, "token": None},  # noqa: S105 - placeholder, not a credential
-    "protocol_version": PROTOCOL_VERSION
-}
-
-env_vars: dict[str, str] = {}
-backups: list[dict] = []
-
-
-# === Models ===
 
 class SystemSettingsUpdate(BaseModel):
     log_level: str | None = None
-    max_agents: int | None = None
+    max_agents: int | None = Field(default=None, ge=1, le=1000)
 
 
 class SecuritySettingsUpdate(BaseModel):
-    require_approval_for_risk: int | None = None
-    rate_limit_per_minute: int | None = None
+    require_approval_for_risk: int | None = Field(default=None, ge=1, le=5)
+    rate_limit_per_minute: int | None = Field(default=None, ge=1, le=100000)
 
 
 class TelegramSettingsUpdate(BaseModel):
@@ -64,116 +32,148 @@ class EnvVarCreate(BaseModel):
     value: str
 
 
-def _utc_now() -> str:
-    return datetime.now(UTC).isoformat()
+def _not_runtime_configurable() -> None:
+    raise HTTPException(
+        status_code=501,
+        detail="Runtime configuration is read-only; set environment variables and restart the service",
+    )
 
 
-# === System Settings ===
+def _memory(request: Request):
+    runtime = request.app.state.orchestrator
+    memory = getattr(runtime, "memory_store", None)
+    if memory is None:
+        raise HTTPException(status_code=503, detail="Memory runtime is not initialized")
+    return memory
+
+
+def _backup_directory() -> Path:
+    configured = os.getenv("SYNAPSE_BACKUP_DIR")
+    return Path(configured).expanduser().resolve() if configured else (
+        Path.home() / ".synapse" / "backups"
+    )
+
+
+def _backup_path(backup_id: str) -> Path:
+    if not backup_id.startswith("backup_") or any(
+        character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+        for character in backup_id
+    ):
+        raise HTTPException(status_code=404, detail="Backup not found")
+    return _backup_directory() / f"{backup_id}.sqlite3"
+
 
 @router.get("/system")
 async def get_system_settings():
-    """Get system settings."""
-    return {"settings": system_settings, "protocol_version": PROTOCOL_VERSION}
+    return {
+        "settings": {"log_level": logging.getLevelName(logging.getLogger().level)},
+        "protocol_version": PROTOCOL_VERSION,
+    }
 
 
 @router.put("/system")
 async def update_system_settings(data: SystemSettingsUpdate):
-    """Update system settings."""
-    update_data = data.model_dump(exclude_unset=True)
-    system_settings.update(update_data)
-    return {"settings": system_settings, "protocol_version": PROTOCOL_VERSION}
+    _not_runtime_configurable()
 
-
-# === Security Settings ===
 
 @router.get("/security")
 async def get_security_settings():
-    """Get security settings."""
-    return {"settings": security_settings, "protocol_version": PROTOCOL_VERSION}
+    return {
+        "settings": {"require_approval_for_risk": 3, "rate_limit_per_minute": 60},
+        "protocol_version": PROTOCOL_VERSION,
+    }
 
 
 @router.put("/security")
 async def update_security_settings(data: SecuritySettingsUpdate):
-    """Update security settings."""
-    update_data = data.model_dump(exclude_unset=True)
-    security_settings.update(update_data)
-    return {"settings": security_settings, "protocol_version": PROTOCOL_VERSION}
+    _not_runtime_configurable()
 
-
-# === Memory Settings ===
 
 @router.get("/memory")
-async def get_memory_settings():
-    """Get memory settings."""
-    return {"settings": memory_settings, "protocol_version": PROTOCOL_VERSION}
+async def get_memory_settings(request: Request):
+    memory = _memory(request)
+    vector = getattr(memory, "vector_store", None)
+    return {
+        "settings": {
+            "sql_db": "sqlite",
+            "persistent": memory.db_path != ":memory:",
+            "vector_db": "chromadb" if vector is not None else None,
+            "semantic_retrieval": bool(getattr(vector, "_collection", None)),
+        },
+        "protocol_version": PROTOCOL_VERSION,
+    }
 
-
-# === Connector Settings ===
 
 @router.get("/connectors")
 async def get_connector_settings():
-    """Get connector settings."""
-    return {"settings": connector_settings, "protocol_version": PROTOCOL_VERSION}
+    return {
+        "settings": {"telegram": {"enabled": False, "token_configured": False}},
+        "protocol_version": PROTOCOL_VERSION,
+    }
 
 
 @router.put("/connectors/telegram")
 async def update_telegram_settings(data: TelegramSettingsUpdate):
-    """Update Telegram settings."""
-    update_data = data.model_dump(exclude_unset=True)
-    connector_settings["telegram"].update(update_data)
-    return {"settings": connector_settings["telegram"], "protocol_version": PROTOCOL_VERSION}
+    _not_runtime_configurable()
 
-
-# === Environment Variables ===
 
 @router.get("/env")
 async def list_env_vars():
-    """List environment variables."""
-    return {"variables": env_vars, "protocol_version": PROTOCOL_VERSION}
+    # Never expose process environment or persisted secret values through HTTP.
+    return {"variables": {}, "protocol_version": PROTOCOL_VERSION}
 
 
 @router.post("/env")
 async def set_env_var(data: EnvVarCreate):
-    """Set an environment variable."""
-    env_vars[data.key] = data.value
-    os.environ[data.key] = data.value
-    return {"key": data.key, "value": "***", "protocol_version": PROTOCOL_VERSION}
+    _not_runtime_configurable()
 
 
-@router.delete("/env/{key}", status_code=204)
+@router.delete("/env/{key}")
 async def delete_env_var(key: str):
-    """Delete an environment variable."""
-    env_vars.pop(key, None)
-    if key in os.environ:
-        del os.environ[key]
+    _not_runtime_configurable()
 
-
-# === Backup/Restore ===
 
 @router.post("/backup")
-async def create_backup():
-    """Create a backup."""
-    backup_id = f"backup_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
-    backup = {
+async def create_backup(request: Request):
+    backup_id = f"backup_{uuid.uuid4().hex}"
+    target = _backup_path(backup_id)
+    try:
+        await _memory(request).create_backup(target)
+    except Exception as exc:
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Backup failed: {exc}") from exc
+    stat = target.stat()
+    return {
         "backup_id": backup_id,
-        "id": backup_id,  # Both for compatibility
-        "created_at": _utc_now(),
-        "protocol_version": PROTOCOL_VERSION
+        "id": backup_id,
+        "created_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
+        "size_bytes": stat.st_size,
+        "protocol_version": PROTOCOL_VERSION,
     }
-    backups.append(backup)
-    return backup
 
 
 @router.get("/backups")
 async def list_backups():
-    """List backups."""
-    return {"backups": backups, "protocol_version": PROTOCOL_VERSION}
+    directory = _backup_directory()
+    records = []
+    if directory.is_dir():
+        for path in sorted(directory.glob("backup_*.sqlite3"), reverse=True):
+            stat = path.stat()
+            records.append({
+                "backup_id": path.stem,
+                "id": path.stem,
+                "created_at": datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
+                "size_bytes": stat.st_size,
+                "protocol_version": PROTOCOL_VERSION,
+            })
+    return {"backups": records, "protocol_version": PROTOCOL_VERSION}
 
 
 @router.post("/restore/{backup_id}")
 async def restore_backup(backup_id: str):
-    """Restore from backup."""
-    backup = next((b for b in backups if b.get("id") == backup_id or b.get("backup_id") == backup_id), None)
-    if not backup:
+    if not _backup_path(backup_id).is_file():
         raise HTTPException(status_code=404, detail="Backup not found")
-    return {"status": "restored", "backup_id": backup_id, "protocol_version": PROTOCOL_VERSION}
+    raise HTTPException(
+        status_code=501,
+        detail="Online restore is not implemented; stop the service and restore the SQLite file manually",
+    )

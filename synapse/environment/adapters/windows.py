@@ -89,10 +89,20 @@ class WindowsAdapter(EnvironmentAdapter):
                 env=env or None
             )
 
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=timeout
-            )
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout
+                )
+            except TimeoutError:
+                # Do not leave an orphaned process and open pipes behind.
+                process.kill()
+                await process.wait()
+                return self._create_response({
+                    'stdout': '',
+                    'stderr': f'Command timed out after {timeout} seconds',
+                    'returncode': -1
+                })
 
             return self._create_response({
                 'stdout': stdout.decode('utf-8', errors='replace'),
@@ -100,12 +110,6 @@ class WindowsAdapter(EnvironmentAdapter):
                 'returncode': process.returncode
             })
 
-        except TimeoutError:
-            return self._create_response({
-                'stdout': '',
-                'stderr': f'Command timed out after {timeout} seconds',
-                'returncode': -1
-            })
         except Exception as e:
             return self._create_response({
                 'stdout': '',

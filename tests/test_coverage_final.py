@@ -27,7 +27,7 @@ class TestMain:
         # Mock sys.argv to provide required arguments
         with patch('sys.argv', ['synapse', '--mode', 'local']):
             # Mock asyncio.run to prevent actual execution
-            with patch('asyncio.run') as mock_run:
+            with patch('asyncio.run', side_effect=lambda coroutine: coroutine.close()) as mock_run:
                 # Mock print_banner to avoid output
                 with patch('synapse.main.print_banner'):
                     synapse.main.main()

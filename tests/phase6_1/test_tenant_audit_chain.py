@@ -5,7 +5,7 @@ Tests for Tenant Audit Chain
 import pytest
 import hashlib
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 from synapse.audit.tenant_audit_chain import (
     TenantAuditChain,
@@ -237,8 +237,9 @@ class TestAuditHashTreeSpecification:
         """Hash generation must be deterministic"""
         tree1 = AuditHashTree()
         tree2 = AuditHashTree()
-        chain1 = TenantAuditChain()
-        chain2 = TenantAuditChain()
+        fixed_time = datetime(2025, 1, 1, tzinfo=UTC)
+        chain1 = TenantAuditChain(clock=lambda: fixed_time)
+        chain2 = TenantAuditChain(clock=lambda: fixed_time)
 
         # Add same data to both
         chain1.append("tenant_1", "event", {"key": "value"})

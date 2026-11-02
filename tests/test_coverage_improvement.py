@@ -51,14 +51,16 @@ async def test_orchestrator_with_mocks():
 @pytest.mark.asyncio
 async def test_capability_token_creation():
     """Test CapabilityToken creation."""
-    from synapse.core.security import CapabilityToken
+    from synapse.core.capability_scope import CapabilityScope, CapabilityToken
+
     token = CapabilityToken(
-        capability="fs:read:/workspace/**",
-        scope="/workspace/**",
+        scope=CapabilityScope.FILESYSTEM_READ,
+        path_constraint="/workspace/**",
         issued_to="test_agent",
-        issued_by="test_issuer"
+        issued_by="test_issuer",
     )
     assert token.capability == "fs:read:/workspace/**"
+    assert token.full_scope == "fs:read:/workspace/**"
     assert token.issued_to == "test_agent"
     assert token.protocol_version == "1.0"
 

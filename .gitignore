@@ -1,43 +1,36 @@
-```markdown
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
+# Local environments and secrets
 .env
-.env.local
 .env.*
-
-# Dependencies
-node_modules/
+!.env.example
 .venv/
 venv/
+
+# Python caches and test artifacts
 __pycache__/
-.mypy_cache/
+*.py[cod]
 .pytest_cache/
+.pytest-*/
+.mypy_cache/
+.coverage
+htmlcov/
+*.log
+*.tmp
 
 # Build artifacts
-dist/
 build/
-target/
+dist/
+*.egg-info/
 
-# Editors
+# Misc artifacts
+None
+$null
+
+# Editors and operating systems
 .vscode/
 .idea/
-
-# System files
 .DS_Store
 Thumbs.db
-```
 
-Wait, I need to reconsider. The input shows only source/config files being modified (`.md` and `.py`), not any build artifacts or temporary files. According to rule #6, if the change list contains ONLY source or config files and NO build artifacts, dependencies, or temp files, I should output an EMPTY .gitignore.
-
-Looking at the modified files:
-- `ARCHITECTURE.md` - markdown config/documentation file
-- `SPECIFICATION.md` - markdown config/documentation file  
-- `synapse/api/app.py` - python source file
-
-These are all source/config files, no build artifacts present.
-
-(empty - output nothing)
+# Local runtime data
+.synapse/
+.local-smoke/

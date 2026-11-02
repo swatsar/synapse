@@ -12,7 +12,6 @@ Copyright (c) 2024 LangChain, Inc.
 Copyright (c) 2026 Synapse Contributors
 """
 
-import hashlib
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -119,52 +118,42 @@ class RAGSystem:
         return doc_id
     
     async def retrieve(self, query: RAGQuery, context: dict[str, Any] | None = None) -> RAGResult:
-        """Retrieve documents for query"""
-        # Generate query embedding
+        """Retrieve documents, using vectors only when a real backend exists."""
         query_embedding = await self._generate_embedding(query.query_text)
-        
-        # Search in vector store
-        if self.vector_store:
+        if self.vector_store and query_embedding is not None:
             results = await self.vector_store.search(query_embedding, query.limit)
         else:
-            results = list(self.documents.values())[:query.limit]
-        
-        # Filter by sensitivity
-        filtered = await self._filter_by_sensitivity(results, context)
-        
+            results = self._lexical_search(query.query_text, query.limit)
+        filtered = await self._filter_by_sensitivity(results, context or {})
         if self.audit:
             await self.audit.log_action(
                 action="rag_query",
                 result={"query": query.query_text, "results": len(filtered)},
                 context={"trace_id": query.trace_id, "protocol_version": self.PROTOCOL_VERSION}
             )
-        
-        return RAGResult(
-            documents=filtered,
-            query=query.query_text,
-            total_found=len(filtered),
-            trace_id=query.trace_id,
-            protocol_version=self.PROTOCOL_VERSION
-        )
-    
-    async def _generate_embedding(self, text: str) -> list[float]:
-        """Generate embedding: LLM embed() if available, else hash-based deterministic vector."""
+        return RAGResult(documents=filtered, query=query.query_text,
+                         total_found=len(filtered), trace_id=query.trace_id,
+                         protocol_version=self.PROTOCOL_VERSION)
+
+    async def _generate_embedding(self, text: str) -> list[float] | None:
+        """Return a real embedding, or None for lexical degradation."""
         if self.llm and hasattr(self.llm, "embed"):
             try:
                 return await self.llm.embed(text)
-            except Exception as _exc:  # noqa
-                pass  # noqa: silenced - _exc
+            except Exception:
+                return None
+        return None
 
-        # Deterministic hash-based fallback (768-dim, values in [-1, 1])
-        import struct
-        digest = hashlib.sha512(text.encode("utf-8")).digest()  # 64 bytes
-        # Repeat digest to fill 768 floats (768 * 4 = 3072 bytes)
-        raw = (digest * ((768 * 4 // len(digest)) + 1))[: 768 * 4]
-        values = struct.unpack(f">{768}f", raw)
-        # Normalise to [-1, 1] by dividing by max abs value
-        max_abs = max(abs(v) for v in values) or 1.0
-        return [v / max_abs for v in values]
-    
+    def _lexical_search(self, query: str, limit: int) -> list[Document]:
+        terms = set(query.lower().split())
+        ranked = []
+        for document in self.documents.values():
+            score = sum(term in document.content.lower() for term in terms)
+            if score:
+                ranked.append((score, document))
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        return [document for _, document in ranked[:limit]]
+
     async def _filter_by_sensitivity(
         self,
         documents: list[Document],
@@ -185,6 +174,7 @@ class RAGSystem:
                         filtered.append(doc)
             # Confidential documents not returned via RAG
         return filtered
+
 
 
 SKILL_MANIFEST = {

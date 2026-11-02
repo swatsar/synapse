@@ -13,19 +13,23 @@ def id_generator():
     return DeterministicIDGenerator(seed=42)
 
 @pytest.mark.unit
-def test_same_input_produces_same_output(seed_manager, id_generator):
+@pytest.mark.asyncio
+async def test_same_input_produces_same_output(seed_manager, id_generator):
     # Create orchestrator with seeded components
     orchestrator = Orchestrator(seed_manager=seed_manager, id_generator=id_generator)
     input_data = {"task": "process", "payload": 1}
     
     # Reset id_generator before each call for deterministic output
     id_generator.reset()
-    out1 = orchestrator.handle(input_data)
-    
+    out1 = await orchestrator.handle(input_data)
+
     id_generator.reset()
-    out2 = orchestrator.handle(input_data)
+    out2 = await orchestrator.handle(input_data)
     
-    assert out1 == out2
+    assert out1["task_id"] == out2["task_id"]
+    assert out1["status"] == out2["status"] == "failed"
+    assert out1["result"]["plan"] == out2["result"]["plan"]
+    assert out1["result"]["action_result"] == out2["result"]["action_result"]
 
 @pytest.mark.unit
 def test_execution_fabric_node_selection_is_deterministic(seed_manager):

@@ -97,6 +97,9 @@ class MacOSAdapter(EnvironmentAdapter):
             })
 
         except TimeoutError:
+            if 'process' in locals() and process.returncode is None:
+                process.kill()
+                await process.wait()
             return self._create_response({
                 'stdout': '',
                 'stderr': f'Command timed out after {timeout} seconds',

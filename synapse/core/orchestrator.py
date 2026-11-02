@@ -11,8 +11,12 @@ Cognitive Cycle:
 7. EVALUATE  - Оценка выполнения
 8. LEARN     - Обучение
 """
+import inspect
 import uuid
+from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from synapse.observability.logger import audit
@@ -21,6 +25,9 @@ from .determinism import DeterministicIDGenerator, DeterministicSeedManager
 
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
+_progress_context: ContextVar[Callable[[str, dict[str, Any]], Awaitable[None] | None] | None] = ContextVar(
+    "synapse_progress_callback", default=None,
+)
 
 
 class CognitiveCycleResult:
@@ -70,7 +77,7 @@ class CognitiveCycleResult:
 
 
 class Orchestrator:
-    """Orchestrator implementing 7-Step Cognitive Cycle.
+    """Orchestrator implementing the 8-step cognitive cycle.
     
     The cognitive cycle follows the pattern:
     PERCEIVE → RECALL → PLAN → SECURITY → ACT → OBSERVE → EVALUATE → LEARN
@@ -91,6 +98,7 @@ class Orchestrator:
         planner: Any | None = None,
         critic: Any | None = None,
         learning_engine: Any | None = None,
+        progress_callback: Callable[[str, dict[str, Any]], Awaitable[None] | None] | None = None,
     ):
         self.protocol_version = "1.0"
         self.seed_manager = seed_manager
@@ -102,18 +110,31 @@ class Orchestrator:
         self.planner = planner
         self.critic = critic
         self.learning_engine = learning_engine
+        self.progress_callback = progress_callback
 
         # Audit: orchestrator initialized
         audit(
             event="orchestrator_initialized",
             protocol_version=self.protocol_version,
             spec_version=SPEC_VERSION,
-            cognitive_cycle="7-step"
+            cognitive_cycle="8-step"
         )
 
     # =========================================================================
-    # 7-STEP COGNITIVE CYCLE
+    # 8-STEP COGNITIVE CYCLE
     # =========================================================================
+
+    async def _emit_progress(self, step: str, status: str, **details: Any) -> None:
+        """Publish coarse progress without changing the cycle's execution semantics."""
+        callback = _progress_context.get() or self.progress_callback
+        if callback is None:
+            return
+        try:
+            result = callback(step, {"status": status, **details})
+            if inspect.isawaitable(result):
+                await result
+        except Exception as exc:
+            audit(event="progress_callback_error", error=str(exc), protocol_version=self.protocol_version)
 
     async def execute_cycle(self, event: dict[str, Any]) -> CognitiveCycleResult:
         """Execute a complete cognitive cycle on an event.
@@ -121,6 +142,13 @@ class Orchestrator:
         This is the main orchestration method that implements the 8-step
         cognitive cycle: PERCEIVE → RECALL → PLAN → SECURITY → ACT → OBSERVE → EVALUATE → LEARN
         """
+        progress_token = _progress_context.set(event.get("_progress_callback"))
+        try:
+            return await self._execute_cycle_steps(event)
+        finally:
+            _progress_context.reset(progress_token)
+
+    async def _execute_cycle_steps(self, event: dict[str, Any]) -> CognitiveCycleResult:
         audit(
             event="cognitive_cycle_started",
             event_type=event.get("type", "unknown"),
@@ -129,16 +157,30 @@ class Orchestrator:
 
         try:
             # Step 1: PERCEIVE
+            await self._emit_progress("perceive", "running")
             perceived = await self._perceive(event)
-            
+            await self._emit_progress("perceive", "completed")
+
             # Step 2: RECALL
+            await self._emit_progress("recall", "running")
             recalled = await self._recall(perceived)
-            
+            await self._emit_progress("recall", "completed", memories=len(recalled.get("episodic", [])))
+
             # Step 3: PLAN
+            await self._emit_progress("plan", "running")
             plan = await self._plan(perceived, recalled)
-            
+            await self._emit_progress(
+                "plan", "completed", steps=len(plan.get("steps", [])),
+                risk_level=plan.get("risk_level", 1),
+            )
+
             # Step 4: SECURITY CHECK
+            await self._emit_progress("security", "running")
             security_result = await self._security_check(plan)
+            await self._emit_progress(
+                "security", "completed" if security_result.get("approved") else "failed",
+                requires_approval=security_result.get("requires_human_approval", False),
+            )
             
             if not security_result.get("approved", False):
                 return CognitiveCycleResult(
@@ -147,33 +189,53 @@ class Orchestrator:
                     recalled=recalled,
                     plan=plan,
                     security_result=security_result,
-                    error="Security check failed"
+                    error="Security check failed",
                 )
-            
-            # Create checkpoint before ACT for risk_level >= 3
+            if (
+                security_result.get("requires_human_approval")
+                and not event.get("_approval_granted", False)
+            ):
+                return CognitiveCycleResult(
+                    success=False,
+                    perceived=perceived,
+                    recalled=recalled,
+                    plan=plan,
+                    security_result=security_result,
+                    error="Human approval required",
+                )
+
             if plan.get("risk_level", 0) >= 3 and self.checkpoint_manager:
                 await self._create_checkpoint(event, plan)
-            
-            # Step 5: ACT
-            action_result = await self._act(plan)
-            
-            # Step 6: OBSERVE
+
+            await self._emit_progress("act", "running")
+            action_result = await self._act(
+                plan,
+                approval_granted=bool(event.get("_approval_granted", False)),
+            )
+            await self._emit_progress(
+                "act", "completed" if action_result.get("success") else "failed",
+                completed=action_result.get("steps_completed", 0),
+                total=action_result.get("steps_total", 0),
+            )
+            await self._emit_progress("observe", "running")
             observation = await self._observe(action_result)
-            
-            # Step 7: EVALUATE
+            await self._emit_progress("observe", "completed")
+            await self._emit_progress("evaluate", "running")
             evaluation = await self._evaluate(plan, observation)
-            
-            # Step 8: LEARN
+            await self._emit_progress("evaluate", "completed", score=evaluation.get("score"))
+            await self._emit_progress("learn", "running")
             learning = await self._learn(event, plan, action_result, evaluation)
-            
+            await self._emit_progress("learn", "completed", stored=learning.get("stored", False))
+            success = bool(action_result.get("success") and evaluation.get("success"))
+
             audit(
                 event="cognitive_cycle_completed",
-                success=evaluation.get("success", False),
-                protocol_version=self.protocol_version
+                success=success,
+                protocol_version=self.protocol_version,
             )
-            
+
             return CognitiveCycleResult(
-                success=True,
+                success=success,
                 perceived=perceived,
                 recalled=recalled,
                 plan=plan,
@@ -181,120 +243,38 @@ class Orchestrator:
                 action_result=action_result,
                 observation=observation,
                 evaluation=evaluation,
-                learning=learning
+                learning=learning,
+                error=None if success else next(
+                    (
+                        item["error"]
+                        for item in action_result.get("errors", [])
+                        if item.get("error")
+                    ),
+                    "Task execution failed",
+                ),
             )
-            
+
         except Exception as e:
             audit(
                 event="cognitive_cycle_error",
                 error=str(e),
-                protocol_version=self.protocol_version
+                protocol_version=self.protocol_version,
             )
             return CognitiveCycleResult(success=False, error=str(e))
 
     async def run_goal(self, goal: dict[str, Any]) -> CognitiveCycleResult:
-        """Run a high-level goal through the cognitive cycle.
-
-        This method provides a simplified interface for running goals
-        that delegate directly to the execute_cycle method.
-
-        Args:
-            goal: The high-level goal to execute
-
-        Returns:
-            CognitiveCycleResult with the execution result
-        """
-        # Convert goal to event format understood by execute_cycle
-        event = {
+        """Run a high-level goal through the cognitive cycle."""
+        return await self.execute_cycle({
             "type": "goal",
             "data": goal,
-            "timestamp": datetime.now(UTC).isoformat()
-        }
-
-        return await self.execute_cycle(event)
+            "_approval_granted": goal.get("_approval_granted", False),
+        "metadata": goal.get("payload") or goal.get("metadata") or {},
+            "timestamp": datetime.now(UTC).isoformat(),
+        })
 
     async def _execute_full_cycle(self, event: dict[str, Any]) -> CognitiveCycleResult:
-        """Execute full 7-step cognitive cycle.
-        
-        Args:
-            event: Input event to process
-            
-        Returns:
-            CognitiveCycleResult with all step results
-        """
-        audit(
-            event="cognitive_cycle_started",
-            event_type=event.get("type", "unknown"),
-            protocol_version=self.protocol_version
-        )
-
-        try:
-            # Step 1: PERCEIVE
-            perceived = await self._perceive(event)
-            
-            # Step 2: RECALL
-            recalled = await self._recall(perceived)
-            
-            # Step 3: PLAN
-            plan = await self._plan(perceived, recalled)
-            
-            # Step 4: SECURITY CHECK
-            security_result = await self._security_check(plan)
-            
-            if not security_result.get("approved", False):
-                return CognitiveCycleResult(
-                    success=False,
-                    perceived=perceived,
-                    recalled=recalled,
-                    plan=plan,
-                    security_result=security_result,
-                    error="Security check failed"
-                )
-            
-            # Create checkpoint before ACT for risk_level >= 3
-            if plan.get("risk_level", 0) >= 3 and self.checkpoint_manager:
-                await self._create_checkpoint(event, plan)
-            
-            # Step 5: ACT
-            action_result = await self._act(plan)
-            
-            # Step 6: OBSERVE
-            observation = await self._observe(action_result)
-            
-            # Step 7: EVALUATE
-            evaluation = await self._evaluate(plan, observation)
-            
-            # Step 8: LEARN
-            learning = await self._learn(event, plan, action_result, evaluation)
-            
-            audit(
-                event="cognitive_cycle_completed",
-                success=evaluation.get("success", False),
-                protocol_version=self.protocol_version
-            )
-            
-            return CognitiveCycleResult(
-                success=True,
-                perceived=perceived,
-                recalled=recalled,
-                plan=plan,
-                security_result=security_result,
-                action_result=action_result,
-                observation=observation,
-                evaluation=evaluation,
-                learning=learning
-            )
-            
-        except Exception as e:
-            audit(
-                event="cognitive_cycle_error",
-                error=str(e),
-                protocol_version=self.protocol_version
-            )
-            return CognitiveCycleResult(
-                success=False,
-                error=str(e)
-            )
+        """Backward-compatible alias for the canonical cognitive cycle."""
+        return await self.execute_cycle(event)
 
     # -------------------------------------------------------------------------
     # Step 1: PERCEIVE
@@ -320,11 +300,11 @@ class Orchestrator:
         perceived = {
             "event_id": str(uuid.uuid4()),
             "event_type": event.get("type", "unknown"),
-            "content": event.get("content", ""),
+            "content": event.get("content") or event.get("data", {}).get("task", ""),
             "source": event.get("source", "unknown"),
             "user_id": event.get("user_id"),
             "timestamp": datetime.now(UTC).isoformat(),
-            "metadata": event.get("metadata", {}),
+            "metadata": event.get("metadata", event.get("data", {}).get("payload") or {}),
             "protocol_version": self.protocol_version
         }
         
@@ -483,7 +463,7 @@ class Orchestrator:
                 if required_caps:
                     result = await self.security_manager.check_capabilities(
                         required_capabilities=required_caps,
-                        context={"agent_id": "orchestrator"}
+                        context={"agent_id": "orchestrator"},
                     )
                     if not result.approved:
                         security_result["approved"] = False
@@ -498,7 +478,11 @@ class Orchestrator:
     # Step 5: ACT
     # -------------------------------------------------------------------------
     
-    async def _act(self, plan: dict[str, Any]) -> dict[str, Any]:
+    async def _act(
+        self,
+        plan: dict[str, Any],
+        approval_granted: bool = False,
+    ) -> dict[str, Any]:
         """Step 5: ACT - Выполнение плана.
         
         Executes the action plan using available skills.
@@ -516,44 +500,73 @@ class Orchestrator:
         )
         
         action_result = {
-            "success": True,
+            "success": False,
             "steps_completed": 0,
             "steps_total": len(plan.get("steps", [])),
             "outputs": [],
             "errors": [],
-            "protocol_version": self.protocol_version
+            "protocol_version": self.protocol_version,
         }
-        
+
+        if not self.skill_registry:
+            action_result["errors"].append({
+                "step": None,
+                "skill": None,
+                "error": "No skill registry configured",
+            })
+            return action_result
+
+        from synapse.core.models import ExecutionContext
+
+        capabilities = list(plan.get("required_capabilities", []))
+        context = ExecutionContext(
+            session_id=plan.get("plan_id", str(uuid.uuid4())),
+            agent_id="orchestrator",
+            trace_id=plan.get("plan_id", str(uuid.uuid4())),
+            capabilities=capabilities,
+            memory_store=self.memory_store,
+            approval_granted=approval_granted,
+        )
+
         for i, step in enumerate(plan.get("steps", [])):
-            step_name = step.get("skill", step.get("action", f"step_{i}"))
+            step_name = step.get("skill") or step.get("action") or f"step_{i}"
             try:
-                if self.skill_registry:
-                    try:
-                        step_result = await self.skill_registry.execute(
-                            step_name, **step.get("params", {})
-                        )
-                    except (AttributeError, TypeError):
-                        # Fallback: registry doesn't support execute() directly
-                        step_result = {"status": "completed", "result": f"Executed: {step_name}"}
-                else:
-                    step_result = {"status": "completed", "result": f"Executed: {step_name}"}
+                step_result = await self.skill_registry.execute(
+                    step_name,
+                    context=context,
+                    **step.get("params", {}),
+                )
+                if step_result.get("success") is False:
+                    raise RuntimeError(step_result.get("error") or f"Skill failed: {step_name}")
 
                 action_result["steps_completed"] += 1
                 action_result["outputs"].append(step_result)
-
                 audit(
                     event="step_executed",
                     step_id=step.get("step_id", str(i)),
                     skill=step_name,
-                    status=step_result.get("status", "completed"),
+                    status="completed",
                     protocol_version=self.protocol_version,
                 )
             except Exception as e:
-                action_result["success"] = False
-                action_result["errors"].append({"step": i, "skill": step_name, "error": str(e)})
-                audit(event="step_failed", step_id=str(i), error=str(e), protocol_version=self.protocol_version)
+                action_result["errors"].append({
+                    "step": i,
+                    "skill": step_name,
+                    "error": str(e),
+                })
+                audit(
+                    event="step_failed",
+                    step_id=str(i),
+                    error=str(e),
+                    protocol_version=self.protocol_version,
+                )
                 break
 
+        action_result["success"] = (
+            action_result["steps_total"] > 0
+            and action_result["steps_completed"] == action_result["steps_total"]
+            and not action_result["errors"]
+        )
         return action_result
 
     # -------------------------------------------------------------------------
@@ -581,6 +594,8 @@ class Orchestrator:
             "success": action_result.get("success", False),
             "steps_completed": action_result.get("steps_completed", 0),
             "steps_total": action_result.get("steps_total", 0),
+            "outputs": action_result.get("outputs", []),
+            "errors": action_result.get("errors", []),
             "has_errors": len(action_result.get("errors", [])) > 0,
             "error_count": len(action_result.get("errors", [])),
             "protocol_version": self.protocol_version
@@ -768,39 +783,48 @@ class Orchestrator:
     # Legacy Methods (for backward compatibility)
     # =========================================================================
 
-    def handle(self, input_data: dict) -> dict:
-        """Legacy handle method for backward compatibility.
-        
-        Args:
-            input_data: Input dictionary
+    async def handle(self, input_data: dict) -> dict:
+        """Execute a task and report the actual cognitive-cycle outcome."""
+        if not isinstance(input_data, dict) or not str(input_data.get("task", "")).strip():
+            return {
+                "status": "failed",
+                "success": False,
+                "error": "A non-empty task is required",
+                "protocol_version": self.protocol_version,
+            }
 
-        Returns:
-            Result dictionary with task_id
-        """
         audit(
             event="task_received",
             input_type=input_data.get("type", "unknown"),
-            has_task="task" in input_data,
-            protocol_version=self.protocol_version
+            has_task=True,
+            protocol_version=self.protocol_version,
         )
-
-        task_id = self.id_generator.generate(input_data.get("task", ""))
-
-        result = {
-            "task_id": str(task_id),
-            "input": input_data,
-            "status": "completed",
-            "protocol_version": self.protocol_version
-        }
-
+        task_id = self.id_generator.generate(input_data["task"])
+        event = dict(input_data)
+        event.setdefault("type", "goal")
+        event["content"] = input_data["task"]
+        event["metadata"] = input_data.get("payload") or input_data.get("metadata") or {}
+        cycle = await self.execute_cycle(event)
+        details = cycle.to_dict()
+        status = (
+            "approval_required"
+            if cycle.error == "Human approval required"
+            else "completed" if cycle.success else "failed"
+        )
         audit(
-            event="task_completed",
+            event="task_finished",
             task_id=str(task_id),
-            status="completed",
-            protocol_version=self.protocol_version
+            status=status,
+            protocol_version=self.protocol_version,
         )
-
-        return result
+        return {
+            "task_id": str(task_id),
+            "status": status,
+            "success": cycle.success,
+            "error": cycle.error,
+            "result": details,
+            "protocol_version": self.protocol_version,
+        }
 
     def handle_error(self, input_data: dict, error: Exception) -> dict:
         """Handle errors with audit logging.
@@ -835,6 +859,7 @@ def build_orchestrator(
     api_key: str | None = None,
     db_path: str | None = None,
     vector_persist_dir: str | None = None,
+    workspace_root: str | None = None,
 ) -> "Orchestrator":
     """Build a fully-wired Orchestrator with all cognitive components.
 
@@ -848,11 +873,15 @@ def build_orchestrator(
     from synapse.agents.planner import PlannerAgent
     from synapse.core.checkpoint import CheckpointManager
     from synapse.core.determinism import DeterministicIDGenerator, DeterministicSeedManager
+    from synapse.core.models import SkillManifest
     from synapse.core.security import SecurityManager
     from synapse.learning.engine import LearningEngine
     from synapse.llm.provider import LiteLLMProvider
     from synapse.memory.store import MemoryStore
     from synapse.memory.vector_store import VectorMemoryStore
+    from synapse.security.capability_manager import CapabilityManager as SkillCapabilityManager
+    from synapse.skills.builtins.read_file import ReadFileSkill
+    from synapse.skills.dynamic.registry import SkillRegistry
 
     # Initialize determinism components
     seed_manager = DeterministicSeedManager()
@@ -865,18 +894,48 @@ def build_orchestrator(
         api_key=api_key or _os.getenv("OPENAI_API_KEY", ""),
     )
 
+    workspace = Path(workspace_root or _os.getcwd()).expanduser().resolve()
+
     # Memory
     db = db_path or _os.path.join(_os.path.expanduser("~"), ".synapse", "memory.db")
+    if db != ":memory:":
+        _os.makedirs(_os.path.dirname(_os.path.abspath(db)), exist_ok=True)
     memory = MemoryStore(db_path=db)
     vector = VectorMemoryStore(persist_directory=vector_persist_dir)
     memory.vector_store = vector  # attach semantic store
 
-    # Agents
-    planner = PlannerAgent(llm_provider=llm, memory_store=memory)
-    critic = CriticAgent(llm_provider=llm)
-    developer = DeveloperAgent(llm_provider=llm)
+    from synapse.core.capability_scope import CapabilityToken
 
-    # Learning engine
+    security = SecurityManager()
+    security.capability_manager.register_token(CapabilityToken(
+        scope="fs:read",
+        issued_to="orchestrator",
+        issued_by="builtin-bootstrap",
+    ))
+    checkpoint_mgr = CheckpointManager()
+
+    skill_registry = SkillRegistry(capability_manager=SkillCapabilityManager())
+    skill_registry.register_builtin(
+        SkillManifest(
+            name="read_file",
+            description="Read a UTF-8 text file with an explicit fs:read grant",
+            required_capabilities=["fs:read"],
+            risk_level=1,
+            trust_level="verified",
+        ),
+        ReadFileSkill(workspace_root=workspace),
+    )
+
+    # Supported local skills have deterministic fallback plans. An external
+    # LLM is used only when its credential has actually been configured.
+    planner_llm = llm if (api_key or _os.getenv("OPENAI_API_KEY")) else None
+    planner = PlannerAgent(
+        llm_provider=planner_llm,
+        memory_store=memory,
+        skill_registry=skill_registry,
+    )
+    critic = CriticAgent(llm_provider=planner_llm)
+    developer = DeveloperAgent(llm_provider=planner_llm)
     learning = LearningEngine(
         memory=memory,
         developer_agent=developer,
@@ -884,12 +943,7 @@ def build_orchestrator(
         vector_store=vector,
     )
 
-    # Security & checkpoint
-    security = SecurityManager()
-    checkpoint_mgr = CheckpointManager()
-
-    # Assemble orchestrator with required seed_manager and id_generator
-    orch = Orchestrator(
+    return Orchestrator(
         seed_manager=seed_manager,
         id_generator=id_generator,
         security_manager=security,
@@ -898,7 +952,5 @@ def build_orchestrator(
         planner=planner,
         critic=critic,
         learning_engine=learning,
-        skill_registry=None,  # injected externally if needed
+        skill_registry=skill_registry,
     )
-
-    return orch

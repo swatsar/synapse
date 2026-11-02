@@ -330,11 +330,12 @@ class TestFullCycle:
         assert isinstance(result, CognitiveCycleResult)
     
     @pytest.mark.asyncio
-    async def test_execute_cycle_success(self, orchestrator):
-        """execute_cycle should complete successfully for simple event."""
+    async def test_execute_cycle_fails_without_executable_skill(self, orchestrator):
+        """A plan without a registry must not be reported as successful."""
         event = {"type": "test", "content": "test content"}
         result = await orchestrator.execute_cycle(event)
-        assert result.success == True
+        assert result.success is False
+        assert result.action_result["errors"][0]["error"] == "No skill registry configured"
     
     @pytest.mark.asyncio
     async def test_execute_cycle_includes_all_steps(self, orchestrator):
@@ -363,14 +364,16 @@ class TestFullCycle:
 class TestLegacyMethods:
     """Test legacy methods for backward compatibility."""
     
-    def test_handle_returns_dict(self, orchestrator):
+    @pytest.mark.asyncio
+    async def test_handle_returns_dict(self, orchestrator):
         """handle should return a dictionary."""
-        result = orchestrator.handle({"task": "test"})
+        result = await orchestrator.handle({"task": "test"})
         assert isinstance(result, dict)
-    
-    def test_handle_includes_protocol_version(self, orchestrator):
+
+    @pytest.mark.asyncio
+    async def test_handle_includes_protocol_version(self, orchestrator):
         """handle result should include protocol_version."""
-        result = orchestrator.handle({"task": "test"})
+        result = await orchestrator.handle({"task": "test"})
         assert "protocol_version" in result
         assert result["protocol_version"] == "1.0"
     

@@ -21,12 +21,13 @@ PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
 import importlib.util
+import inspect
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import Enum
 
-from synapse.core.models import ResourceLimits, SkillManifest
+from synapse.core.models import ExecutionContext, ResourceLimits, SkillManifest
 from synapse.observability.logger import audit
 from synapse.security.capability_manager import CapabilityManager
 from synapse.security.execution_guard import ExecutionGuard
@@ -314,6 +315,57 @@ class SkillRegistry:
             Skill handler
         """
         return self._registry[name].handler
+
+    def register_builtin(self, manifest: SkillManifest, handler: Callable) -> str:
+        """Register a trusted built-in skill directly in the active state.
+
+        Dynamically generated skills must still use ``register`` and the full
+        lifecycle. Built-ins are shipped and reviewed with the application.
+        """
+        self._validate_manifest(manifest)
+        skill_id = str(uuid.uuid4())
+        self._registry[skill_id] = SkillRecord(
+            skill_id=skill_id,
+            manifest=manifest,
+            handler=handler,
+            status=SkillLifecycleStatus.ACTIVE,
+        )
+        self._manifests[manifest.name] = manifest
+        return skill_id
+
+    async def list_active(self) -> list[dict]:
+        """Return metadata for skills that are allowed to execute."""
+        return [record.to_dict() for record in self.get_active_skills()]
+
+    async def execute(
+        self,
+        name: str,
+        context: ExecutionContext,
+        **params,
+    ) -> dict:
+        """Execute an active skill with its manifest and security context."""
+        record = next(
+            (
+                item for item in self.get_active_skills()
+                if item.manifest.name == name
+            ),
+            None,
+        )
+        if record is None:
+            raise LookupError(f"Active skill not found: {name}")
+
+        check = await self.guard.check_execution_allowed(record, context)
+        if not check.allowed:
+            raise PermissionError(check.reason or f"Execution denied: {name}")
+
+        handler = record.handler
+        execute = handler.execute if hasattr(handler, "execute") else handler
+        result = execute(context, **params)
+        if inspect.isawaitable(result):
+            result = await result
+        if not isinstance(result, dict):
+            raise TypeError(f"Skill {name} must return a dictionary")
+        return result
 
     def get_by_id(self, skill_id: str) -> SkillRecord | None:
         """Get a skill record by ID.

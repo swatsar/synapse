@@ -15,10 +15,12 @@ class TestLocalOSComprehensive:
         from synapse.security.execution_guard import ExecutionGuard
         from synapse.security.capability_manager import CapabilityManager
         from synapse.core.models import ResourceLimits
-        
+
+        # Resolve the real temp dir (long path form) and scope file grants to it.
+        tmp = os.path.realpath(tempfile.gettempdir()).replace("\\", "/")
         caps = CapabilityManager()
-        caps.grant_capability("fs:read:/")
-        caps.grant_capability("fs:write:/")
+        caps.grant_capability(f"fs:read:{tmp}/**")
+        caps.grant_capability(f"fs:write:{tmp}/**")
         caps.grant_capability("process:spawn")
         caps.grant_capability("network:http")
         
@@ -46,9 +48,11 @@ class TestLocalOSComprehensive:
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
             f.write("test content")
             temp_path = f.name
-        
+
         try:
-            content = await local_os.read_file(temp_path)
+            content = await local_os.read_file(
+                os.path.realpath(temp_path).replace("\\", "/")
+            )
             assert content == "test content"
         finally:
             os.unlink(temp_path)
@@ -58,20 +62,25 @@ class TestLocalOSComprehensive:
         """Test writing a file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = os.path.join(temp_dir, "test.txt")
-            
-            await local_os.write_file(temp_path, "test content")
-            
+
+            await local_os.write_file(
+                os.path.realpath(temp_path).replace("\\", "/"), "test content"
+            )
+
             with open(temp_path, 'r') as f:
                 content = f.read()
-            
+
             assert content == "test content"
     
     @pytest.mark.asyncio
     async def test_execute_process(self, local_os):
-        """Test executing a process."""
-        # Use the correct signature: command, *args
-        result = await local_os.execute_process("echo", "hello")
-        
+        """Test executing a process with a portable command."""
+        import sys
+
+        result = await local_os.execute_process(
+            sys.executable, "-c", "print('hello')"
+        )
+
         assert result is not None
         assert result["returncode"] == 0
         assert "hello" in result["stdout"]

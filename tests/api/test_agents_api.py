@@ -71,9 +71,8 @@ def test_get_agent_status(client):
 def test_start_agent(client):
     """Test starting an agent."""
     response = client.post("/api/v1/agents/planner/start")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "running"
+    assert response.status_code == 501
+    assert "not implemented" in response.json()["detail"]
 
 
 @pytest.mark.api
@@ -81,9 +80,8 @@ def test_start_agent(client):
 def test_stop_agent(client):
     """Test stopping an agent."""
     response = client.post("/api/v1/agents/planner/stop")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "stopped"
+    assert response.status_code == 501
+    assert "not implemented" in response.json()["detail"]
 
 
 # === AGENT LOGS ===
@@ -119,6 +117,5 @@ def test_update_agent_config(client):
         "max_retries": 5,
         "timeout": 60
     })
-    assert response.status_code == 200
-    data = response.json()
-    assert data["config"]["max_retries"] == 5
+    assert response.status_code == 501
+    assert "restart" in response.json()["detail"]

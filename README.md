@@ -56,16 +56,23 @@ cp .env.example .env               # заполните ключи LLM
 
 ### Запуск (локально)
 
-```bash
-# API-сервер + Web dashboard
-python -m synapse.main --web-ui --port 8000
+```powershell
+# Задайте каталог, внутри которого разрешено чтение файлов.
+$env:SYNAPSE_WORKSPACE_ROOT = "F:\synapse-main"
+# Локальные данные: история интерфейса и память агента (каталоги создаются автоматически).
+$env:SYNAPSE_UI_DB_PATH = "$PWD\.synapse\workspace.sqlite3"
+$env:SYNAPSE_DB_PATH = "$PWD\.synapse\memory.sqlite3"
+$env:SYNAPSE_VECTOR_DIR = "$PWD\.synapse\vectors"
+# API-сервер + Web dashboard (только на этом компьютере)
+python -m synapse.main --port 8000
 
-# Только агент (без UI)
-python -m synapse.main --mode local
+# Dashboard: http://127.0.0.1:8000/
 
 # Проверка здоровья
 curl http://localhost:8000/health
 ```
+
+Веб-интерфейс сохраняет сессии, сообщения, задачи и этапы выполнения в SQLite. В нём можно выбрать файл из `SYNAPSE_WORKSPACE_ROOT`, запустить чтение, наблюдать за восемью этапами цикла, повторить задачу и экспортировать историю в JSON. Без ключей LLM доступен встроенный локальный планировщик и навык чтения файлов; неподдерживаемые действия возвращают ошибку, а не имитируют выполнение. Для защиты API задайте `SYNAPSE_API_KEY` и введите ключ в диалоге подключения интерфейса (он хранится только в `sessionStorage` текущей вкладки).
 
 ### Запуск через Docker
 

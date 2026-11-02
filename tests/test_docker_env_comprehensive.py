@@ -16,9 +16,11 @@ class TestDockerEnvComprehensive:
         from synapse.security.capability_manager import CapabilityManager
         from synapse.core.models import ResourceLimits
         
+        # Resolve the real temp dir (long path form) and scope file grants to it.
+        tmp = os.path.realpath(tempfile.gettempdir()).replace("\\", "/")
         caps = CapabilityManager()
-        caps.grant_capability("fs:read:/")
-        caps.grant_capability("fs:write:/")
+        caps.grant_capability(f"fs:read:{tmp}/**")
+        caps.grant_capability(f"fs:write:{tmp}/**")
         caps.grant_capability("process:spawn")
         caps.grant_capability("network:http")
         
@@ -49,7 +51,9 @@ class TestDockerEnvComprehensive:
             temp_path = f.name
         
         try:
-            result = await docker_env.read_file(temp_path)
+            result = await docker_env.read_file(
+                os.path.realpath(temp_path).replace("\\", "/")
+            )
             assert result == "test content"
         finally:
             os.unlink(temp_path)
@@ -59,7 +63,9 @@ class TestDockerEnvComprehensive:
         """Test writing a file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             temp_path = os.path.join(tmpdir, "test_write.txt")
-            await docker_env.write_file(temp_path, "test write content")
+            await docker_env.write_file(
+                os.path.realpath(temp_path).replace("\\", "/"), "test write content"
+            )
             
             # Verify file was written
             with open(temp_path, 'r') as f:
@@ -68,12 +74,17 @@ class TestDockerEnvComprehensive:
     
     @pytest.mark.asyncio
     async def test_execute_process(self, docker_env):
-        """Test executing a process."""
-        # Execute a simple echo command
-        result = await docker_env.execute_process("echo", "test")
-        
-        # Result should be None or the output
-        assert result is None or result is not None
+        """Test executing a process with a portable command."""
+        import sys
+
+        result = await docker_env.execute_process(
+            sys.executable, "-c", "print('test')"
+        )
+
+        # DockerEnv delegates to LocalOS and returns the process result.
+        assert result is not None
+        assert result["returncode"] == 0
+        assert "test" in result["stdout"]
     
     @pytest.mark.asyncio
     async def test_http_request(self, docker_env):

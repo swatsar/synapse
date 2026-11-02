@@ -20,10 +20,12 @@ class TestPyPIConfig:
         assert Path("pyproject.toml").exists()
 
     def test_pyproject_version(self):
-        """Check version in pyproject.toml."""
+        """Check pyproject version matches the package __version__ (no drift)."""
+        from synapse import __version__
+
         with open("pyproject.toml", "rb") as f:
             config = tomllib.load(f)
-        assert config["project"]["version"].startswith("3.1")
+        assert config["project"]["version"] == __version__
 
     def test_pyproject_name(self):
         """Check package name."""

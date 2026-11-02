@@ -75,25 +75,30 @@ class LearningEngine:
     async def evaluate(self, result: Any) -> str:
         """Classify execution result as SUCCESS or FAILURE."""
         async with trace("learning_evaluate"):
-            if isinstance(result, dict):
-                status = result.get("status", "")
-                has_error = bool(result.get("error"))
-                success_flag = result.get("success")
-                if success_flag is True:
-                    classification = SUCCESS
-                elif success_flag is False:
-                    classification = FAILURE
-                elif status == "completed" and not has_error:
-                    classification = SUCCESS
-                elif status in ("error", "failed", "blocked"):
-                    classification = FAILURE
-                else:
-                    classification = SUCCESS if not has_error else FAILURE
-            else:
-                classification = SUCCESS if result else FAILURE
-
+            classification = self._classify(result)
             record_metric("learning_evaluations")
             return classification
+
+    def _classify(self, result: Any) -> str:
+        """Classify a result, failing closed when no success signal is present.
+
+        A result that is not a dict, or that carries neither an explicit
+        ``success`` flag nor a recognised ``completed`` status, is treated as
+        a failure: unclassifiable outcomes must never be recorded as success.
+        """
+        if not isinstance(result, dict):
+            return FAILURE
+
+        if result.get("success") is True:
+            return SUCCESS
+        if result.get("success") is False:
+            return FAILURE
+
+        status = result.get("status", "")
+        has_error = bool(result.get("error"))
+        if status == "completed" and not has_error:
+            return SUCCESS
+        return FAILURE
 
     async def feedback(self, result: Any, classification: str) -> None:
         """Store experience in MemoryStore + VectorStore."""

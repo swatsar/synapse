@@ -39,6 +39,7 @@ class ExecutionContext(BaseModel):
     resource_limits: ResourceLimits = Field(default_factory=ResourceLimits)
     execution_seed: int = 42
     checkpoint_id: str | None = None
+    approval_granted: bool = False
     
     model_config = {"arbitrary_types_allowed": True}
 

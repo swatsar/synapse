@@ -260,11 +260,14 @@ class TestEnvironmentAdapterMethods:
 
     async def test_execute_command_timeout(self, adapter):
         """execute_command must handle timeout."""
-        # Use a command that will take longer than timeout
-        result = await adapter.execute_command("sleep 10", timeout=1)
+        import sys
+
+        # Portable long-running command (works on every OS shell).
+        sleeper = f'"{sys.executable}" -c "import time; time.sleep(10)"'
+        result = await adapter.execute_command(sleeper, timeout=1)
 
         assert result["returncode"] == -1
-        assert "timeout" in result["stderr"].lower()
+        assert "timed out" in result["stderr"].lower()
 
 
 class TestWindowsAdapter:

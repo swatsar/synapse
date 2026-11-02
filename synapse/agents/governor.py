@@ -164,7 +164,9 @@ class GovernorAgent:
                 status="completed"
             )
             
-        except RuntimeError as e:
+        except Exception as e:
+            # A governance action must never propagate an arbitrary failure to
+            # the caller; any error is reported as a failed ActionResult.
             return ActionResult(
                 success=False,
                 action_id=action_id,
