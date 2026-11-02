@@ -14,6 +14,7 @@ Implements the full CreateSkill pipeline:
 On every step an audit event is emitted.
 """
 import ast
+import asyncio
 import logging
 import re
 import textwrap
@@ -277,6 +278,47 @@ class DeveloperAgent:
             "status": "ready_for_review" if passed_scan else "security_issues",
             "protocol_version": PROTOCOL_VERSION,
         }
+
+    async def create_and_register(
+        self,
+        task_description: str,
+        seed: int | None = None,
+    ) -> dict[str, Any]:
+        """End-to-end pipeline: generate a skill, check policy, register it.
+
+        This composes :meth:`generate_skill` with the policy gate and
+        :meth:`register_skill`. Policy is evaluated before the skill is handed
+        to the registry so that no generated code reaches the runtime without
+        an explicit allow decision.
+        """
+        result = await self.generate_skill(task_description, seed=seed)
+        skill: GeneratedSkill = result["skill"]
+
+        if self.policy_engine is not None:
+            check = self.policy_engine.check(
+                action="skill.register",
+                skill_name=skill.name,
+                risk_level=skill.risk_level,
+            )
+            if asyncio.iscoroutine(check):
+                check = await check
+            if isinstance(check, dict) and check.get("allowed") is False:
+                audit(
+                    event="skill_registration_denied_by_policy",
+                    skill_name=skill.name,
+                    reason=check.get("reason"),
+                    protocol_version=self.protocol_version,
+                )
+                return {
+                    "status": "denied_by_policy",
+                    "reason": check.get("reason"),
+                    "skill_id": skill.skill_id,
+                    "protocol_version": PROTOCOL_VERSION,
+                }
+
+        registration = await self.register_skill(skill)
+        registration["skill_id"] = registration.get("skill_id", skill.skill_id)
+        return registration
 
     async def register_skill(self, skill: GeneratedSkill) -> dict[str, Any]:
         """Register an approved GeneratedSkill in the SkillRegistry."""

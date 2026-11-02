@@ -315,7 +315,7 @@ class TestPhase61Integration:
             audit_chain.append(
                 tenant_id="tenant_limited",
                 event_type="usage",
-                event_data={"amount": 10, "success": result}
+                event_data={"amount": 10, "used": result.used}
             )
 
         # Check quota exceeded
@@ -492,8 +492,9 @@ class TestPhase61DeterminismIntegration:
     async def test_cross_node_determinism(self):
         """Cross-node determinism simulation"""
         # Simulate two nodes
-        audit_chain_1 = TenantAuditChain()
-        audit_chain_2 = TenantAuditChain()
+        fixed_time = datetime(2025, 1, 1, tzinfo=UTC)
+        audit_chain_1 = TenantAuditChain(clock=lambda: fixed_time)
+        audit_chain_2 = TenantAuditChain(clock=lambda: fixed_time)
 
         # Same operations on both
         for i in range(5):

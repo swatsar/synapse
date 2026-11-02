@@ -141,15 +141,31 @@ class CapabilityManager:
         return SecurityCheckResult(approved=len(denied) == 0, granted=granted, denied=denied)
     
     def _normalize_path(self, capability_or_path: str) -> str:
-        """Normalize a capability string or path segment (no filesystem calls)."""
+        """Normalize a capability string or path segment (no filesystem calls).
+
+        Path-capability strings (``fs:``/``file:``/``path:`` prefixes) keep their
+        ``namespace:action`` prefix intact while their path segment is normalized
+        to forward slashes, so Windows paths (``C:\\\\dir\\\\file``) match
+        POSIX-style grants (``C:/dir/**``).
+        """
         if not capability_or_path:
             return ""
-        # For capability strings like "fs:read:/workspace/**", return as-is
-        # Only normalize actual path segments (no colons)
-        if ":" in capability_or_path:
-            return capability_or_path.strip()
-        # Normalize path separators and collapse double slashes
-        normalized = re.sub(r"/+", "/", capability_or_path.replace("\\", "/"))
+
+        value = capability_or_path.strip()
+
+        if self._is_path_capability(value):
+            parts = value.split(":", 2)
+            if len(parts) < 3:
+                return value
+            namespace_action = f"{parts[0]}:{parts[1]}"
+            path_part = re.sub(r"/+", "/", parts[2].replace("\\", "/"))
+            return f"{namespace_action}:{path_part}"
+
+        if ":" in value:
+            # Non-path capability (e.g. process:spawn) — no path semantics.
+            return value
+
+        normalized = re.sub(r"/+", "/", value.replace("\\", "/"))
         return normalized.rstrip("/") or "/"
     
     def _is_path_traversal_attempt(self, path: str) -> bool:

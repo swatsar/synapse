@@ -8,13 +8,14 @@ class TestMemoryStore:
     """Test memory store."""
 
     @pytest.fixture
-    def memory_store(self):
+    async def memory_store(self):
         """Create a memory store for testing."""
         from synapse.memory.store import MemoryStore
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test.db")
             store = MemoryStore(db_path=db_path)
             yield store
+            await store.close()
 
     @pytest.mark.asyncio
     async def test_memory_store_creation(self, memory_store):

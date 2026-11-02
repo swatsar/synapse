@@ -11,6 +11,14 @@ from typing import Any
 PROTOCOL_VERSION: str = "1.0"
 
 
+class EmbeddingUnavailable(RuntimeError):
+    """No embedding backend could produce a vector.
+
+    Raised instead of fabricating a pseudo-embedding (e.g. a hash digest):
+    retrieval layers must fall back to lexical search honestly.
+    """
+
+
 class LLMPriority(IntEnum):
     PRIMARY = 1
     FALLBACK = 2
@@ -73,10 +81,23 @@ class LiteLLMProvider:
             raise RuntimeError(f"LLM call failed ({self.model}): {e}") from e
 
     async def embed(self, text: str) -> list[float]:
-        """Generate embeddings via litellm."""
+        """Generate embeddings via litellm.
+
+        Raises:
+            EmbeddingUnavailable: when no embedding backend can serve the
+                request. A cryptographic hash digest is deliberately *not*
+                used as a stand-in: hashes carry no semantic similarity signal
+                and silently poison downstream retrieval. Callers must degrade
+                to lexical retrieval (BM25/FTS) instead.
+        """
         try:
             import litellm
+        except ImportError as exc:
+            raise EmbeddingUnavailable(
+                "litellm is not installed; no embedding backend available"
+            ) from exc
 
+        try:
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: litellm.embedding(
@@ -85,16 +106,11 @@ class LiteLLMProvider:
                     api_key=self.api_key or None,
                 ),
             )
-            return response.data[0]["embedding"]
-        except Exception:
-            # Deterministic fallback embedding
-            import hashlib as _h
-            import struct
-            digest = _h.sha512(text.encode()).digest()
-            raw = (digest * ((768 * 4 // len(digest)) + 1))[: 768 * 4]
-            values = struct.unpack(f">{768}f", raw)
-            max_abs = max(abs(v) for v in values) or 1.0
-            return [v / max_abs for v in values]
+            return list(response.data[0]["embedding"])
+        except Exception as exc:
+            raise EmbeddingUnavailable(
+                f"embedding backend unavailable for model {self.model}: {exc}"
+            ) from exc
 
 
 class LLMRouter:

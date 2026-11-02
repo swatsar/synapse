@@ -44,8 +44,8 @@ class TenantStatePartition:
     def update_state(
         self,
         tenant_id: str,
-        key: str,
-        value: Any,
+        state_key: str,
+        state_value: Any,
         requesting_tenant: str | None = None
     ) -> StateEntry:
         """
@@ -53,8 +53,8 @@ class TenantStatePartition:
 
         Args:
             tenant_id: Tenant to update
-            key: State key
-            value: State value
+            state_key: State key
+            state_value: State value
             requesting_tenant: Optional requesting tenant for security check
 
         Returns:
@@ -77,14 +77,14 @@ class TenantStatePartition:
             # Create state entry
             entry = StateEntry(
                 tenant_id=tenant_id,
-                key=key,
-                value=value,
+                key=state_key,
+                value=state_value,
                 timestamp=datetime.now(UTC).isoformat(),
-                state_hash=self._hash_state(tenant_id, key, value),
+                state_hash=self._hash_state(tenant_id, state_key, state_value),
                 protocol_version=self.PROTOCOL_VERSION
             )
 
-            self._state[tenant_id][key] = entry
+            self._state[tenant_id][state_key] = entry
 
             # Update tenant state hash
             self._state_hashes[tenant_id] = self._hash_all_tenant_state(tenant_id)
@@ -94,15 +94,15 @@ class TenantStatePartition:
     def get_state(
         self,
         tenant_id: str,
-        key: str,
+        state_key: str,
         requesting_tenant: str | None = None
-    ) -> dict[str, Any] | None:
+    ) -> Any:
         """
-        Get tenant state.
+        Get tenant state value for a single key.
 
         Args:
             tenant_id: Tenant to get state from
-            key: State key
+            state_key: State key
             requesting_tenant: Optional requesting tenant for security check
 
         Returns:
@@ -121,11 +121,41 @@ class TenantStatePartition:
             if tenant_id not in self._state:
                 return None
 
-            entry = self._state[tenant_id].get(key)
+            entry = self._state[tenant_id].get(state_key)
             if entry is None:
                 return None
 
             return entry.value
+
+    def get_tenant_state(
+        self,
+        tenant_id: str,
+        requesting_tenant: str | None = None
+    ) -> dict[str, Any]:
+        """
+        Get the complete state partition for a tenant.
+
+        Args:
+            tenant_id: Tenant whose state to return
+            requesting_tenant: Optional requesting tenant for security check
+
+        Returns:
+            Copy of the tenant's full state mapping (key -> value)
+
+        Raises:
+            ValueError: If requesting_tenant != tenant_id (security violation)
+        """
+        with self._lock:
+            # Security: Only tenant can access its own state
+            if requesting_tenant is not None and requesting_tenant != tenant_id:
+                raise ValueError(
+                    f"Tenant {requesting_tenant} cannot access state for {tenant_id}"
+                )
+
+            return {
+                key: entry.value
+                for key, entry in self._state.get(tenant_id, {}).items()
+            }
 
     def get_state_hash(self, tenant_id: str) -> str:
         """
@@ -147,7 +177,7 @@ class TenantStatePartition:
     def delete_state(
         self,
         tenant_id: str,
-        key: str,
+        state_key: str,
         requesting_tenant: str | None = None
     ) -> bool:
         """
@@ -155,7 +185,7 @@ class TenantStatePartition:
 
         Args:
             tenant_id: Tenant to delete from
-            key: State key
+            state_key: State key
             requesting_tenant: Optional requesting tenant for security check
 
         Returns:
@@ -174,10 +204,10 @@ class TenantStatePartition:
             if tenant_id not in self._state:
                 return False
 
-            if key not in self._state[tenant_id]:
+            if state_key not in self._state[tenant_id]:
                 return False
 
-            del self._state[tenant_id][key]
+            del self._state[tenant_id][state_key]
 
             # Update tenant state hash
             self._state_hashes[tenant_id] = self._hash_all_tenant_state(tenant_id)

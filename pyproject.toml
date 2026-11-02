@@ -87,6 +87,8 @@ Issues = "https://github.com/synapse/synapse/issues"
 synapse = [
     "py.typed",
     "*.yaml",
+    "ui/web/templates/*.html",
+    "ui/web/static/*",
     "*.json",
 ]
 

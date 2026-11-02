@@ -89,10 +89,19 @@ class ConnectorRuntime:
         
         # Process through orchestrator
         if self.orchestrator:
-            result = await self.orchestrator.handle(event)
-            return result
+            request = dict(event)
+            request["task"] = (
+                event.get("task") or event.get("message")
+                or event.get("text") or event.get("content") or ""
+            )
+            return await self.orchestrator.handle(request)
         
-        return {"status": "completed", "response": "processed"}
+        return {
+            "status": "unavailable",
+            "success": False,
+            "error": "No orchestrator configured",
+            "protocol_version": PROTOCOL_VERSION,
+        }
     
     def normalize_event(self, event: dict[str, Any]) -> NormalizedEvent:
         """Normalize event from any source to standard format."""

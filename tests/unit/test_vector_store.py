@@ -62,14 +62,61 @@ class TestVectorMemoryStore:
         assert after >= before
 
     @pytest.mark.asyncio
-    async def test_fallback_embedding(self, store):
-        """Test that deterministic SHA-512 fallback embedding works."""
-        emb = store._embed_fallback("test text for embedding")
-        assert len(emb) == 768
-        assert all(isinstance(x, float) for x in emb)
-        # Deterministic
-        emb2 = store._embed_fallback("test text for embedding")
-        assert emb == emb2
+    async def test_keyword_fallback_retrieves_without_embedding_backend(self, store):
+        """When no embedding backend is available, keyword (BM25) search is used.
+
+        Cryptographic hashes must never be used as semantic embeddings — the
+        fallback is honest lexical retrieval, tagged as such in metadata.
+        """
+        async def _no_embedding(text: str) -> None:
+            return None
+
+        store._get_embedding = _no_embedding  # type: ignore[assignment]
+        await store.add_document(
+            "The agent failed to read the file due to permission denial",
+            doc_id="perm",
+        )
+        await store.add_document(
+            "Unrelated note about the weather forecast",
+            doc_id="weather",
+        )
+
+        results = await store.query("file permission error", limit=2)
+
+        assert isinstance(results, list)
+        assert results, "keyword fallback must return matches"
+        assert results[0]["id"] == "perm"
+        assert results[0]["metadata"]["retrieval"] == "keyword"
+        assert "text" in results[0] and "score" in results[0]
+
+    @pytest.mark.asyncio
+    async def test_bm25_ranks_more_relevant_document_first(self, store):
+        """BM25 overlap scoring ranks the document sharing more terms first."""
+        async def _no_embedding(text: str) -> None:
+            return None
+
+        store._get_embedding = _no_embedding  # type: ignore[assignment]
+        await store.add_document("capability based security model", doc_id="a")
+        await store.add_document(
+            "capability based security model for agents with policies",
+            doc_id="b",
+        )
+        await store.add_document("completely different topic here", doc_id="c")
+
+        results = await store.query("capability based security policies", limit=3)
+
+        ids = [r["id"] for r in results]
+        assert ids[0] in ("a", "b")
+        assert "c" not in ids[:2]
+        # Scores must be descending
+        scores = [r["score"] for r in results]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_no_hash_pseudo_embedding(self, store):
+        """Regression guard: SHA/MD5 pseudo-embedding must not exist."""
+        assert not hasattr(store, "_embed_fallback"), (
+            "Cryptographic-hash pseudo-embedding is forbidden; use BM25/FTS fallback"
+        )
 
     def test_get_stats(self, store):
         stats = store.get_stats()

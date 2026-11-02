@@ -10,6 +10,7 @@ import json
 import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from collections.abc import Callable
 from typing import Any
 
 
@@ -39,7 +40,8 @@ class TenantAuditChain:
 
     PROTOCOL_VERSION = "1.0"
 
-    def __init__(self):
+    def __init__(self, clock: Callable[[], datetime] | None = None):
+        self._clock = clock or (lambda: datetime.now(UTC))
         self._chains: dict[str, list[AuditEntry]] = {}
         self._chain_roots: dict[str, str] = {}
         self._lock = threading.Lock()
@@ -80,7 +82,7 @@ class TenantAuditChain:
                 tenant_id=tenant_id,
                 event_type=event_type,
                 event_data=event_data,
-                timestamp=datetime.now(UTC).isoformat(),
+                timestamp=self._clock().isoformat(),
                 previous_hash=previous_hash,
                 entry_hash="",  # Will be calculated
                 protocol_version=self.PROTOCOL_VERSION

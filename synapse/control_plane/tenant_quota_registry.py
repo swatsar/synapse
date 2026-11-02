@@ -217,14 +217,34 @@ class TenantQuotaRegistry:
             True if within limit, False otherwise
         """
         with self._lock:
-            if tenant_id not in self._quotas:
-                return False
-            
-            quota = self._quotas[tenant_id]
-            limit = getattr(quota, resource_type, 0)
-            current = self._usage.get(tenant_id, {}).get(resource_type, 0)
-            
-            return (current + amount) <= limit
+            return self._check_quota_locked(tenant_id, resource_type, amount)
+
+    def _check_quota_locked(
+        self,
+        tenant_id: str,
+        resource_type: str,
+        amount: int
+    ) -> bool:
+        """Check if usage is within quota.
+
+        Caller must already hold ``self._lock``.
+
+        Args:
+            tenant_id: Tenant to check
+            resource_type: Type of resource
+            amount: Amount to check
+
+        Returns:
+            True if within limit, False otherwise
+        """
+        if tenant_id not in self._quotas:
+            return False
+
+        quota = self._quotas[tenant_id]
+        limit = getattr(quota, resource_type, 0)
+        current = self._usage.get(tenant_id, {}).get(resource_type, 0)
+
+        return (current + amount) <= limit
 
     def record_usage(
         self,
@@ -250,8 +270,8 @@ class TenantQuotaRegistry:
             if tenant_id not in self._quotas:
                 raise ValueError(f"No quota for tenant {tenant_id}")
 
-            # Check before recording
-            if not self.check_quota(tenant_id, resource_type, amount):
+            # Check before recording (lock already held)
+            if not self._check_quota_locked(tenant_id, resource_type, amount):
                 raise ValueError(
                     f"Quota exceeded for {tenant_id}/{resource_type}"
                 )
@@ -283,6 +303,36 @@ class TenantQuotaRegistry:
         """Get current usage for tenant"""
         with self._lock:
             return self._usage.get(tenant_id, {}).copy()
+
+    def get_tenant_quota(self, tenant_id: str) -> dict[str, dict[str, int]]:
+        """
+        Get quota and usage snapshot for a tenant.
+
+        Args:
+            tenant_id: Tenant to inspect
+
+        Returns:
+            Mapping of resource type to ``{"used": int, "limit": int}``.
+            Returns an empty dict if the tenant has no registered quota.
+        """
+        with self._lock:
+            quota = self._quotas.get(tenant_id)
+            if quota is None:
+                return {}
+
+            usage = self._usage.get(tenant_id, {})
+            return {
+                resource: {
+                    "used": usage.get(resource, 0),
+                    "limit": getattr(quota, resource, 0),
+                }
+                for resource in (
+                    "cpu_seconds",
+                    "memory_mb",
+                    "disk_mb",
+                    "network_kb",
+                )
+            }
 
     def get_usage_history(
         self,

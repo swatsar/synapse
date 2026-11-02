@@ -64,7 +64,7 @@ class TenantScheduler:
 
     def __init__(self):
         self._tenant_contexts: dict[str, TenantContext] = {}
-        self._decision_counter = 0
+        self._tenant_counters: dict[str, int] = {}
         self._lock = threading.Lock()
         self._tenant_queues: dict[str, list[SchedulingRequest]] = {}
         self._scheduled_decisions: dict[str, SchedulingDecision] = {}
@@ -90,11 +90,25 @@ class TenantScheduler:
             ValueError: If tenant not registered or lacks capabilities
         """
         with self._lock:
+            # Replay/idempotency: an identical request (same request_id) always
+            # returns the originally recorded decision.
+            existing = self._scheduled_decisions.get(request.request_id)
+            if existing is not None:
+                return existing
+
             # Validate tenant exists
             if request.tenant_id not in self._tenant_contexts:
                 raise ValueError(f"Tenant {request.tenant_id} not registered")
 
             tenant_ctx = self._tenant_contexts[request.tenant_id]
+
+            # Zero implicit permissions: a request must declare at least one
+            # required capability.
+            if not request.required_capabilities:
+                raise ValueError(
+                    f"Scheduling request {request.request_id} declares no "
+                    f"required capabilities"
+                )
 
             # Validate capabilities
             for cap in request.required_capabilities:
@@ -106,7 +120,8 @@ class TenantScheduler:
             # Deterministic decision generation
             decision_id = self._generate_decision_id(request)
 
-            # Deterministic execution order based on seed and counter
+            # Fair per-tenant ordering: each tenant gets a monotonically
+            # increasing slot, so concurrent tenants interleave fairly.
             execution_order = self._calculate_execution_order(request)
 
             # Select node deterministically
@@ -125,7 +140,6 @@ class TenantScheduler:
             )
 
             self._scheduled_decisions[request.request_id] = decision
-            self._decision_counter += 1
 
             return decision
 
@@ -170,10 +184,13 @@ class TenantScheduler:
         return f"dec_{hashlib.sha256(data.encode()).hexdigest()[:16]}"
 
     def _calculate_execution_order(self, request: SchedulingRequest) -> int:
-        """Calculate deterministic execution order"""
-        # Use seed for deterministic ordering
-        base_order = request.execution_seed % 10000
-        return base_order + self._decision_counter
+        """Calculate deterministic, fair execution order.
+
+        The caller must hold ``self._lock``.
+        """
+        order = self._tenant_counters.get(request.tenant_id, 0)
+        self._tenant_counters[request.tenant_id] = order + 1
+        return order
 
     def _select_node(self, request: SchedulingRequest) -> str:
         """Select node deterministically based on request"""

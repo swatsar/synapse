@@ -119,7 +119,7 @@ class LLMChain(BaseChain):
     async def execute(self, input: ChainInput) -> ChainOutput:
         audit(event="llm_chain_start", chain=self.name, trace_id=input.trace_id, protocol_version=PROTOCOL_VERSION)
         try:
-            prompt = self.prompt_template.format(**input.data) if "{" in self.prompt_template else self.prompt_template
+            prompt = self._render_prompt(input.data)
             response = await self.llm.generate(prompt)
             content = response.get("content", "") if isinstance(response, dict) else str(response)
             await self._audit_step("llm_call", prompt[:80], content[:80])
@@ -132,6 +132,24 @@ class LLMChain(BaseChain):
         except Exception as e:
             audit(event="llm_chain_error", chain=self.name, error=str(e), protocol_version=PROTOCOL_VERSION)
             return ChainOutput(result=None, trace_id=input.trace_id, session_id=input.session_id, success=False, error=str(e))
+
+    def _render_prompt(self, data: dict[str, Any]) -> str:
+        """Render the prompt template, tolerating missing placeholders.
+
+        Missing keys resolve to an empty string so that a chain can be
+        executed with partial context instead of failing hard.
+        """
+        if "{" not in self.prompt_template:
+            return self.prompt_template
+
+        class _SafeDict(dict):
+            def __missing__(self, key: str) -> str:
+                return ""
+
+        try:
+            return self.prompt_template.format_map(_SafeDict(data))
+        except (IndexError, ValueError):
+            return self.prompt_template
 
 
 class SequentialChain(BaseChain):

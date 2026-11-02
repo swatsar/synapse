@@ -26,7 +26,7 @@ class DockerEnv(Environment):
         await LocalOS(self._guard, self._caps).write_file(path, data)
 
     async def execute_process(self, command: str, *args) -> Any:
-        await LocalOS(self._guard, self._caps).execute_process(command, *args)
+        return await LocalOS(self._guard, self._caps).execute_process(command, *args)
 
     async def http_request(self, method: str, url: str, **kwargs) -> Any:
         await LocalOS(self._guard, self._caps).http_request(method, url, **kwargs)

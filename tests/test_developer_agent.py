@@ -55,10 +55,10 @@ async def test_developer_generates_skill_code(mock_llm_provider, mock_skill_regi
     )
     
     result = await developer.generate_skill("Create a file reader skill")
-    
+
     assert result is not None
-    assert "code" in result
-    assert "class" in result["code"]
+    assert result["skill"].code
+    assert "class" in result["skill"].code
 
 
 @pytest.mark.unit

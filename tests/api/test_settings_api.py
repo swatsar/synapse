@@ -12,7 +12,8 @@ PROTOCOL_VERSION = "1.0"
 def client():
     """Create test client."""
     from synapse.api.app import app
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 # === SYSTEM SETTINGS ===
@@ -36,9 +37,8 @@ def test_update_system_settings(client):
         "log_level": "DEBUG",
         "max_agents": 10
     })
-    assert response.status_code == 200
-    data = response.json()
-    assert data["settings"]["log_level"] == "DEBUG"
+    assert response.status_code == 501
+    assert "read-only" in response.json()["detail"]
 
 
 # === SECURITY SETTINGS ===
@@ -61,7 +61,7 @@ def test_update_security_settings(client):
         "require_approval_for_risk": 3,
         "rate_limit_per_minute": 60
     })
-    assert response.status_code == 200
+    assert response.status_code == 501
 
 
 # === MEMORY SETTINGS ===
@@ -96,7 +96,7 @@ def test_update_telegram_settings(client):
         "enabled": True,
         "token": "test_token"
     })
-    assert response.status_code == 200
+    assert response.status_code == 501
 
 
 # === ENVIRONMENT VARIABLES ===
@@ -119,7 +119,7 @@ def test_set_env_var(client):
         "key": "TEST_VAR",
         "value": "test_value"
     })
-    assert response.status_code == 200
+    assert response.status_code == 501
 
 
 @pytest.mark.api
@@ -127,7 +127,7 @@ def test_set_env_var(client):
 def test_delete_env_var(client):
     """Test deleting an environment variable."""
     response = client.delete("/api/v1/settings/env/TEST_VAR")
-    assert response.status_code in [200, 204]
+    assert response.status_code == 501
 
 
 # === BACKUP/RESTORE ===

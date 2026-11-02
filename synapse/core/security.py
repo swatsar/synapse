@@ -48,6 +48,11 @@ class CapabilityManager:
         self.audit = audit_logger
         self.protocol_version = PROTOCOL_VERSION
 
+    def register_token(self, token: CapabilityToken) -> CapabilityToken:
+        """Register an already validated token for synchronous bootstrapping."""
+        self._tokens[token.token_id] = token
+        return token
+
     async def issue_token(
         self,
         capability: str,

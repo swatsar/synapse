@@ -76,10 +76,27 @@ class TestTenantSchedulerSpecification:
 
     @pytest.fixture
     def scheduler(self):
-        """Fixture to create TenantScheduler instance"""
-        # This will fail until implementation exists
-        from synapse.control_plane.tenant_scheduler import TenantScheduler
-        return TenantScheduler()
+        """Fixture to create TenantScheduler with tenants pre-registered."""
+        from synapse.control_plane.tenant_scheduler import (
+            TenantScheduler,
+            TenantContext,
+        )
+
+        scheduler = TenantScheduler()
+        # Zero implicit trust: every tenant that may schedule work must be
+        # explicitly registered with the capabilities it is granted.
+        for tenant_id in ("tenant_000", "tenant_001", "tenant_002"):
+            scheduler.register_tenant(TenantContext(
+                tenant_id=tenant_id,
+                tenant_hash=hashlib.sha256(
+                    f"{tenant_id}:secret_key".encode()
+                ).hexdigest(),
+                capabilities=["compute:basic", "memory:read"],
+                resource_quota={"cpu_seconds": 100, "memory_mb": 512},
+                created_at=datetime.now(UTC).isoformat(),
+                protocol_version="1.0"
+            ))
+        return scheduler
 
     @pytest.fixture
     def tenant_context(self):
@@ -518,15 +535,15 @@ class TestTenantStatePartitionSpecification:
         # Set state for tenant_001
         state_partition.update_state(
             tenant_id="tenant_001",
-            key="test_key",
-            value={"data": "tenant_001_data"}
+            state_key="test_key",
+            state_value={"data": "tenant_001_data"}
         )
 
         # Set state for tenant_002
         state_partition.update_state(
             tenant_id="tenant_002",
-            key="test_key",
-            value={"data": "tenant_002_data"}
+            state_key="test_key",
+            state_value={"data": "tenant_002_data"}
         )
 
         # Get states
@@ -542,8 +559,8 @@ class TestTenantStatePartitionSpecification:
         """State hash must include tenant scope"""
         state_partition.update_state(
             tenant_id="tenant_001",
-            key="hash_test",
-            value={"important": "data"}
+            state_key="hash_test",
+            state_value={"important": "data"}
         )
 
         hash1 = state_partition.get_state_hash("tenant_001")
@@ -551,8 +568,8 @@ class TestTenantStatePartitionSpecification:
         # Update different tenant
         state_partition.update_state(
             tenant_id="tenant_002",
-            key="hash_test",
-            value={"important": "data"}
+            state_key="hash_test",
+            state_value={"important": "data"}
         )
 
         hash2 = state_partition.get_state_hash("tenant_002")
@@ -565,14 +582,14 @@ class TestTenantStatePartitionSpecification:
         # Set sensitive data for tenant_001
         state_partition.update_state(
             tenant_id="tenant_001",
-            key="secret",
-            value={"api_key": "secret_key_001"}
+            state_key="secret",
+            state_value={"api_key": "secret_key_001"}
         )
 
         # Try to access from tenant_002
         result = state_partition.get_state(
             tenant_id="tenant_002",
-            key="secret"
+            state_key="secret"
         )
 
         # Must not return tenant_001's data
@@ -587,15 +604,15 @@ class TestTenantStatePartitionSpecification:
         # Set state for tenant_001
         state_partition.update_state(
             tenant_id="tenant_001",
-            key="private",
-            value={"secret": "value"}
+            state_key="private",
+            state_value={"secret": "value"}
         )
 
-        # Try to access from tenant_002
+        # tenant_002 tries to read tenant_001's private state
         with pytest.raises(Exception):
             state_partition.get_state(
-                tenant_id="tenant_002",
-                key="private",
+                tenant_id="tenant_001",
+                state_key="private",
                 requesting_tenant="tenant_002"
             )
 
@@ -610,12 +627,28 @@ class TestMultiTenantIsolation:
     @pytest.fixture
     def full_system(self):
         """Create full system with all components"""
-        from synapse.control_plane.tenant_scheduler import TenantScheduler
+        from synapse.control_plane.tenant_scheduler import (
+            TenantScheduler,
+            TenantContext,
+        )
         from synapse.control_plane.tenant_quota_registry import TenantQuotaRegistry
         from synapse.control_plane.tenant_state_partition import TenantStatePartition
 
+        scheduler = TenantScheduler()
+        for tenant_id in ("tenant_isolation_001", "tenant_isolation_002"):
+            scheduler.register_tenant(TenantContext(
+                tenant_id=tenant_id,
+                tenant_hash=hashlib.sha256(
+                    f"{tenant_id}:secret_key".encode()
+                ).hexdigest(),
+                capabilities=["compute:basic", "memory:read"],
+                resource_quota={"cpu_seconds": 100, "memory_mb": 512},
+                created_at=datetime.now(UTC).isoformat(),
+                protocol_version="1.0"
+            ))
+
         return {
-            "scheduler": TenantScheduler(),
+            "scheduler": scheduler,
             "quota_registry": TenantQuotaRegistry(),
             "state_partition": TenantStatePartition()
         }
@@ -638,13 +671,13 @@ class TestMultiTenantIsolation:
         # Set states
         full_system["state_partition"].update_state(
             tenant_id=tenant1,
-            key="isolation_test",
-            value={"tenant": 1}
+            state_key="isolation_test",
+            state_value={"tenant": 1}
         )
         full_system["state_partition"].update_state(
             tenant_id=tenant2,
-            key="isolation_test",
-            value={"tenant": 2}
+            state_key="isolation_test",
+            state_value={"tenant": 2}
         )
 
         # Schedule tasks
@@ -692,8 +725,24 @@ class TestDeterminismVerification:
 
     @pytest.fixture
     def scheduler(self):
-        from synapse.control_plane.tenant_scheduler import TenantScheduler
-        return TenantScheduler()
+        from synapse.control_plane.tenant_scheduler import (
+            TenantScheduler,
+            TenantContext,
+        )
+
+        scheduler = TenantScheduler()
+        for tenant_id in ("tenant_det", "tenant_replay"):
+            scheduler.register_tenant(TenantContext(
+                tenant_id=tenant_id,
+                tenant_hash=hashlib.sha256(
+                    f"{tenant_id}:secret_key".encode()
+                ).hexdigest(),
+                capabilities=["compute:basic", "memory:read"],
+                resource_quota={"cpu_seconds": 100, "memory_mb": 512},
+                created_at=datetime.now(UTC).isoformat(),
+                protocol_version="1.0"
+            ))
+        return scheduler
 
     def test_multi_run_identity(self, scheduler):
         """Multiple runs with same input must produce identical output"""

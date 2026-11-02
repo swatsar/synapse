@@ -7,7 +7,7 @@ class TestLearningEngine:
     """Test learning engine."""
 
     @pytest.fixture
-    def memory_store(self):
+    async def memory_store(self):
         """Create a memory store for testing."""
         from synapse.memory.store import MemoryStore
         import tempfile
@@ -16,6 +16,7 @@ class TestLearningEngine:
             db_path = os.path.join(tmpdir, "test.db")
             store = MemoryStore(db_path=db_path)
             yield store
+            await store.close()
 
     @pytest.mark.asyncio
     async def test_learning_engine_creation(self, memory_store):

@@ -197,17 +197,19 @@ class ExecutionGuard:
             risk_level=risk_level
         )
         
-        # Check if human approval required (risk_level >= 3)
+        # High-risk execution requires an explicit approval already validated
+        # by the caller. The orchestrator only sets this from server-side state.
         requires_approval = risk_level >= 3
-        
-        if requires_approval:
+        approval_granted = bool(getattr(context, "approval_granted", False))
+
+        if requires_approval and not approval_granted:
             audit({
                 "event": "approval_required",
                 "skill": getattr(manifest, "name", "unknown"),
                 "risk_level": risk_level,
                 "isolation": required_isolation.value
             })
-            
+
             return ExecutionCheckResult(
                 allowed=False,
                 requires_approval=True,

@@ -161,7 +161,7 @@ class PlannerAgent:
         if self.llm:
             steps = await self._plan_with_llm(task, memory_context, available)
         else:
-            steps = self._plan_heuristic(task)
+            steps = self._plan_heuristic(task, context)
 
         # Step 4: Assemble
         all_caps: list[str] = []
@@ -255,15 +255,25 @@ class PlannerAgent:
             logger.warning("LLM planning failed: %s", e)
             return self._plan_heuristic(task)
 
-    def _plan_heuristic(self, task: str) -> list[ActionStep]:
+    def _plan_heuristic(
+        self, task: str, context: dict | None = None,
+    ) -> list[ActionStep]:
         """Heuristic plan generation based on task keywords."""
         t = task.lower()
         steps: list[ActionStep] = []
+        payload = ((context or {}).get("perceived") or {}).get("metadata") or {}
 
         if any(k in t for k in ["read", "open", "load", "get file"]):
+            path = payload.get("path")
+            if not path:
+                quoted = re.search(r'''["']([^"']+)["']''', task)
+                windows_path = re.search(r"[A-Za-z]:[\\/][^\s\"']+", task)
+                relative_path = re.search(r"(?:\.{0,2}[\\/])?[\w -]+(?:[\\/][\w -]+)*\.\w+", task)
+                match = windows_path or relative_path
+                path = quoted.group(1) if quoted else match.group(0) if match else "."
             steps.append(ActionStep(
                 step_id="step_1", action="Read file contents", skill="read_file",
-                params={"path": re.search(r'[\w./]+\.\w+', task).group(0) if re.search(r'[\w./]+\.\w+', task) else "."},
+                params={"path": path},
                 required_capabilities=["fs:read"], risk_level=1,
             ))
         if any(k in t for k in ["write", "save", "create file", "output"]):

@@ -352,7 +352,7 @@ class TestDeterministicRuntimeAPISpecification:
         )
 
         # Verify replay
-        is_valid = api.verify_replay(
+        is_valid = await api.verify_replay(
             contract_id=contract.contract_id,
             function_name="double",
             arguments={"x": 21},
@@ -404,7 +404,7 @@ class TestRuntimeContractIntegration:
         assert result.output == 30
 
         # 6. Verify replay
-        is_valid = api.verify_replay(
+        is_valid = await api.verify_replay(
             contract_id=contract.contract_id,
             function_name="add",
             arguments={"x": 10, "y": 20},

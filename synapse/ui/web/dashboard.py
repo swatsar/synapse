@@ -79,7 +79,12 @@ class Dashboard:
         """Execute a task."""
         if self._orchestrator:
             return await self._orchestrator.handle({"task": task, "payload": payload})
-        return {"status": "completed", "protocol_version": PROTOCOL_VERSION}
+        return {
+            "status": "unavailable",
+            "success": False,
+            "error": "No orchestrator configured",
+            "protocol_version": PROTOCOL_VERSION,
+        }
     
     def get_logs(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get recent logs."""

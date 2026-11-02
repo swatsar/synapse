@@ -77,16 +77,28 @@ class TestPromptManagerPerformance:
 @pytest.mark.slow
 class TestVectorStoreFallbackPerformance:
     @pytest.mark.asyncio
-    async def test_fallback_embedding_under_5ms(self):
+    async def test_keyword_fallback_query_under_5ms(self):
+        """BM25 keyword fallback query latency must stay under 5 ms.
+
+        Replaces the former SHA-512 pseudo-embedding latency test: the fallback
+        is now honest lexical retrieval instead of a hash-derived fake vector.
+        """
         from synapse.memory.vector_store import VectorMemoryStore
         store = VectorMemoryStore()
+        async def _no_embedding(text: str) -> None:
+            return None
+
+        store._get_embedding = _no_embedding  # type: ignore[assignment]
+        for i in range(50):
+            await store.add_document(f"document number {i} about agents", doc_id=f"d{i}")
+
         latencies = []
         for _ in range(100):
             start = time.perf_counter()
-            store._embed_fallback("test text for performance measurement")
+            await store.query("agents document", limit=5)
             latencies.append((time.perf_counter() - start) * 1000)
         avg = statistics.mean(latencies)
-        assert avg < 5.0, f"Avg embedding {avg:.2f}ms > 5ms"
+        assert avg < 5.0, f"Avg keyword query {avg:.2f}ms > 5ms"
 
 
 @pytest.mark.performance

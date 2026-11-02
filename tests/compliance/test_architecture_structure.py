@@ -33,7 +33,7 @@ class TestArchitectureStructure:
         # Complete list of authorized directories (Phase 1-8)
         authorized_dirs = {
             # Core modules
-            "core", "skills", "agents", "memory", "connectors", "llm",
+            "core", "skills", "agents", "memory", "connectors", "llm", "mcp",
             "network", "observability", "ui", "database", "config",
             # Security & Policy
             "security", "crypto", "policy", "governance", "zero_trust",
@@ -50,7 +50,7 @@ class TestArchitectureStructure:
             # Ecosystem
             "ecosystem", "capability",
             # Internal
-            "tests"
+            "tests", "plugins", "work", "knowledge", "harnesses", "browser", "computer_use"
         }
         
         synapse_dirs = set()
