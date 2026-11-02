@@ -25,10 +25,12 @@ def workspace_client(tmp_path, monkeypatch):
 
 def wait_for_task(client, task_id):
     for _ in range(100):
-        task = client.get(f"/api/v1/tasks/{task_id}").json()
-        if task["status"] not in {"queued", "running"}:
-            return task
-        time.sleep(0.02)
+        resp = client.get(f"/api/v1/tasks/{task_id}")
+        if resp.status_code == 200:
+            task = resp.json()
+            if isinstance(task, dict) and task.get("status") not in {"queued", "running"}:
+                return task
+        time.sleep(0.05)
     pytest.fail("Task did not finish within the polling deadline")
 
 
