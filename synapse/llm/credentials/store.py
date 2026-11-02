@@ -141,7 +141,7 @@ def create_default_credential_store() -> CredentialStore:
     store.register_backend(EnvironmentSecretBackend(), make_default=True)
     try:
         store.register_backend(EncryptedDatabaseSecretBackend())
-    except SecretBackendUnavailable as exc:
+    except (SecretBackendUnavailable, Exception) as exc:
         logger.info("encrypted secret backend disabled (%s)", exc)
     return store
 

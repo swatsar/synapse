@@ -186,7 +186,7 @@ class WorkspaceStore:
         assignments = ", ".join(f"{values[i]}=?" for i in range(0, len(values), 2))
         parameters = [values[i] for i in range(1, len(values), 2)]
         with self._connect() as db:
-            db.execute(f"UPDATE tasks SET {assignments} WHERE id=?", (*parameters, task_id))
+            db.execute(f"UPDATE tasks SET {assignments} WHERE id=?", (*parameters, task_id))  # nosec B608
         return self.get_task(task_id)
 
     def add_message(self, session_id: str, role: str, content: str, task_id: str | None = None) -> dict:

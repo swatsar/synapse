@@ -125,8 +125,11 @@ class EncryptedDatabaseSecretBackend(SecretBackend):
 
     def __init__(self, db_path: str = ":memory:", master_key: str | None = None,
                  key_env_var: str = "SYNAPSE_SECRET_KEY"):
-        import aiosqlite
-        from cryptography.fernet import Fernet
+        try:
+            import aiosqlite
+            from cryptography.fernet import Fernet
+        except ImportError as e:
+            raise SecretBackendUnavailable("db", f"missing dependency: {e}")
 
         self._aiosqlite = aiosqlite
         self._db_path = db_path if db_path is not None else ":memory:"
