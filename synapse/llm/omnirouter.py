@@ -315,7 +315,7 @@ class OmniRouter:
             re.IGNORECASE,
         ),
         TaskDomain.CODING: re.compile(
-            r"\b(def\s+\w+|class\s+\w+|import\s+\w+|function|async\s+def|\.py\b|\.js\b|\.ts\b|\.rs\b|\.go\b|git\s+|docker|pip\s+|npm\s+|refactor|bug|unittest|pytest|код|напиши\s+код|исправь\s+ошибк\w*)\b",
+            r"\b(python|javascript|typescript|golang|rust|coding|script|code|sql|database|migration|endpoint|api|backend|frontend|function|async|await|def\s+\w+|class\s+\w+|import\s+\w+|async\s+def|\.py\b|\.js\b|\.ts\b|\.rs\b|\.go\b|git\s+|docker|pip\s+|npm\s+|refactor|bug|unittest|pytest|программ\w*|скрипт\w*|код|напиши\s+код|исправь\s+ошибк\w*)\b",
             re.IGNORECASE,
         ),
         TaskDomain.TRIAGE: re.compile(
@@ -376,19 +376,19 @@ class OmniRouter:
 
         text = task_description or ""
 
-        # 2. Pattern Matching in priority order
+        # 2. Pattern Matching in priority order (specialized domains first, then coding)
         if self._PATTERNS[TaskDomain.LOCAL_PRIVACY].search(text):
             return TaskDomain.LOCAL_PRIVACY
         if self._PATTERNS[TaskDomain.COMPUTER_USE].search(text):
             return TaskDomain.COMPUTER_USE
-        if self._PATTERNS[TaskDomain.CODING].search(text):
-            return TaskDomain.CODING
         if self._PATTERNS[TaskDomain.SECURITY].search(text):
             return TaskDomain.SECURITY
         if self._PATTERNS[TaskDomain.ARCHITECTURE].search(text):
             return TaskDomain.ARCHITECTURE
         if self._PATTERNS[TaskDomain.REASONING].search(text):
             return TaskDomain.REASONING
+        if self._PATTERNS[TaskDomain.CODING].search(text):
+            return TaskDomain.CODING
         if self._PATTERNS[TaskDomain.TRIAGE].search(text) and len(text.strip()) < 120:
             return TaskDomain.TRIAGE
 

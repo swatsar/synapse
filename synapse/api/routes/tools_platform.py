@@ -121,6 +121,7 @@ class SkillExecuteRequest(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+@router.get("/skills")
 @router.get("/skills/catalog")
 async def list_skills() -> dict[str, Any]:
     """List all registered composable skills."""
@@ -142,6 +143,20 @@ async def execute_skill(request: SkillExecuteRequest) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Skill '{request.skill_id}' not found")
     try:
         return await skill.execute(request.params)
+    except Exception as e:
+        logger.error("Skill execution error: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/skills/{skill_id}/execute")
+async def execute_skill_by_id(skill_id: str, payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """Execute a specific skill by skill_id path parameter."""
+    lib = get_skill_library()
+    skill = lib.get(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
+    try:
+        return await skill.execute(payload or {})
     except Exception as e:
         logger.error("Skill execution error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))

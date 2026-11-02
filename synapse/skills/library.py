@@ -201,6 +201,91 @@ class SkillLibrary:
             )
         )
 
+        # 5. Browser Navigation Skill
+        async def _browser_nav(url: str = "https://example.com") -> dict[str, Any]:
+            from synapse.integrations.browser_controller import get_browser_controller
+            res = await get_browser_controller().execute("navigate", {"url": url})
+            return res.to_dict()
+
+        self.register(
+            ComposableSkill(
+                id="browser_navigate",
+                name="Browser Navigation",
+                description="Securely navigate and inspect approved web domains with screenshot feedback.",
+                parameters=[
+                    SkillParameter(name="url", type_name="string", description="Web address to navigate to", required=True, default="https://example.com"),
+                ],
+                required_capabilities=["browser:navigate"],
+                risk_level=3,
+                handler=_browser_nav,
+                category="browser",
+            )
+        )
+
+        # 6. Python AST Analysis Skill
+        def _ast_analyze(code: str = "") -> dict[str, Any]:
+            from synapse.integrations.codex_engine import get_codex_engine
+            engine = get_codex_engine()
+            symbols = engine.analyze_python_ast(code) if code else []
+            return {"symbols": [s.to_dict() for s in symbols], "count": len(symbols)}
+
+        self.register(
+            ComposableSkill(
+                id="ast_analyze",
+                name="Python AST Analysis",
+                description="Extract function, class, and async definitions with argument lists from Python source.",
+                parameters=[
+                    SkillParameter(name="code", type_name="string", description="Python source code text", required=True),
+                ],
+                required_capabilities=["code:analyze"],
+                risk_level=1,
+                handler=_ast_analyze,
+                category="coding",
+            )
+        )
+
+        # 7. Benchmark Evaluation Skill
+        async def _bench_eval(suite_id: str = "core_eval_v1") -> dict[str, Any]:
+            from synapse.harnesses.hallmark import get_hallmark_harness
+            report = await get_hallmark_harness().run_benchmark(suite_id=suite_id)
+            return report.to_dict()
+
+        self.register(
+            ComposableSkill(
+                id="benchmark_eval",
+                name="Hallmark Evaluation Benchmark",
+                description="Run structured benchmarks across coding, security, reasoning, and memory dimensions.",
+                parameters=[
+                    SkillParameter(name="suite_id", type_name="string", description="Benchmark suite ID", required=False, default="core_eval_v1"),
+                ],
+                required_capabilities=["eval:run"],
+                risk_level=1,
+                handler=_bench_eval,
+                category="evaluation",
+            )
+        )
+
+        # 8. SFT Dataset Export Skill
+        def _sft_export_skill(format: str = "chatml") -> dict[str, Any]:
+            from synapse.harnesses.trajectory import get_trajectory_harness
+            samples = get_trajectory_harness().export_sft_dataset(format=format)
+            return {"count": len(samples), "format": format, "samples": samples[:5]}
+
+        self.register(
+            ComposableSkill(
+                id="sft_export",
+                name="Export SFT Training Dataset",
+                description="Export multi-turn reasoning traces into ChatML or Alpaca format for local model fine-tuning.",
+                parameters=[
+                    SkillParameter(name="format", type_name="string", description="Dataset format (chatml or alpaca)", required=False, default="chatml"),
+                ],
+                required_capabilities=["learning:export"],
+                risk_level=1,
+                handler=_sft_export_skill,
+                category="learning",
+            )
+        )
+
     async def execute_pipeline(self, steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Compose and execute a sequence of skills, piping results forward."""
         results: list[dict[str, Any]] = []

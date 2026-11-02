@@ -118,3 +118,45 @@ def test_platform_learning_patterns_and_optimize_prompts(client):
     assert opt_data["agent"] == "developer"
     assert "suggestion" in opt_data
 
+
+def test_platform_skills_execution(client):
+    res = client.post("/api/v1/platform/skills/security_scan/execute", json={"target_dir": "synapse/security"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["skill_id"] == "security_scan"
+    assert data["success"] is True
+
+
+def test_platform_router_endpoints_and_execution(client):
+    # 1. Catalog
+    res_cat = client.get("/api/v1/router/catalog")
+    assert res_cat.status_code == 200
+    cat_data = res_cat.json()
+    assert cat_data["total_models"] > 0
+
+    # 2. Health & stats
+    res_health = client.get("/api/v1/router/health")
+    assert res_health.status_code == 200
+    res_stats = client.get("/api/v1/router/stats")
+    assert res_stats.status_code == 200
+
+    # 3. Route decision
+    res_route = client.post("/api/v1/router/route", json={
+        "task": "Write an async python database migration script",
+    })
+    assert res_route.status_code == 200
+    route_decision = res_route.json()["decision"]
+    assert route_decision["detected_domain"] == "coding"
+    assert "fallback_chain" in route_decision
+
+    # 4. Route execute
+    res_exec = client.post("/api/v1/router/execute", json={
+        "task": "Ping test triage",
+        "requirements": {"latency": "fast"},
+    })
+    assert res_exec.status_code == 200
+    exec_data = res_exec.json()
+    assert "model_used" in exec_data
+    assert "duration_seconds" in exec_data
+
+

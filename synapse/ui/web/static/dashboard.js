@@ -806,9 +806,159 @@
     }
   });
 
+  // OmniRouter Interactive Explorer
+  async function loadRouterCatalog() {
+    const list = $('router-catalog-list');
+    if (!list) return;
+    clear(list).append(el('p', 'Загрузка каталога моделей…', 'muted'));
+    try {
+      const data = await api('/router/catalog');
+      clear(list);
+      for (const m of (data.catalog || [])) {
+        const item = el('div', '', 'memory-item');
+        const header = el('div', '', 'memory-header');
+        header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
+
+        const titleSpan = el('strong', m.display_name || m.id);
+        const metaSpan = el('span', `${m.provider.toUpperCase()} · ${m.tier.toUpperCase()} · ${m.cost_tier}`, 'domain-badge');
+        header.append(titleSpan, metaSpan);
+
+        const desc = el('p', `Контекст: ${(m.context_window / 1000).toFixed(0)}k токенов · Вывод: ${(m.max_output / 1000).toFixed(0)}k · Сильные стороны: ${(m.strengths || []).join(', ')}`, 'memory-body');
+        desc.style.fontSize = '11px'; desc.style.margin = '4px 0';
+
+        item.append(header, desc);
+        list.append(item);
+      }
+    } catch (e) {
+      clear(list).append(el('p', e.message, 'error'));
+    }
+  }
+
+  $('refresh-router-catalog')?.addEventListener('click', () => loadRouterCatalog());
+
+  $('router-test-btn')?.addEventListener('click', async () => {
+    const task = $('router-test-task')?.value.trim();
+    if (!task) { notify('Введите описание задачи для анализа маршрута.', true); return; }
+    const btn = $('router-test-btn'); btn.disabled = true;
+    try {
+      const requirements = {};
+      if ($('router-test-local')?.checked) requirements.local_only = true;
+      if ($('router-test-fast')?.checked) requirements.latency = 'fast';
+
+      const res = await api('/router/route', {
+        method: 'POST',
+        body: JSON.stringify({task, requirements}),
+      });
+      const d = res.decision;
+      $('router-test-result').hidden = false;
+      $('rt-model').textContent = d.model;
+      $('rt-domain').textContent = d.detected_domain;
+      $('rt-cost').textContent = d.cost_tier;
+      $('rt-conf').textContent = `${Math.round(d.confidence * 100)}%`;
+      $('rt-reason').textContent = d.reason;
+      $('rt-fallback').textContent = (d.fallback_chain || []).map(f => `${f.provider}/${f.model}`).join(' → ') || 'нет';
+      $('rt-output-box').hidden = true;
+      notify(`Маршрут определен: ${d.model} (${d.detected_domain})`);
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('router-exec-btn')?.addEventListener('click', async () => {
+    const task = $('router-test-task')?.value.trim();
+    if (!task) { notify('Введите описание задачи для выполнения через роутер.', true); return; }
+    const btn = $('router-exec-btn'); btn.disabled = true; btn.textContent = 'Запуск...';
+    try {
+      const requirements = {};
+      if ($('router-test-local')?.checked) requirements.local_only = true;
+      if ($('router-test-fast')?.checked) requirements.latency = 'fast';
+
+      const res = await api('/router/execute', {
+        method: 'POST',
+        body: JSON.stringify({task, requirements}),
+      });
+      $('router-test-result').hidden = false;
+      const d = res.route_decision || {};
+      $('rt-model').textContent = res.model_used || d.model || 'auto';
+      $('rt-domain').textContent = d.detected_domain || 'general';
+      $('rt-cost').textContent = d.cost_tier || '$$';
+      $('rt-conf').textContent = `${Math.round((d.confidence || 0.9) * 100)}%`;
+      $('rt-reason').textContent = d.reason || 'Автоматическое выполнение через OmniRouter';
+      $('rt-fallback').textContent = (d.fallback_chain || []).map(f => `${f.provider}/${f.model}`).join(' → ') || 'нет';
+
+      $('rt-output-box').hidden = false;
+      $('rt-output').textContent = res.content || '[Пустой ответ]';
+      $('rt-meta').textContent = `Провайдер: ${res.provider_used} · Модель: ${res.model_used} · Время: ${res.duration_seconds}с (Всего: ${res.total_duration_seconds}с)`;
+      notify(`Выполнение через OmniRouter завершено (${res.model_used})`);
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Запуск';
+    }
+  });
+
+  // Composable Skills Catalog Explorer
+  async function loadSkillsCatalog() {
+    const list = $('skills-catalog-list');
+    if (!list) return;
+    clear(list).append(el('p', 'Загрузка каталога навыков…', 'muted'));
+    try {
+      const data = await api('/platform/skills/catalog');
+      clear(list);
+      for (const skill of (data.skills || [])) {
+        const item = el('div', '', 'memory-item');
+        const header = el('div', '', 'memory-header');
+        header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
+
+        const titleSpan = el('strong', skill.name);
+        const riskBadge = el('span', `Риск: ${skill.risk_level}`, 'model-badge');
+        header.append(titleSpan, riskBadge);
+
+        const desc = el('p', skill.description, 'memory-body');
+        desc.style.fontSize = '11px'; desc.style.margin = '4px 0';
+
+        const foot = el('div');
+        foot.style.display = 'flex'; foot.style.justifyContent = 'space-between'; foot.style.alignItems = 'center'; foot.style.marginTop = '4px';
+        const caps = el('span', `Требует: ${(skill.required_capabilities || []).join(', ') || 'нет'}`, 'tab-count');
+        caps.style.fontSize = '10px';
+
+        const runBtn = el('button', 'Запустить', 'secondary small-button');
+        runBtn.type = 'button';
+        runBtn.addEventListener('click', async () => {
+          runBtn.disabled = true; runBtn.textContent = 'Выполнение...';
+          try {
+            const res = await api(`/platform/skills/${encodeURIComponent(skill.id)}/execute`, {
+              method: 'POST', body: JSON.stringify({}),
+            });
+            $('skill-exec-card').hidden = false;
+            $('skill-exec-title').textContent = `Результат навыка: ${skill.name}`;
+            $('skill-exec-result').textContent = JSON.stringify(res.result || res, null, 2);
+            notify(`Навык '${skill.name}' успешно выполнен.`);
+          } catch (e) {
+            notify(e.message, true);
+          } finally {
+            runBtn.disabled = false; runBtn.textContent = 'Запустить';
+          }
+        });
+
+        foot.append(caps, runBtn);
+        item.append(header, desc, foot);
+        list.append(item);
+      }
+    } catch (e) {
+      clear(list).append(el('p', e.message, 'error'));
+    }
+  }
+
+  $('refresh-skills-btn')?.addEventListener('click', () => loadSkillsCatalog());
+
   document.querySelectorAll('[data-tab]').forEach(b => {
     if (b.dataset.tab === 'memory') b.addEventListener('click', () => loadMemories());
     if (b.dataset.tab === 'evolution') b.addEventListener('click', () => loadTrajectories());
+    if (b.dataset.tab === 'router') b.addEventListener('click', () => loadRouterCatalog());
+    if (b.dataset.tab === 'skills') b.addEventListener('click', () => loadSkillsCatalog());
     if (b.dataset.tab === 'computer') b.addEventListener('click', async () => {
       try {
         const st = await api('/platform/browser/status');

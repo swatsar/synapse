@@ -110,7 +110,7 @@
 
     <aside class="inspector" id="inspector" aria-label="Детали выполнения">
       <header class="inspector-header"><div><div class="eyebrow">НАБЛЮДЕНИЕ</div><h2>Выполнение</h2></div><button class="icon-button" id="close-inspector" type="button" aria-label="Скрыть детали"><svg><use href="#i-close"/></svg></button></header>
-      <div class="inspector-tabs" role="tablist" aria-label="Разделы деталей"><button class="active" id="tab-run" type="button" role="tab" aria-selected="true" data-tab="run">Задача</button><button id="tab-approvals" type="button" role="tab" aria-selected="false" data-tab="approvals">Подтверждения<span class="tab-count" id="approval-count" hidden>0</span></button><button id="tab-security" type="button" role="tab" aria-selected="false" data-tab="security">Аудит</button><button id="tab-memory" type="button" role="tab" aria-selected="false" data-tab="memory">Память</button><button id="tab-benchmarks" type="button" role="tab" aria-selected="false" data-tab="benchmarks">Тесты</button><button id="tab-evolution" type="button" role="tab" aria-selected="false" data-tab="evolution">Обучение</button><button id="tab-computer" type="button" role="tab" aria-selected="false" data-tab="computer">Компьютер</button><button id="tab-session" type="button" role="tab" aria-selected="false" data-tab="session">Сессия</button></div>
+      <div class="inspector-tabs" role="tablist" aria-label="Разделы деталей"><button class="active" id="tab-run" type="button" role="tab" aria-selected="true" data-tab="run">Задача</button><button id="tab-approvals" type="button" role="tab" aria-selected="false" data-tab="approvals">Подтверждения<span class="tab-count" id="approval-count" hidden>0</span></button><button id="tab-security" type="button" role="tab" aria-selected="false" data-tab="security">Аудит</button><button id="tab-memory" type="button" role="tab" aria-selected="false" data-tab="memory">Память</button><button id="tab-benchmarks" type="button" role="tab" aria-selected="false" data-tab="benchmarks">Тесты</button><button id="tab-evolution" type="button" role="tab" aria-selected="false" data-tab="evolution">Обучение</button><button id="tab-computer" type="button" role="tab" aria-selected="false" data-tab="computer">Компьютер</button><button id="tab-router" type="button" role="tab" aria-selected="false" data-tab="router">Роутер</button><button id="tab-skills" type="button" role="tab" aria-selected="false" data-tab="skills">Навыки</button><button id="tab-session" type="button" role="tab" aria-selected="false" data-tab="session">Сессия</button></div>
       <div class="inspector-content" id="inspector-run" role="tabpanel">
         <div class="empty-inspector" id="run-empty"><span class="empty-orbit"><svg><use href="#i-panels"/></svg></span><h3>Здесь появится процесс</h3><p>Выберите задачу в диалоге, чтобы увидеть план, этапы и результат.</p></div>
         <div id="run-details" hidden>
@@ -239,6 +239,53 @@
           </div>
           <img id="browser-screenshot-img" alt="Снимок экрана браузера" style="max-width:100%;border-radius:4px;display:none;" />
           <pre id="browser-content-display" style="font-size:11px;white-space:pre-wrap;max-height:220px;overflow-y:auto;margin:0;display:none;width:100%;"></pre>
+        </div>
+      </div>
+      <div class="inspector-content" id="inspector-router" role="tabpanel" hidden>
+        <p class="panel-description">OmniRouter: Интеллектуальная маршрутизация моделей (Claude 5, OpenAI o1/GPT-4o, Ollama), бюджеты задержки и автоматический fallback.</p>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <input type="text" id="router-test-task" placeholder="Задача для анализа (напр. 'Write an async web scraper')" style="flex:1;">
+          <button class="primary small-button" id="router-test-btn" type="button">Маршрут</button>
+          <button class="secondary small-button" id="router-exec-btn" type="button">Запуск</button>
+        </div>
+        <div style="display:flex;gap:12px;font-size:12px;margin-bottom:8px;">
+          <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="router-test-local"> Только офлайн / Local</label>
+          <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="router-test-fast"> Fast Latency</label>
+        </div>
+        <div id="router-test-result" hidden class="stat-summary-card" style="margin-top:8px;flex-direction:column;align-items:flex-start;">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+            <span class="router-brand">⚡ OmniRouter</span>
+            <span class="model-badge" id="rt-model">—</span>
+            <span class="domain-badge" id="rt-domain">—</span>
+            <span class="cost-badge" id="rt-cost">—</span>
+            <span style="font-size:11px;color:var(--text-muted, #888);">Уверенность: <strong id="rt-conf">0%</strong></span>
+          </div>
+          <p id="rt-reason" style="font-size:11px;margin:4px 0;"></p>
+          <div style="font-size:10px;color:var(--text-muted, #888);margin-bottom:4px;">Цепочка Fallback: <span id="rt-fallback">—</span></div>
+          <div id="rt-output-box" hidden style="width:100%;margin-top:6px;padding:6px;background:rgba(0,0,0,0.25);border-radius:4px;">
+            <div style="font-size:11px;font-weight:600;margin-bottom:2px;">Результат выполнения:</div>
+            <pre id="rt-output" style="font-size:11px;white-space:pre-wrap;max-height:160px;overflow-y:auto;margin:0;"></pre>
+            <div id="rt-meta" style="font-size:10px;color:var(--text-muted, #888);margin-top:4px;"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <h4 style="margin:0;font-size:12px;">Каталог моделей и провайдеров</h4>
+            <button class="secondary small-button" id="refresh-router-catalog" type="button">Обновить</button>
+          </div>
+          <div id="router-catalog-list" class="memory-list" style="max-height:220px;overflow-y:auto;"></div>
+        </div>
+      </div>
+      <div class="inspector-content" id="inspector-skills" role="tabpanel" hidden>
+        <p class="panel-description">Mattpocock Skills: Каталог декларативных компонуемых навыков платформы с валидацией схемы.</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h4 style="margin:0;font-size:12px;">Зарегистрированные навыки</h4>
+          <button class="secondary small-button" id="refresh-skills-btn" type="button">Обновить</button>
+        </div>
+        <div id="skills-catalog-list" class="memory-list" style="max-height:240px;overflow-y:auto;"></div>
+        <div id="skill-exec-card" hidden class="stat-summary-card" style="margin-top:10px;flex-direction:column;align-items:flex-start;">
+          <div style="font-weight:600;font-size:12px;margin-bottom:4px;" id="skill-exec-title">Выполнение навыка</div>
+          <pre id="skill-exec-result" style="font-size:11px;white-space:pre-wrap;margin:0;max-height:180px;overflow-y:auto;width:100%;"></pre>
         </div>
       </div>
       <div class="inspector-content" id="inspector-session" role="tabpanel" hidden><div class="session-stats"><div><strong id="stat-total">0</strong><span>Запусков</span></div><div><strong id="stat-completed">0</strong><span>Завершено</span></div><div><strong id="stat-failed">0</strong><span>Ошибок</span></div></div><dl class="metadata-list"><dt>ID сессии</dt><dd id="session-id">—</dd><dt>Создана</dt><dd id="session-created">—</dd><dt>Режим</dt><dd>Локальный runtime</dd></dl><button class="secondary full-width" id="export-session" type="button">Экспортировать JSON</button><button class="text-danger full-width" id="archive-session" type="button">Архивировать сессию</button></div>
