@@ -72,3 +72,49 @@ def test_platform_benchmark_run(client):
     data = res.json()
     assert data["suite_id"] == "api_test_suite"
     assert "pass_rate" in data
+
+
+def test_platform_trajectory_sft_and_dpo_exports(client):
+    res_sft = client.get("/api/v1/platform/trajectories/export/sft?format=chatml")
+    assert res_sft.status_code == 200
+    data_sft = res_sft.json()
+    assert data_sft["format"] == "chatml"
+    assert "samples" in data_sft
+
+    res_dpo = client.get("/api/v1/platform/trajectories/export/dpo")
+    assert res_dpo.status_code == 200
+    data_dpo = res_dpo.json()
+    assert "pairs" in data_dpo
+
+
+def test_platform_browser_status_and_execution(client):
+    res_status = client.get("/api/v1/platform/browser/status")
+    assert res_status.status_code == 200
+    status_data = res_status.json()
+    assert status_data["status"] == "ready"
+    assert "allowed_domains" in status_data
+
+    # Execute safe action
+    res_action = client.post("/api/v1/platform/browser/execute", json={
+        "action": "screenshot",
+    })
+    assert res_action.status_code == 200
+    action_data = res_action.json()
+    assert action_data["action"] == "screenshot"
+    assert action_data["status"] == "success"
+
+
+def test_platform_learning_patterns_and_optimize_prompts(client):
+    res_patterns = client.get("/api/v1/platform/learning/patterns")
+    assert res_patterns.status_code == 200
+    patterns = res_patterns.json()
+    assert "low_performing_skills" in patterns
+
+    res_opt = client.post("/api/v1/platform/learning/optimize-prompts", json={
+        "agent_name": "developer",
+    })
+    assert res_opt.status_code == 200
+    opt_data = res_opt.json()
+    assert opt_data["agent"] == "developer"
+    assert "suggestion" in opt_data
+

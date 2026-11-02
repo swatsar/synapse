@@ -2,7 +2,80 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synapse — настройки</title><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script><script src="/static/settings.js" defer></script></head>
 <body><main class="container"><header><h1>Настройки</h1><nav><a href="/">Задачи</a><a href="/providers.html">Провайдеры</a><a href="/agents.html">Компоненты</a><a class="active" href="/settings.html">Настройки</a></nav></header>
 <section class="card"><h2>Подключение</h2><form id="api-key-form"><label for="api-key">API-ключ</label><div class="actions"><input id="api-key" type="password" autocomplete="off"><button type="submit">Применить</button></div></form></section>
-<p class="muted">Настройки runtime доступны только для чтения. Изменения применяются через переменные окружения и перезапуск. Восстановление SQLite через работающий HTTP-сервер не поддерживается.</p><p id="notice" role="status"></p>
+<section class="card">
+  <h2>Тонкие настройки OmniRouter & Провайдеров</h2>
+  <p class="panel-description">Маршрутизация запросов между моделями (Claude 5, OpenAI, Ollama), бюджет задержки и стоимости.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+    <div>
+      <label for="cfg-pref-tier">Приоритет моделей</label>
+      <select id="cfg-pref-tier" style="width:100%;">
+        <option value="balanced">Balanced (Sonnet 5.5 / GPT-4o)</option>
+        <option value="frontier">Frontier (Opus 5.5 / o1)</option>
+        <option value="local">Local Privacy (Ollama Llama 3.2)</option>
+        <option value="fast">Fast / Cost-Effective (Haiku 5.5)</option>
+      </select>
+    </div>
+    <div>
+      <label for="cfg-latency-budget">Бюджет задержки (мс)</label>
+      <input type="number" id="cfg-latency-budget" value="15000" min="1000" max="120000" style="width:100%;">
+    </div>
+    <div>
+      <label for="cfg-fallback-order">Порядок цепочки Fallback</label>
+      <input type="text" id="cfg-fallback-order" value="claude-sonnet-5-5 -> gpt-4o -> llama3.2" style="width:100%;" readonly>
+    </div>
+    <div>
+      <label for="cfg-domain-autoselect">Автодетекция домена задачи</label>
+      <input type="text" id="cfg-domain-autoselect" value="Включено (Coding, Security, Reasoning, Architecture)" style="width:100%;" readonly>
+    </div>
+  </div>
+</section>
+<section class="card">
+  <h2>Параметры самообучения (Self-Evolution & Metacognition)</h2>
+  <p class="panel-description">Настройки сбора траекторий, генерации навыков при ошибках и экспорта fine-tuning датасетов.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+    <div>
+      <label for="cfg-success-threshold">Порог депрекации навыков (%)</label>
+      <input type="number" id="cfg-success-threshold" value="80" min="50" max="99" style="width:100%;">
+    </div>
+    <div>
+      <label for="cfg-failure-trigger">Лимит ошибок до CreateSkill</label>
+      <input type="number" id="cfg-failure-trigger" value="3" min="1" max="10" style="width:100%;">
+    </div>
+    <div>
+      <label for="cfg-export-format">Формат датасета локальной модели</label>
+      <select id="cfg-export-format" style="width:100%;">
+        <option value="chatml">ChatML / OpenAI (HuggingFace, Axolotl, Unsloth)</option>
+        <option value="alpaca">Alpaca format (Llama-Factory, Ollama modelfile)</option>
+      </select>
+    </div>
+    <div>
+      <label for="cfg-sliding-window">Окно анализа опыта (дней)</label>
+      <input type="number" id="cfg-sliding-window" value="7" min="1" max="30" style="width:100%;">
+    </div>
+  </div>
+  <div style="margin-top:12px;">
+    <button class="secondary small-button" id="save-local-cfg-btn" type="button">Сохранить локальный профиль</button>
+  </div>
+</section>
+<section class="card">
+  <h2>Безопасность & Computer Use</h2>
+  <p class="panel-description">Уровни риска HITL, белые списки веб-доменов и политика песочницы.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+    <div>
+      <label>Требовать подтверждения при риске</label>
+      <input type="text" value="Уровень >= 3 (Файловая запись, Shell, Сеть)" readonly style="width:100%;">
+    </div>
+    <div>
+      <label>Изоляция исполнения</label>
+      <input type="text" value="Pluggable Subprocess Sandbox / Container" readonly style="width:100%;">
+    </div>
+    <div style="grid-column: span 2;">
+      <label>Разрешенные домены Computer-Use</label>
+      <input type="text" value="localhost, 127.0.0.1, example.com, github.com, pypi.org, docs.python.org" readonly style="width:100%;">
+    </div>
+  </div>
+</section>
+<p class="muted">Базовые настройки runtime инициализируются из конфигурации сервиса и профилей развертывания.</p><p id="notice" role="status"></p>
 <section class="card"><h2>Текущий runtime</h2><pre id="settings">Загрузка…</pre></section>
 <section class="card"><h2>Резервные копии SQLite</h2><button id="create-backup" type="button">Создать резервную копию</button><div id="backups" class="muted">Загрузка…</div></section>
 </main></body></html>

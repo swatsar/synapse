@@ -661,8 +661,160 @@
     }
   });
 
+  // Self-Evolution & Trajectory Export Handlers
+  async function loadTrajectories() {
+    try {
+      const data = await api('/platform/trajectories?limit=50');
+      const trajs = data.trajectories || [];
+      const successful = trajs.filter(t => t.success);
+      $('evo-count').textContent = trajs.length;
+      $('evo-total-trajs').textContent = trajs.length;
+      $('evo-sft-ready').textContent = successful.length;
+
+      const list = clear($('trajectories-list'));
+      if (!trajs.length) {
+        list.append(el('p', 'Траекторий пока нет. Запустите задачи для накопления опыта.', 'muted'));
+        return;
+      }
+      for (const t of trajs.slice(0, 10)) {
+        const item = el('div', undefined, 'memory-item');
+        const header = el('div', undefined, 'memory-header');
+        header.append(
+          el('strong', t.objective || t.trajectory_id),
+          el('span', t.success ? 'Успешно' : 'Ошибка', `severity-pill ${t.success ? 'LOW' : 'CRITICAL'}`)
+        );
+        item.append(header, el('p', `Модель: ${t.model} · Шагов: ${t.total_steps} · Время: ${t.duration_ms}мс`));
+        list.append(item);
+      }
+    } catch (err) {
+      console.error('Failed to load trajectories:', err);
+    }
+  }
+
+  function downloadJsonlBlob(dataList, filename) {
+    const content = dataList.map(item => JSON.stringify(item)).join('\n');
+    const blob = new Blob([content], {type: 'application/x-jsonlines;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  $('export-sft-btn')?.addEventListener('click', async () => {
+    try {
+      const res = await api('/platform/trajectories/export/sft?format=chatml');
+      if (!res.samples || !res.samples.length) {
+        notify('Нет успешных траекторий для экспорта SFT.', true);
+        return;
+      }
+      downloadJsonlBlob(res.samples, 'synapse_frontier_sft.jsonl');
+      notify(`Экспортировано ${res.count} обучающих примеров SFT`);
+    } catch (err) {
+      notify(err.message, true);
+    }
+  });
+
+  $('export-dpo-btn')?.addEventListener('click', async () => {
+    try {
+      const res = await api('/platform/trajectories/export/dpo');
+      if (!res.pairs || !res.pairs.length) {
+        notify('Нет траекторий для формирования DPO пар.', true);
+        return;
+      }
+      downloadJsonlBlob(res.pairs, 'synapse_frontier_dpo.jsonl');
+      notify(`Экспортировано ${res.count} контрастивных DPO пар`);
+    } catch (err) {
+      notify(err.message, true);
+    }
+  });
+
+  $('analyze-patterns-btn')?.addEventListener('click', async () => {
+    try {
+      const data = await api('/platform/learning/patterns');
+      $('evolution-insights-card').hidden = false;
+      $('evo-insights-title').textContent = 'Результаты анализа паттернов:';
+      $('evo-insights-body').textContent = JSON.stringify(data, null, 2);
+      notify('Паттерны успешно проанализированы.');
+    } catch (err) {
+      notify(err.message, true);
+    }
+  });
+
+  $('optimize-agent-btn')?.addEventListener('click', async () => {
+    const agent = $('evo-agent-select').value;
+    try {
+      const res = await api('/platform/learning/optimize-prompts', {
+        method: 'POST',
+        body: JSON.stringify({agent_name: agent}),
+      });
+      $('evolution-insights-card').hidden = false;
+      $('evo-insights-title').textContent = `Оптимизация инструкций агента: ${agent}`;
+      $('evo-insights-body').textContent = res.suggestion;
+      notify(`Инструкции агента '${agent}' оптимизированы.`);
+    } catch (err) {
+      notify(err.message, true);
+    }
+  });
+
+  // Computer Use / Browser Controller Handlers
+  $('browser-action-select')?.addEventListener('change', (e) => {
+    const act = e.target.value;
+    const isElem = act === 'click' || act === 'fill';
+    $('browser-selector-input').style.display = isElem ? '' : 'none';
+    $('browser-value-input').style.display = act === 'fill' ? '' : 'none';
+  });
+
+  $('execute-browser-btn')?.addEventListener('click', async () => {
+    const btn = $('execute-browser-btn');
+    btn.disabled = true; btn.textContent = 'Выполнение...';
+    const action = $('browser-action-select').value;
+    const url = $('browser-url-input').value.trim() || undefined;
+    const selector = $('browser-selector-input').value.trim() || undefined;
+    const value = $('browser-value-input').value.trim() || undefined;
+
+    try {
+      const res = await api('/platform/browser/execute', {
+        method: 'POST',
+        body: JSON.stringify({action, url, selector, value}),
+      });
+      $('browser-viewport').hidden = false;
+      $('browser-status-line').textContent = `Статус: ${res.status} (${res.action})`;
+      $('browser-url-display').textContent = res.url || '';
+
+      if (res.screenshot) {
+        $('browser-screenshot-img').src = res.screenshot;
+        $('browser-screenshot-img').style.display = 'block';
+        $('browser-content-display').style.display = 'none';
+      } else if (res.content) {
+        $('browser-content-display').textContent = res.content;
+        $('browser-content-display').style.display = 'block';
+        $('browser-screenshot-img').style.display = 'none';
+      } else {
+        $('browser-content-display').textContent = JSON.stringify(res, null, 2);
+        $('browser-content-display').style.display = 'block';
+        $('browser-screenshot-img').style.display = 'none';
+      }
+      notify(`Действие '${action}' завершено со статусом: ${res.status}`);
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Выполнить действие браузера';
+    }
+  });
+
   document.querySelectorAll('[data-tab]').forEach(b => {
     if (b.dataset.tab === 'memory') b.addEventListener('click', () => loadMemories());
+    if (b.dataset.tab === 'evolution') b.addEventListener('click', () => loadTrajectories());
+    if (b.dataset.tab === 'computer') b.addEventListener('click', async () => {
+      try {
+        const st = await api('/platform/browser/status');
+        $('browser-status-line').textContent = `Разрешено доменов: ${st.allowed_domains.length} · Выполнено: ${st.statistics.actions_executed}`;
+      } catch (e) { /* ignore */ }
+    });
   });
 
   (async function init() {

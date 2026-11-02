@@ -55,6 +55,18 @@ class BrowserActionResult:
     metadata: dict[str, Any] = field(default_factory=dict)
     protocol_version: str = PROTOCOL_VERSION
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status.value if hasattr(self.status, "value") else str(self.status),
+            "action": self.action,
+            "url": self.url,
+            "content": self.content,
+            "screenshot": self.screenshot,
+            "error": self.error,
+            "metadata": self.metadata,
+            "protocol_version": self.protocol_version,
+        }
+
 
 @dataclass
 class BrowserSecurityConfig:
@@ -785,3 +797,15 @@ SKILL_MANIFEST = {
     "isolation_type": "container",
     "protocol_version": PROTOCOL_VERSION
 }
+
+
+_default_browser_controller: SecureBrowserController | None = None
+
+
+def get_browser_controller() -> SecureBrowserController:
+    """Return the singleton instance of SecureBrowserController."""
+    global _default_browser_controller
+    if _default_browser_controller is None:
+        _default_browser_controller = SecureBrowserController()
+    return _default_browser_controller
+

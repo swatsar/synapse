@@ -28,5 +28,34 @@
     catch (error) { notify(error.message, true); }
     finally { event.currentTarget.disabled = false; }
   });
+
+  // Local Fine-Tuning & OmniRouter Preferences
+  const CFG_KEY = 'synapse-fine-tuning-cfg';
+  function loadLocalConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CFG_KEY) || '{}');
+      if (saved.tier) document.getElementById('cfg-pref-tier').value = saved.tier;
+      if (saved.latency) document.getElementById('cfg-latency-budget').value = saved.latency;
+      if (saved.threshold) document.getElementById('cfg-success-threshold').value = saved.threshold;
+      if (saved.trigger) document.getElementById('cfg-failure-trigger').value = saved.trigger;
+      if (saved.format) document.getElementById('cfg-export-format').value = saved.format;
+      if (saved.window) document.getElementById('cfg-sliding-window').value = saved.window;
+    } catch (_) { /* ignore */ }
+  }
+
+  document.getElementById('save-local-cfg-btn')?.addEventListener('click', () => {
+    const config = {
+      tier: document.getElementById('cfg-pref-tier')?.value,
+      latency: document.getElementById('cfg-latency-budget')?.value,
+      threshold: document.getElementById('cfg-success-threshold')?.value,
+      trigger: document.getElementById('cfg-failure-trigger')?.value,
+      format: document.getElementById('cfg-export-format')?.value,
+      window: document.getElementById('cfg-sliding-window')?.value,
+    };
+    localStorage.setItem(CFG_KEY, JSON.stringify(config));
+    notify('Локальные параметры OmniRouter и самообучения успешно сохранены.');
+  });
+
+  loadLocalConfig();
   window.addEventListener('synapse-refresh', load); load();
 })();

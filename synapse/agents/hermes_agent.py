@@ -90,11 +90,88 @@ class HermesParser:
         return "\n\n".join(parts)
 
 
+async def default_hermes_tool_dispatcher(tool: str, params: dict[str, Any]) -> Any:
+    """Built-in tool executor mapping Hermes actions to Synapse platform tools."""
+    tool_lower = tool.lower()
+
+    if "browser" in tool_lower:
+        from synapse.integrations.browser_controller import get_browser_controller
+        controller = get_browser_controller()
+        action = params.get("action", "navigate")
+        res = await controller.execute(
+            action=action,
+            url=params.get("url"),
+            selector=params.get("selector"),
+            value=params.get("value"),
+            timeout=params.get("timeout"),
+        )
+        return res.to_dict()
+
+    if "memory" in tool_lower:
+        from synapse.memory.vault import MemoryType, get_memory_vault
+        vault = get_memory_vault()
+        if "search" in tool_lower or "query" in params or "q" in params:
+            query = params.get("query") or params.get("q", "")
+            return [e.to_dict() for e in vault.search(query)]
+        else:
+            entry = vault.create_entry(
+                title=params.get("title", "Hermes note"),
+                content=params.get("content", ""),
+                memory_type=MemoryType.PROJECT,
+                tags=params.get("tags", []),
+            )
+            return entry.to_dict()
+
+    if "audit" in tool_lower or "security" in tool_lower:
+        from synapse.security.audit_scanner import get_security_auditor
+        auditor = get_security_auditor()
+        target = params.get("target_dir", ".")
+        return auditor.run_audit(target).to_dict()
+
+    if "patch" in tool_lower or "codex" in tool_lower:
+        from synapse.integrations.codex_engine import get_codex_engine
+        engine = get_codex_engine()
+        patches = params.get("patches", [])
+        patch_objs = [engine.create_patch(p["file_path"], p["updated_content"]) for p in patches]
+        return engine.apply_patches_atomically(patch_objs)
+
+    if "benchmark" in tool_lower or "hallmark" in tool_lower:
+        from synapse.harnesses.hallmark import get_hallmark_harness
+        harness = get_hallmark_harness()
+        suite_id = params.get("suite_id", "core_eval_v1")
+        report = await harness.run_benchmark(suite_id)
+        return report.to_dict()
+
+    if "skill" in tool_lower:
+        from synapse.skills.library import get_skill_library
+        lib = get_skill_library()
+        skill = lib.get(params.get("skill_id", ""))
+        if skill:
+            return await skill.execute(params.get("params", {}))
+        raise ValueError(f"Skill '{params.get('skill_id')}' not found")
+
+    if tool_lower in {"read_file", "read"}:
+        from pathlib import Path
+        path_str = params.get("file") or params.get("path")
+        if not path_str:
+            raise ValueError("Missing file path")
+        p = Path(path_str).resolve()
+        return p.read_text(encoding="utf-8")[:10000]
+
+    if tool_lower in {"list_dir", "list_directory", "ls"}:
+        from pathlib import Path
+        path_str = params.get("path", ".")
+        p = Path(path_str).resolve()
+        return [f.name for f in p.iterdir()][:50]
+
+    raise ValueError(f"Unknown or unsupported Hermes tool: {tool}")
+
+
 class HermesAgent:
     """Autonomous execution agent with structured scratchpad and self-correcting error recovery."""
 
     def __init__(self, tool_executor: Optional[Callable[[str, dict[str, Any]], Any]] = None, max_retries: int = 3):
-        self.tool_executor = tool_executor
+        self.tool_executor = tool_executor or default_hermes_tool_dispatcher
         self.max_retries = max_retries
         self.turns: list[HermesTurn] = []
 

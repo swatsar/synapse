@@ -60,3 +60,36 @@ def test_export_dataset_jsonl(harness, tmp_path):
     assert len(lines) == 1
     parsed = json.loads(lines[0])
     assert parsed["objective"] == "SFT training run"
+
+
+def test_export_sft_and_dpo_datasets(harness, tmp_path):
+    traj_ok = harness.start_trajectory("task_1", "sess_1", "Fine-tune objective 1")
+    harness.record_step(traj_ok, stage="PLAN", thought="Good plan")
+    harness.record_step(traj_ok, stage="ACT", action={"tool": "write"}, observation="Written")
+    harness.finish_trajectory(traj_ok, success=True)
+
+    traj_fail = harness.start_trajectory("task_2", "sess_2", "Fine-tune objective 1")
+    harness.record_step(traj_fail, stage="ACT", action={"tool": "write"}, observation="Error")
+    harness.finish_trajectory(traj_fail, success=False)
+
+    # Test SFT chatml
+    sft_file = tmp_path / "sft.jsonl"
+    sft_samples = harness.export_sft_dataset(output_file=sft_file, format="chatml")
+    assert len(sft_samples) == 1
+    assert sft_samples[0]["messages"][1]["content"] == "Fine-tune objective 1"
+    assert sft_file.exists()
+
+    # Test SFT alpaca
+    alpaca_samples = harness.export_sft_dataset(format="alpaca")
+    assert len(alpaca_samples) == 1
+    assert "instruction" in alpaca_samples[0]
+
+    # Test DPO
+    dpo_file = tmp_path / "dpo.jsonl"
+    dpo_pairs = harness.export_dpo_dataset(output_file=dpo_file)
+    assert len(dpo_pairs) >= 1
+    assert dpo_pairs[0]["prompt"] == "Fine-tune objective 1"
+    assert "chosen" in dpo_pairs[0]
+    assert "rejected" in dpo_pairs[0]
+    assert dpo_file.exists()
+

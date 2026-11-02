@@ -110,7 +110,7 @@
 
     <aside class="inspector" id="inspector" aria-label="Детали выполнения">
       <header class="inspector-header"><div><div class="eyebrow">НАБЛЮДЕНИЕ</div><h2>Выполнение</h2></div><button class="icon-button" id="close-inspector" type="button" aria-label="Скрыть детали"><svg><use href="#i-close"/></svg></button></header>
-      <div class="inspector-tabs" role="tablist" aria-label="Разделы деталей"><button class="active" id="tab-run" type="button" role="tab" aria-selected="true" data-tab="run">Задача</button><button id="tab-approvals" type="button" role="tab" aria-selected="false" data-tab="approvals">Подтверждения<span class="tab-count" id="approval-count" hidden>0</span></button><button id="tab-security" type="button" role="tab" aria-selected="false" data-tab="security">Аудит</button><button id="tab-memory" type="button" role="tab" aria-selected="false" data-tab="memory">Память</button><button id="tab-benchmarks" type="button" role="tab" aria-selected="false" data-tab="benchmarks">Тесты</button><button id="tab-session" type="button" role="tab" aria-selected="false" data-tab="session">Сессия</button></div>
+      <div class="inspector-tabs" role="tablist" aria-label="Разделы деталей"><button class="active" id="tab-run" type="button" role="tab" aria-selected="true" data-tab="run">Задача</button><button id="tab-approvals" type="button" role="tab" aria-selected="false" data-tab="approvals">Подтверждения<span class="tab-count" id="approval-count" hidden>0</span></button><button id="tab-security" type="button" role="tab" aria-selected="false" data-tab="security">Аудит</button><button id="tab-memory" type="button" role="tab" aria-selected="false" data-tab="memory">Память</button><button id="tab-benchmarks" type="button" role="tab" aria-selected="false" data-tab="benchmarks">Тесты</button><button id="tab-evolution" type="button" role="tab" aria-selected="false" data-tab="evolution">Обучение</button><button id="tab-computer" type="button" role="tab" aria-selected="false" data-tab="computer">Компьютер</button><button id="tab-session" type="button" role="tab" aria-selected="false" data-tab="session">Сессия</button></div>
       <div class="inspector-content" id="inspector-run" role="tabpanel">
         <div class="empty-inspector" id="run-empty"><span class="empty-orbit"><svg><use href="#i-panels"/></svg></span><h3>Здесь появится процесс</h3><p>Выберите задачу в диалоге, чтобы увидеть план, этапы и результат.</p></div>
         <div id="run-details" hidden>
@@ -179,6 +179,66 @@
             </div>
           </div>
           <div id="benchmark-tasks-list" class="tasks-summary-list"></div>
+        </div>
+      </div>
+      <div class="inspector-content" id="inspector-evolution" role="tabpanel" hidden>
+        <p class="panel-description">Self-Evolution & Local Fine-Tuning: сбор траекторий рассуждений (DeepSeek Harness) и экспорт датасетов для обучения локальной frontier-модели.</p>
+        <div class="stat-summary-card">
+          <div class="stat-grade" id="evo-count">0</div>
+          <div class="stat-info">
+            <div>Траекторий в базе: <strong id="evo-total-trajs">0</strong></div>
+            <small>Готово для fine-tuning: <span id="evo-sft-ready">0</span> успешных</small>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin:10px 0;">
+          <button class="secondary small-button full-width" id="export-sft-btn" type="button">📥 Экспорт SFT (.jsonl)</button>
+          <button class="secondary small-button full-width" id="export-dpo-btn" type="button">⚖️ Экспорт DPO пар</button>
+        </div>
+        <div class="section-divider" style="margin:14px 0 8px;border-top:1px solid var(--border, #333);"></div>
+        <h4 style="margin:0 0 6px;font-size:13px;font-weight:600;">Метакогниция и саморазвитие агентов</h4>
+        <p class="panel-description" style="margin-bottom:8px;">Анализ узких мест, неудач и генерация улучшенных инструкций (prompts):</p>
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <select id="evo-agent-select" style="flex:1;">
+            <option value="developer">DeveloperAgent (Кодогенерация)</option>
+            <option value="critic">CriticAgent (Ревью и проверка)</option>
+            <option value="planner">PlannerAgent (Декомпозиция задач)</option>
+            <option value="hermes">HermesAgent (Автономный цикл)</option>
+          </select>
+          <button class="primary small-button" id="optimize-agent-btn" type="button">Оптимизировать</button>
+        </div>
+        <button class="secondary small-button full-width" id="analyze-patterns-btn" type="button" style="margin-bottom:10px;">🔍 Анализ узких мест навыков</button>
+        <div id="evolution-insights-card" hidden class="stat-summary-card" style="margin-top:8px;flex-direction:column;align-items:flex-start;">
+          <div id="evo-insights-title" style="font-weight:600;margin-bottom:4px;font-size:12px;"></div>
+          <pre id="evo-insights-body" style="font-size:11px;white-space:pre-wrap;margin:0;max-height:200px;overflow-y:auto;width:100%;"></pre>
+        </div>
+        <div id="trajectories-list" class="memory-list" style="margin-top:10px;"></div>
+      </div>
+      <div class="inspector-content" id="inspector-computer" role="tabpanel" hidden>
+        <p class="panel-description">Computer Use: Безопасное управление браузером с валидацией доменов и чекпоинтами.</p>
+        <div class="form-group" style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:6px;">
+            <input type="url" id="browser-url-input" placeholder="https://example.com или http://localhost:8000" style="flex:1;">
+            <select id="browser-action-select" style="width:130px;">
+              <option value="navigate">Navigate</option>
+              <option value="screenshot">Screenshot</option>
+              <option value="scrape">Scrape text</option>
+              <option value="click">Click</option>
+              <option value="fill">Fill input</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;" id="browser-extra-inputs">
+            <input type="text" id="browser-selector-input" placeholder="CSS селектор (напр. button, input)" style="flex:1;">
+            <input type="text" id="browser-value-input" placeholder="Значение для ввода" style="flex:1;">
+          </div>
+          <button class="primary full-width small-button" id="execute-browser-btn" type="button">Выполнить действие браузера</button>
+        </div>
+        <div id="browser-viewport" style="margin-top:12px;border:1px solid var(--border, #333);border-radius:6px;padding:8px;background:rgba(0,0,0,0.2);" hidden>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;color:var(--text-muted, #888);">
+            <span id="browser-status-line">Статус: готово</span>
+            <span id="browser-url-display"></span>
+          </div>
+          <img id="browser-screenshot-img" alt="Снимок экрана браузера" style="max-width:100%;border-radius:4px;display:none;" />
+          <pre id="browser-content-display" style="font-size:11px;white-space:pre-wrap;max-height:220px;overflow-y:auto;margin:0;display:none;width:100%;"></pre>
         </div>
       </div>
       <div class="inspector-content" id="inspector-session" role="tabpanel" hidden><div class="session-stats"><div><strong id="stat-total">0</strong><span>Запусков</span></div><div><strong id="stat-completed">0</strong><span>Завершено</span></div><div><strong id="stat-failed">0</strong><span>Ошибок</span></div></div><dl class="metadata-list"><dt>ID сессии</dt><dd id="session-id">—</dd><dt>Создана</dt><dd id="session-created">—</dd><dt>Режим</dt><dd>Локальный runtime</dd></dl><button class="secondary full-width" id="export-session" type="button">Экспортировать JSON</button><button class="text-danger full-width" id="archive-session" type="button">Архивировать сессию</button></div>

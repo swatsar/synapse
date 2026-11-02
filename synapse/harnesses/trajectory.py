@@ -182,6 +182,124 @@ class TrajectoryHarness:
                     count += 1
         return count
 
+    def export_sft_dataset(
+        self, output_file: Optional[Path] = None, format: str = "chatml"
+    ) -> list[dict[str, Any]]:
+        """Export successful trajectories formatted for SFT (Supervised Fine-Tuning).
+
+        Supports 'chatml' (OpenAI / ShareGPT messages format) and 'alpaca' formats.
+        """
+        samples: list[dict[str, Any]] = []
+        for item in self.list_trajectories(limit=1000):
+            if not item.get("success"):
+                continue
+
+            steps = item.get("steps", [])
+            assistant_parts = []
+            for s in steps:
+                stage = s.get("stage", "STEP")
+                thought = s.get("thought")
+                action = s.get("action")
+                obs = s.get("observation")
+                part = f"[{stage}]"
+                if thought:
+                    part += f"\nThought: {thought}"
+                if action:
+                    part += f"\nAction: {json.dumps(action)}"
+                if obs:
+                    part += f"\nObservation: {obs}"
+                assistant_parts.append(part)
+
+            assistant_content = "\n\n".join(assistant_parts) or "Task completed successfully."
+            prompt = item.get("objective", "Execute task")
+
+            if format == "alpaca":
+                sample = {
+                    "instruction": prompt,
+                    "input": "",
+                    "output": assistant_content,
+                    "metadata": {"trajectory_id": item.get("trajectory_id"), "model": item.get("model")},
+                }
+            else:
+                sample = {
+                    "id": item.get("trajectory_id"),
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are Synapse, a frontier autonomous cognitive agent that perceives, "
+                                "recalls, plans, validates security scopes, acts, observes, and learns."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": assistant_content},
+                    ],
+                }
+            samples.append(sample)
+
+        if output_file:
+            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, "w", encoding="utf-8") as out:
+                for s in samples:
+                    out.write(json.dumps(s) + "\n")
+
+        return samples
+
+    def export_dpo_dataset(
+        self, output_file: Optional[Path] = None
+    ) -> list[dict[str, Any]]:
+        """Export contrastive pairs formatted for DPO (Direct Preference Optimization).
+
+        Pairs successful trajectories (chosen) with failed or retried trajectories (rejected).
+        """
+        all_trajs = self.list_trajectories(limit=1000)
+        successful = [t for t in all_trajs if t.get("success")]
+        failed = [t for t in all_trajs if not t.get("success")]
+
+        pairs: list[dict[str, Any]] = []
+
+        def _format_steps(steps: list[dict[str, Any]]) -> str:
+            lines = []
+            for s in steps:
+                if s.get("thought"):
+                    lines.append(f"Thought: {s['thought']}")
+                if s.get("action"):
+                    lines.append(f"Action: {json.dumps(s['action'])}")
+                if s.get("observation"):
+                    lines.append(f"Observation: {s['observation']}")
+            return "\n".join(lines)
+
+        for s_traj in successful:
+            prompt = s_traj.get("objective", "")
+            chosen = _format_steps(s_traj.get("steps", [])) or "Task completed with verified result."
+
+            # Find matching or generic rejected sample
+            matching_failed = next((f for f in failed if f.get("objective") == prompt), None)
+            if matching_failed:
+                rejected = _format_steps(matching_failed.get("steps", [])) or "Task halted with errors."
+                rej_id = matching_failed.get("trajectory_id", "unknown")
+            else:
+                # Contrastive negative: shortcut execution without verification or safety checks
+                rejected = f"Attempted '{prompt}' directly without security checks, encountered execution failure."
+                rej_id = "negative_contrastive"
+
+            pair = {
+                "prompt": prompt,
+                "chosen": chosen,
+                "rejected": rejected,
+                "trajectory_id_chosen": s_traj.get("trajectory_id"),
+                "trajectory_id_rejected": rej_id,
+            }
+            pairs.append(pair)
+
+        if output_file:
+            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, "w", encoding="utf-8") as out:
+                for p in pairs:
+                    out.write(json.dumps(p) + "\n")
+
+        return pairs
+
 
 _default_trajectory_harness: Optional[TrajectoryHarness] = None
 

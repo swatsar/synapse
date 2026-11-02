@@ -338,3 +338,17 @@ class LearningEngine:
         self._skill_results[skill_name] = [
             (ts, s) for ts, s in self._skill_results[skill_name] if ts > cutoff
         ]
+
+
+_default_learning_engine: LearningEngine | None = None
+
+
+def get_learning_engine(memory: MemoryStore | None = None) -> LearningEngine:
+    """Return the singleton instance of LearningEngine."""
+    global _default_learning_engine
+    if _default_learning_engine is None:
+        if memory is None:
+            memory = MemoryStore()
+        _default_learning_engine = LearningEngine(memory=memory)
+    return _default_learning_engine
+

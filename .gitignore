@@ -10,6 +10,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .pytest-*/
+.pytest_tmp/
 .mypy_cache/
 .coverage
 htmlcov/
@@ -34,3 +35,5 @@ Thumbs.db
 # Local runtime data
 .synapse/
 .local-smoke/
+uv.lock
+

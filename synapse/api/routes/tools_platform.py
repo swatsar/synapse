@@ -236,3 +236,106 @@ async def apply_patches(request: ApplyPatchesRequest) -> dict[str, Any]:
     except Exception as e:
         logger.error("Failed to apply patches: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# -------------------------------------------------------------
+# 8. Fine-Tuning Dataset Export (SFT & DPO)
+# -------------------------------------------------------------
+@router.get("/trajectories/export/sft")
+async def export_sft_dataset(
+    format: str = Query(default="chatml", pattern="^(chatml|alpaca)$")
+) -> dict[str, Any]:
+    """Export successful trajectories formatted as SFT fine-tuning samples."""
+    harness = get_trajectory_harness()
+    samples = harness.export_sft_dataset(format=format)
+    return {
+        "count": len(samples),
+        "format": format,
+        "samples": samples,
+        "protocol_version": PROTOCOL_VERSION,
+    }
+
+
+@router.get("/trajectories/export/dpo")
+async def export_dpo_dataset() -> dict[str, Any]:
+    """Export contrastive trajectory pairs formatted for Direct Preference Optimization."""
+    harness = get_trajectory_harness()
+    pairs = harness.export_dpo_dataset()
+    return {
+        "count": len(pairs),
+        "pairs": pairs,
+        "protocol_version": PROTOCOL_VERSION,
+    }
+
+
+# -------------------------------------------------------------
+# 9. Computer-Use / Secure Browser Automation Endpoints
+# -------------------------------------------------------------
+class BrowserActionRequest(BaseModel):
+    action: str = Field(description="Action name: navigate, screenshot, scrape, click, fill, wait, scroll, evaluate")
+    url: Optional[str] = Field(default=None, description="URL for navigation or scraping")
+    selector: Optional[str] = Field(default=None, description="CSS selector for element interaction")
+    value: Optional[str] = Field(default=None, description="Value for fill operation")
+    timeout: Optional[int] = Field(default=30000, description="Timeout in milliseconds")
+
+
+@router.get("/browser/status")
+async def get_browser_status() -> dict[str, Any]:
+    """Get status, allowed domains, and statistics of browser controller."""
+    from synapse.integrations.browser_controller import get_browser_controller
+
+    controller = get_browser_controller()
+    stats = controller.get_statistics()
+    return {
+        "status": "ready",
+        "allowed_domains": controller.config.allowed_domains,
+        "blocked_domains": controller.config.blocked_domains,
+        "enforce_domain_whitelist": controller.config.enforce_domain_whitelist,
+        "allow_localhost": controller.config.allow_localhost,
+        "statistics": stats,
+        "protocol_version": PROTOCOL_VERSION,
+    }
+
+
+@router.post("/browser/execute")
+async def execute_browser_action(request: BrowserActionRequest) -> dict[str, Any]:
+    """Execute a capability-gated browser action (Computer-Use protocol)."""
+    from synapse.integrations.browser_controller import get_browser_controller
+
+    controller = get_browser_controller()
+    res = await controller.execute(
+        action=request.action,
+        url=request.url,
+        selector=request.selector,
+        value=request.value,
+        timeout=request.timeout,
+    )
+    return res.to_dict()
+
+
+# -------------------------------------------------------------
+# 10. Metacognition & Continuous Learning Endpoints
+# -------------------------------------------------------------
+class OptimizePromptRequest(BaseModel):
+    agent_name: str = Field(default="runtime_agent", description="Target agent name for prompt optimization")
+
+
+@router.get("/learning/patterns")
+async def get_learning_patterns() -> dict[str, Any]:
+    """Analyze execution patterns and detect low-performing skills and bottlenecks."""
+    from synapse.learning.engine import get_learning_engine
+
+    engine = get_learning_engine()
+    insights = await engine.analyze_patterns()
+    return insights
+
+
+@router.post("/learning/optimize-prompts")
+async def optimize_agent_prompts(request: OptimizePromptRequest) -> dict[str, Any]:
+    """Generate prompt improvements and system instruction updates for an agent."""
+    from synapse.learning.engine import get_learning_engine
+
+    engine = get_learning_engine()
+    result = await engine.optimize_prompts(request.agent_name)
+    return result
+
