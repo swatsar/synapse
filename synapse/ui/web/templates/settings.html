@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synapse — настройки</title><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script><script src="/static/settings.js" defer></script></head>
+<body><main class="container"><header><h1>Настройки</h1><nav><a href="/">Задачи</a><a href="/providers.html">Провайдеры</a><a href="/agents.html">Компоненты</a><a class="active" href="/settings.html">Настройки</a></nav></header>
+<section class="card"><h2>Подключение</h2><form id="api-key-form"><label for="api-key">API-ключ</label><div class="actions"><input id="api-key" type="password" autocomplete="off"><button type="submit">Применить</button></div></form></section>
+<p class="muted">Настройки runtime доступны только для чтения. Изменения применяются через переменные окружения и перезапуск. Восстановление SQLite через работающий HTTP-сервер не поддерживается.</p><p id="notice" role="status"></p>
+<section class="card"><h2>Текущий runtime</h2><pre id="settings">Загрузка…</pre></section>
+<section class="card"><h2>Резервные копии SQLite</h2><button id="create-backup" type="button">Создать резервную копию</button><div id="backups" class="muted">Загрузка…</div></section>
+</main></body></html>

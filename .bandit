@@ -1,0 +1,4 @@
+skips:
+  - B102
+targets:
+  - synapse

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synapse — провайдеры и OmniRouter</title><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script><script src="/static/providers.js" defer></script></head>
+<body><main class="container"><header><h1>Провайдеры LLM & OmniRouter</h1><nav><a href="/">Задачи</a><a class="active" href="/providers.html">Провайдеры</a><a href="/agents.html">Компоненты</a><a href="/settings.html">Настройки</a></nav></header>
+<section class="card"><h2>Подключение</h2><form id="api-key-form"><label for="api-key">API-ключ Synapse</label><div class="actions"><input id="api-key" type="password" autocomplete="off"><button type="submit">Применить</button></div></form></section><p id="notice" role="status"></p>
+
+<section class="card">
+  <h2>⚡ OmniRouter — Интеллектуальный роутер моделей</h2>
+  <p class="muted">OmniRouter автоматически анализирует контекст задачи, выявляет домен (код, рассуждения, computer use, локальная приватность) и выбирает оптимальную модель с цепочкой отказоустойчивости (fallback chain).</p>
+
+  <form id="sandbox-form" style="margin-top: 14px;">
+    <label for="sandbox-task">Тестовый запрос для роутера</label>
+    <div style="display: flex; gap: 8px;">
+      <input id="sandbox-task" style="flex: 1;" placeholder="Например: Напиши скрипт для GUI автоматизации через браузер..." value="Рефакторинг кода и тестирование веб-интерфейса в браузере">
+      <button type="submit" class="secondary" id="test-route-btn">Определить модель</button>
+    </div>
+  </form>
+
+  <div id="sandbox-result" class="router-decision-card" style="margin-top: 14px;" hidden>
+    <div class="router-badge-row">
+      <span class="router-brand">⚡ Выбор OmniRouter:</span>
+      <span class="model-badge" id="sandbox-model">—</span>
+      <span class="domain-badge" id="sandbox-domain">—</span>
+      <span class="cost-badge" id="sandbox-cost">—</span>
+      <span id="sandbox-availability" class="status-pill">—</span>
+    </div>
+    <p class="router-reason" id="sandbox-reason" style="margin: 8px 0;"></p>
+    <div style="margin-top: 8px; font-size: 10px; color: var(--muted);">
+      <strong>Цепочка резервирования (Fallback):</strong> <span id="sandbox-fallbacks">—</span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Каталог моделей OmniRouter</h2>
+  <p class="muted">Доступные семейство моделей Anthropic Claude 5, OpenAI и локальные модели Ollama.</p>
+  <div id="router-catalog" class="muted">Загрузка каталога…</div>
+</section>
+
+<section class="card"><h2>Добавить профиль провайдера</h2><p class="muted">Ключ сохраняется только как ссылка на переменную окружения SYNAPSE_PROVIDER_&lt;ИМЯ&gt;_API_KEY. Задайте её перед запуском Synapse. Профиль не активирует текущий runtime автоматически.</p>
+<form id="provider-form"><label for="provider-name">Имя</label><input id="provider-name" required value="openai"><label for="provider-key">Ключ провайдера (не сохраняется)</label><input id="provider-key" type="password" autocomplete="off" placeholder="Только подтверждение настройки env"><label for="provider-models">Модели через запятую</label><input id="provider-models" value="gpt-4o-mini"><label for="provider-priority">Приоритет</label><input id="provider-priority" type="number" min="1" max="10" value="3"><button type="submit">Сохранить профиль</button></form></section>
+<section class="card"><h2>Профили провайдеров</h2><div id="providers" class="muted">Загрузка…</div></section>
+</main></body></html>

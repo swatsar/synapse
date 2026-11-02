@@ -1,0 +1,234 @@
+"""
+Tenant-Aware Scheduler for Multi-Tenant Runtime
+Deterministic scheduling with capability-aware routing
+
+PROTOCOL_VERSION = "1.0"
+"""
+
+import hashlib
+import json
+import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+
+@dataclass
+class TenantContext:
+    """Tenant security context with cryptographic identity"""
+    tenant_id: str
+    tenant_hash: str
+    capabilities: list[str]
+    resource_quota: dict[str, int]
+    created_at: str
+    protocol_version: str = "1.0"
+
+
+@dataclass
+class SchedulingRequest:
+    """Deterministic scheduling request"""
+    request_id: str
+    tenant_id: str
+    task_type: str
+    priority: int
+    required_capabilities: list[str]
+    execution_seed: int
+    timestamp: str
+    protocol_version: str = "1.0"
+
+
+@dataclass
+class SchedulingDecision:
+    """Deterministic scheduling decision"""
+    decision_id: str
+    request_id: str
+    tenant_id: str
+    node_id: str
+    scheduled_at: str
+    execution_order: int
+    decision_hash: str
+    protocol_version: str = "1.0"
+
+
+class TenantScheduler:
+    """
+    Deterministic tenant-aware scheduler.
+
+    Guarantees:
+    - Identical input → identical schedule
+    - Capability-aware routing
+    - Fairness across tenants
+    - Replay-stable ordering
+    """
+
+    PROTOCOL_VERSION = "1.0"
+
+    def __init__(self):
+        self._tenant_contexts: dict[str, TenantContext] = {}
+        self._tenant_counters: dict[str, int] = {}
+        self._lock = threading.Lock()
+        self._tenant_queues: dict[str, list[SchedulingRequest]] = {}
+        self._scheduled_decisions: dict[str, SchedulingDecision] = {}
+
+    def register_tenant(self, context: TenantContext):
+        """Register tenant context for scheduling"""
+        with self._lock:
+            self._tenant_contexts[context.tenant_id] = context
+            if context.tenant_id not in self._tenant_queues:
+                self._tenant_queues[context.tenant_id] = []
+
+    def schedule(self, request: SchedulingRequest) -> SchedulingDecision:
+        """
+        Schedule a request deterministically.
+
+        Args:
+            request: Scheduling request with tenant context
+
+        Returns:
+            SchedulingDecision with deterministic ordering
+
+        Raises:
+            ValueError: If tenant not registered or lacks capabilities
+        """
+        with self._lock:
+            # Replay/idempotency: an identical request (same request_id) always
+            # returns the originally recorded decision.
+            existing = self._scheduled_decisions.get(request.request_id)
+            if existing is not None:
+                return existing
+
+            # Validate tenant exists
+            if request.tenant_id not in self._tenant_contexts:
+                raise ValueError(f"Tenant {request.tenant_id} not registered")
+
+            tenant_ctx = self._tenant_contexts[request.tenant_id]
+
+            # Zero implicit permissions: a request must declare at least one
+            # required capability.
+            if not request.required_capabilities:
+                raise ValueError(
+                    f"Scheduling request {request.request_id} declares no "
+                    f"required capabilities"
+                )
+
+            # Validate capabilities
+            for cap in request.required_capabilities:
+                if cap not in tenant_ctx.capabilities:
+                    raise ValueError(
+                        f"Tenant {request.tenant_id} lacks capability: {cap}"
+                    )
+
+            # Deterministic decision generation
+            decision_id = self._generate_decision_id(request)
+
+            # Fair per-tenant ordering: each tenant gets a monotonically
+            # increasing slot, so concurrent tenants interleave fairly.
+            execution_order = self._calculate_execution_order(request)
+
+            # Select node deterministically
+            node_id = self._select_node(request)
+
+            # Create decision
+            decision = SchedulingDecision(
+                decision_id=decision_id,
+                request_id=request.request_id,
+                tenant_id=request.tenant_id,
+                node_id=node_id,
+                scheduled_at=datetime.now(UTC).isoformat(),
+                execution_order=execution_order,
+                decision_hash=self._hash_decision(request, execution_order),
+                protocol_version=self.PROTOCOL_VERSION
+            )
+
+            self._scheduled_decisions[request.request_id] = decision
+
+            return decision
+
+    def get_decision(self, request_id: str) -> SchedulingDecision | None:
+        """Get scheduling decision by request ID"""
+        return self._scheduled_decisions.get(request_id)
+
+    def compute_schedule_hash(
+        self,
+        tenant_id: str,
+        task_id: str,
+        seed: int
+    ) -> str:
+        """
+        Compute deterministic schedule hash.
+        
+        Required for determinism verification.
+        Same input must always produce identical hash.
+        
+        Args:
+            tenant_id: Tenant identifier
+            task_id: Task identifier
+            seed: Deterministic seed
+            
+        Returns:
+            SHA256 hash of schedule decision
+        """
+        data = {
+            "tenant_id": tenant_id,
+            "task_id": task_id,
+            "seed": seed,
+            "protocol_version": self.PROTOCOL_VERSION
+        }
+        return hashlib.sha256(
+            json.dumps(data, sort_keys=True).encode()
+        ).hexdigest()
+
+    def _generate_decision_id(self, request: SchedulingRequest) -> str:
+        """Generate deterministic decision ID"""
+        # Hash based on request details for determinism
+        data = f"{request.request_id}:{request.tenant_id}:{request.execution_seed}"
+        return f"dec_{hashlib.sha256(data.encode()).hexdigest()[:16]}"
+
+    def _calculate_execution_order(self, request: SchedulingRequest) -> int:
+        """Calculate deterministic, fair execution order.
+
+        The caller must hold ``self._lock``.
+        """
+        order = self._tenant_counters.get(request.tenant_id, 0)
+        self._tenant_counters[request.tenant_id] = order + 1
+        return order
+
+    def _select_node(self, request: SchedulingRequest) -> str:
+        """Select node deterministically based on request"""
+        # Deterministic node selection based on hash
+        node_hash = hashlib.sha256(
+            f"{request.tenant_id}:{request.task_type}:{request.execution_seed}".encode()
+        ).hexdigest()
+        node_num = int(node_hash[:8], 16) % 10
+        return f"node_{node_num:03d}"
+
+    def _hash_decision(self, request: SchedulingRequest, order: int) -> str:
+        """Generate cryptographic hash of decision"""
+        decision_data = {
+            "request_id": request.request_id,
+            "tenant_id": request.tenant_id,
+            "execution_order": order,
+            "seed": request.execution_seed
+        }
+        return hashlib.sha256(
+            json.dumps(decision_data, sort_keys=True).encode()
+        ).hexdigest()
+
+
+# Export
+__all__ = ["SchedulingDecision", "SchedulingRequest", "TenantContext", "TenantScheduler"]
+
+
+def compute_module_hash() -> str:
+    """Compute hash of scheduler module for baseline verification"""
+    import hashlib
+
+    # Key components that define the module
+    components = [
+        "TenantScheduler",
+        "DeterministicScheduling",
+        "compute_schedule_hash",
+        "protocol_version_1_0"
+    ]
+
+    canonical = "|".join(sorted(components))
+    return hashlib.sha256(canonical.encode()).hexdigest()

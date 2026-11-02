@@ -1,0 +1,28 @@
+# CODEOWNERS - Define code ownership for pull requests
+
+# Default owner for everything
+* @swatsar
+
+# Core modules
+/synapse/core/ @swatsar
+/synapse/security/ @swatsar
+/synapse/agents/ @swatsar
+
+# Infrastructure
+/synapse/llm/ @swatsar
+/synapse/memory/ @swatsar
+/synapse/network/ @swatsar
+
+# Skills and connectors
+/synapse/skills/ @swatsar
+/synapse/connectors/ @swatsar
+
+# Tests
+tests/ @swatsar
+
+# Documentation
+docs/ @swatsar
+
+# Docker and deployment
+docker/ @swatsar
+.github/ @swatsar

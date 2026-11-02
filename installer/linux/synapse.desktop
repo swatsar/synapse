@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Synapse Agent
+Comment=Universal Autonomous Agent Platform
+Exec=/usr/bin/synapse
+Icon=synapse
+Terminal=true
+Type=Application
+Categories=Utility;Development;
+Keywords=ai;agent;automation;llm;
+X-Synapse-Protocol-Version=1.0
+X-Synapse-Spec-Version=3.1

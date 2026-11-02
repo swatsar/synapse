@@ -1,0 +1,264 @@
+"""
+Tenant State Partition for Multi-Tenant Runtime
+Cluster state segmented by tenant with cryptographic isolation
+
+PROTOCOL_VERSION = "1.0"
+"""
+
+import hashlib
+import json
+import threading
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
+
+@dataclass
+class StateEntry:
+    """State entry with tenant scope"""
+    tenant_id: str
+    key: str
+    value: Any
+    timestamp: str
+    state_hash: str
+    protocol_version: str = "1.0"
+
+
+class TenantStatePartition:
+    """
+    Tenant-segmented state management.
+
+    Guarantees:
+    - State segmented by tenant
+    - State hash includes tenant scope
+    - Cross-tenant contamination impossible
+    """
+
+    PROTOCOL_VERSION = "1.0"
+
+    def __init__(self):
+        self._state: dict[str, dict[str, StateEntry]] = {}
+        self._state_hashes: dict[str, str] = {}
+        self._lock = threading.Lock()
+
+    def update_state(
+        self,
+        tenant_id: str,
+        state_key: str,
+        state_value: Any,
+        requesting_tenant: str | None = None
+    ) -> StateEntry:
+        """
+        Update tenant state.
+
+        Args:
+            tenant_id: Tenant to update
+            state_key: State key
+            state_value: State value
+            requesting_tenant: Optional requesting tenant for security check
+
+        Returns:
+            StateEntry with hash
+
+        Raises:
+            ValueError: If requesting_tenant != tenant_id (security violation)
+        """
+        with self._lock:
+            # Security: Only tenant can update its own state
+            if requesting_tenant is not None and requesting_tenant != tenant_id:
+                raise ValueError(
+                    f"Tenant {requesting_tenant} cannot access state for {tenant_id}"
+                )
+
+            # Initialize tenant state if needed
+            if tenant_id not in self._state:
+                self._state[tenant_id] = {}
+
+            # Create state entry
+            entry = StateEntry(
+                tenant_id=tenant_id,
+                key=state_key,
+                value=state_value,
+                timestamp=datetime.now(UTC).isoformat(),
+                state_hash=self._hash_state(tenant_id, state_key, state_value),
+                protocol_version=self.PROTOCOL_VERSION
+            )
+
+            self._state[tenant_id][state_key] = entry
+
+            # Update tenant state hash
+            self._state_hashes[tenant_id] = self._hash_all_tenant_state(tenant_id)
+
+            return entry
+
+    def get_state(
+        self,
+        tenant_id: str,
+        state_key: str,
+        requesting_tenant: str | None = None
+    ) -> Any:
+        """
+        Get tenant state value for a single key.
+
+        Args:
+            tenant_id: Tenant to get state from
+            state_key: State key
+            requesting_tenant: Optional requesting tenant for security check
+
+        Returns:
+            State value or None if not found
+
+        Raises:
+            ValueError: If requesting_tenant != tenant_id (security violation)
+        """
+        with self._lock:
+            # Security: Only tenant can access its own state
+            if requesting_tenant is not None and requesting_tenant != tenant_id:
+                raise ValueError(
+                    f"Tenant {requesting_tenant} cannot access state for {tenant_id}"
+                )
+
+            if tenant_id not in self._state:
+                return None
+
+            entry = self._state[tenant_id].get(state_key)
+            if entry is None:
+                return None
+
+            return entry.value
+
+    def get_tenant_state(
+        self,
+        tenant_id: str,
+        requesting_tenant: str | None = None
+    ) -> dict[str, Any]:
+        """
+        Get the complete state partition for a tenant.
+
+        Args:
+            tenant_id: Tenant whose state to return
+            requesting_tenant: Optional requesting tenant for security check
+
+        Returns:
+            Copy of the tenant's full state mapping (key -> value)
+
+        Raises:
+            ValueError: If requesting_tenant != tenant_id (security violation)
+        """
+        with self._lock:
+            # Security: Only tenant can access its own state
+            if requesting_tenant is not None and requesting_tenant != tenant_id:
+                raise ValueError(
+                    f"Tenant {requesting_tenant} cannot access state for {tenant_id}"
+                )
+
+            return {
+                key: entry.value
+                for key, entry in self._state.get(tenant_id, {}).items()
+            }
+
+    def get_state_hash(self, tenant_id: str) -> str:
+        """
+        Get cryptographic hash of tenant state.
+
+        Args:
+            tenant_id: Tenant to get hash for
+
+        Returns:
+            SHA256 hash of tenant state
+        """
+        with self._lock:
+            if tenant_id not in self._state_hashes:
+                # Return hash of empty state
+                return self._hash_all_tenant_state(tenant_id)
+
+            return self._state_hashes[tenant_id]
+
+    def delete_state(
+        self,
+        tenant_id: str,
+        state_key: str,
+        requesting_tenant: str | None = None
+    ) -> bool:
+        """
+        Delete tenant state.
+
+        Args:
+            tenant_id: Tenant to delete from
+            state_key: State key
+            requesting_tenant: Optional requesting tenant for security check
+
+        Returns:
+            True if deleted, False if not found
+
+        Raises:
+            ValueError: If requesting_tenant != tenant_id (security violation)
+        """
+        with self._lock:
+            # Security: Only tenant can delete its own state
+            if requesting_tenant is not None and requesting_tenant != tenant_id:
+                raise ValueError(
+                    f"Tenant {requesting_tenant} cannot access state for {tenant_id}"
+                )
+
+            if tenant_id not in self._state:
+                return False
+
+            if state_key not in self._state[tenant_id]:
+                return False
+
+            del self._state[tenant_id][state_key]
+
+            # Update tenant state hash
+            self._state_hashes[tenant_id] = self._hash_all_tenant_state(tenant_id)
+
+            return True
+
+    def list_keys(self, tenant_id: str) -> list[str]:
+        """List all state keys for tenant"""
+        with self._lock:
+            if tenant_id not in self._state:
+                return []
+
+            return list(self._state[tenant_id].keys())
+
+    def _hash_state(self, tenant_id: str, key: str, value: Any) -> str:
+        """Generate cryptographic hash of state entry"""
+        data = {
+            "tenant_id": tenant_id,
+            "key": key,
+            "value": str(value),
+            "protocol_version": self.PROTOCOL_VERSION
+        }
+        return hashlib.sha256(
+            json.dumps(data, sort_keys=True).encode()
+        ).hexdigest()
+
+    def _hash_all_tenant_state(self, tenant_id: str) -> str:
+        """Generate hash of all tenant state"""
+        if tenant_id not in self._state:
+            return hashlib.sha256(
+                f"{tenant_id}:empty:{self.PROTOCOL_VERSION}".encode()
+            ).hexdigest()
+
+        # Sort keys for deterministic hashing
+        state_data = {}
+        for key in sorted(self._state[tenant_id].keys()):
+            entry = self._state[tenant_id][key]
+            state_data[key] = {
+                "value": entry.value,
+                "hash": entry.state_hash
+            }
+
+        data = {
+            "tenant_id": tenant_id,
+            "state": state_data,
+            "protocol_version": self.PROTOCOL_VERSION
+        }
+
+        return hashlib.sha256(
+            json.dumps(data, sort_keys=True).encode()
+        ).hexdigest()
+
+
+__all__ = ["StateEntry", "TenantStatePartition"]

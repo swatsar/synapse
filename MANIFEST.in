@@ -1,0 +1,27 @@
+# Synapse Agent - Package Manifest
+# Protocol Version: 1.0
+
+# Include configuration files
+include config/*.yaml
+include config/*.yml
+include config/environments/*.yaml
+
+# Include skills
+recursive-include skills *.py *.yaml *.yml
+
+# Include documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+
+# Include test configuration
+include pyproject.toml
+include requirements.txt
+include requirements-test.txt
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .git
+global-exclude .pytest_cache
+global-exclude .coverage

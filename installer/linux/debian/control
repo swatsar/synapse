@@ -1,0 +1,21 @@
+Source: synapse-agent
+Section: utils
+Priority: optional
+Maintainer: Synapse Contributors <support@synapse.org>
+Build-Depends: debhelper (>=12), python3 (>=3.11), python3-pip
+Standards-Version: 4.6.0
+Homepage: https://github.com/synapse/synapse
+
+Package: synapse-agent
+Architecture: all
+Depends: python3 (>=3.11), python3-pip, ${python3:Depends}
+Recommends: docker.io, docker-compose
+Suggests: synapse-gui
+Description: Universal Autonomous Agent Platform
+ Synapse is a distributed cognitive platform for autonomous agents.
+ .
+ Features:
+ - Cross-platform support (Windows, macOS, Linux)
+ - Capability-based security model
+ - Self-evolution capabilities
+ - Protocol version 1.0 compliant
