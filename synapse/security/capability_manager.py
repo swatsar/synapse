@@ -3,6 +3,7 @@
 Manages capability tokens and access control with path traversal protection.
 """
 import re
+from datetime import UTC, datetime
 from fnmatch import fnmatch
 
 PROTOCOL_VERSION: str = "1.0"
@@ -110,24 +111,46 @@ class CapabilityManager:
     
     async def _check_single_capability(self, context, required: str) -> bool:
         """Check a single capability against context."""
-        capabilities = getattr(context, "capabilities", [])
-        
-        if "*" in capabilities:
-            audit({"event": "capability_check", "required": required, "result": "granted", "reason": "wildcard"})
-            return True
-        
-        for cap in capabilities:
-            if self._matches(cap, required):
-                audit({"event": "capability_check", "required": required, "granted_by": cap, "result": "granted"})
+        if getattr(context, "is_expired", False):
+            audit({"event": "capability_check", "required": required, "result": "denied", "reason": "expired"})
+            return False
+
+        expires_at = getattr(context, "expires_at", None)
+        if expires_at is not None:
+            now = datetime.now(UTC)
+            if hasattr(expires_at, "tzinfo") and expires_at.tzinfo is None:
+                from datetime import timezone
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if now > expires_at:
+                audit({"event": "capability_check", "required": required, "result": "denied", "reason": "expired"})
+                return False
+
+        # First verify that the capability is currently active in the manager (not revoked)
+        if not self._has_capability(required):
+            audit({"event": "capability_check", "required": required, "result": "denied", "reason": "not_granted_or_revoked"})
+            return False
+
+        # If context has a capabilities specification, the context must explicitly grant it
+        context_caps = getattr(context, "capabilities", None)
+        if context_caps is None and isinstance(context, dict):
+            context_caps = context.get("capabilities", None)
+
+        if context_caps is not None:
+            # Context must have the capability or wildcard
+            if "*" in context_caps:
+                audit({"event": "capability_check", "required": required, "result": "granted", "reason": "wildcard"})
                 return True
-        
-        for cap in self._granted_capabilities:
-            if self._matches(cap, required):
-                audit({"event": "capability_check", "required": required, "granted_by": cap, "result": "granted"})
-                return True
-        
-        audit({"event": "capability_check", "required": required, "result": "denied"})
-        return False
+            for cap in context_caps:
+                if self._matches(cap, required):
+                    audit({"event": "capability_check", "required": required, "granted_by": cap, "result": "granted"})
+                    return True
+            # Context explicitly lacks the required capability
+            audit({"event": "capability_check", "required": required, "result": "denied", "reason": "not_in_context"})
+            return False
+
+        # If context does not specify capabilities, fall back to manager grant
+        audit({"event": "capability_check", "required": required, "result": "granted", "reason": "manager_grant"})
+        return True
     
     def _check_capabilities_list(self, capabilities: list[str]) -> SecurityCheckResult:
         """Check a list of capabilities."""

@@ -44,8 +44,25 @@ class BenchmarkTask:
     timeout_sec: float = 30.0
 
     def evaluate_output(self, output: str, latency_ms: float) -> dict[str, Any]:
-        """Grade output against expectations."""
+        """Grade output against expectations and verify behavioral validity."""
         out_lower = output.lower()
+
+        # For coding tasks, enforce syntactic validity
+        if self.category == BenchmarkCategory.CODING:
+            import ast
+            try:
+                ast.parse(output)
+            except Exception as e:
+                return {
+                    "task_id": self.id,
+                    "category": self.category.value,
+                    "passed": False,
+                    "score": 0.0,
+                    "latency_ms": round(latency_ms, 2),
+                    "matched_keywords": [],
+                    "forbidden_hits": [],
+                    "error": f"Invalid code syntax: {e}",
+                }
 
         # Keyword checks
         matches = [kw for kw in self.expected_keywords if kw.lower() in out_lower]
@@ -78,6 +95,7 @@ class BenchmarkResult:
     average_score: float
     grade: str
     results: list[dict[str, Any]]
+    is_simulated: bool = False
     protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, Any]:
@@ -90,6 +108,7 @@ class BenchmarkResult:
             "average_score": round(self.average_score, 1),
             "grade": self.grade,
             "results": self.results,
+            "is_simulated": self.is_simulated,
             "protocol_version": self.protocol_version,
         }
 
@@ -140,6 +159,14 @@ class HallmarkHarness:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.tasks: list[BenchmarkTask] = list(DEFAULT_BENCHMARK_TASKS)
 
+    def _save_run(self, report: BenchmarkResult) -> None:
+        """Persist benchmark result."""
+        try:
+            report_file = self.storage_dir / f"{report.suite_id}_{int(time.time())}.json"
+            report_file.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.error("Failed to write benchmark report: %s", e)
+
     def add_task(self, task: BenchmarkTask) -> None:
         self.tasks.append(task)
 
@@ -147,9 +174,38 @@ class HallmarkHarness:
         self,
         executor_func: Optional[Callable[[str], Any]] = None,
         suite_id: str = "core_eval_v1",
+        require_executor: bool = False,
     ) -> BenchmarkResult:
         """Run all tasks in the benchmark suite and grade outcomes."""
         results: list[dict[str, Any]] = []
+        is_simulated = executor_func is None
+
+        if require_executor and executor_func is None:
+            # Production gating requires a functional executor, simulator forbidden
+            for task in self.tasks:
+                results.append({
+                    "task_id": task.id,
+                    "category": task.category.value,
+                    "passed": False,
+                    "score": 0.0,
+                    "latency_ms": 0.0,
+                    "matched_keywords": [],
+                    "forbidden_hits": [],
+                    "error": "executor_not_configured: Benchmark requires a real executor in production mode",
+                })
+            report = BenchmarkResult(
+                suite_id=suite_id,
+                timestamp=datetime.now(UTC).isoformat(),
+                total_tasks=len(self.tasks),
+                passed_tasks=0,
+                pass_rate=0.0,
+                average_score=0.0,
+                grade="F",
+                results=results,
+                is_simulated=False,
+            )
+            self._save_run(report)
+            return report
 
         for task in self.tasks:
             t0 = time.perf_counter()
@@ -200,15 +256,10 @@ class HallmarkHarness:
             average_score=avg_score,
             grade=grade,
             results=results,
+            is_simulated=is_simulated,
         )
 
-        # Persist benchmark result
-        try:
-            report_file = self.storage_dir / f"{suite_id}_{int(time.time())}.json"
-            report_file.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
-        except Exception as e:
-            logger.error("Failed to write benchmark report: %s", e)
-
+        self._save_run(report)
         return report
 
     def list_historical_runs(self) -> list[dict[str, Any]]:

@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import ipaddress
 import re
+import socket
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -145,7 +147,13 @@ class SecureBrowserController:
                 result.metadata["approval_required"] = True
                 return result
 
-        timeout_ms = self.DEFAULT_TIMEOUT if timeout is None else int(timeout)
+        if timeout is None:
+            timeout_ms = self.DEFAULT_TIMEOUT
+        elif timeout <= 120:  # Timeout passed in seconds (e.g. 5, 30, 60)
+            timeout_ms = int(timeout * 1000)
+        else:
+            timeout_ms = int(timeout)
+
         if not 1 <= timeout_ms <= 120_000:
             return BrowserActionResult(BrowserActionStatus.FAILED, action_name,
                                        error="Timeout must be between 1 and 120000 milliseconds")
@@ -175,29 +183,67 @@ class SecureBrowserController:
                                  url=url, context=context)
         return BrowserActionResult(BrowserActionStatus.BLOCKED, action, url=url, error=reason)
 
+    def _is_private_host(self, host: str) -> bool:
+        """Check if hostname resolves or corresponds to a loopback/private/internal IP."""
+        if host in {"localhost", "localhost.localdomain"}:
+            return True
+        try:
+            ip = ipaddress.ip_address(host)
+            return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
+        except ValueError:
+            pass
+        try:
+            addrinfo = socket.getaddrinfo(host, None)
+            for _, _, _, _, sockaddr in addrinfo:
+                ip_addr = sockaddr[0]
+                ip = ipaddress.ip_address(ip_addr)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    return True
+        except Exception:
+            pass
+        return False
+
     async def _validate_url(self, url: str) -> dict[str, Any]:
         try:
             parsed = urlparse(url)
+            # 1. Strictly forbid userinfo / credentials in URL
+            if "@" in (parsed.netloc or "") or parsed.username or parsed.password:
+                return {"allowed": False, "reason": "URL credentials and userinfo are strictly forbidden"}
+
             domain = (parsed.hostname or "").rstrip(".").lower()
             if parsed.scheme not in {"http", "https"}:
                 return {"allowed": False, "reason": f"Invalid scheme: {parsed.scheme}. Only http/https allowed"}
-            if not domain or parsed.username or parsed.password:
-                return {"allowed": False, "reason": "A hostname is required and URL credentials are forbidden"}
+            if not domain:
+                return {"allowed": False, "reason": "A valid hostname is required"}
+
             try:
                 parsed.port  # reject malformed/non-numeric ports
             except ValueError:
                 return {"allowed": False, "reason": "Invalid URL port"}
-            if any(blocked.lower() in domain for blocked in self.config.blocked_domains):
-                return {"allowed": False, "reason": f"Domain blocked: {domain}"}
-            if domain in {"localhost", "127.0.0.1", "::1"} and not self.config.allow_localhost:
-                return {"allowed": False, "reason": "Localhost access disabled"}
+
+            # 2. Block local/private addresses if localhost disabled
+            if not self.config.allow_localhost and self._is_private_host(domain):
+                return {"allowed": False, "reason": f"Access to private/local network host '{domain}' is forbidden"}
+
+            # 3. Check blocked domains
+            for blocked in self.config.blocked_domains:
+                b = blocked.lower().rstrip(".")
+                if b in domain or domain == b or domain.endswith("." + b):
+                    return {"allowed": False, "reason": f"Domain blocked: {domain}"}
+
+            # 4. Enforce whitelist with exact or subdomain matching
             if self.config.enforce_domain_whitelist:
-                allowed = any(
-                    domain == item.lower().rstrip(".") or domain.endswith("." + item.lower().rstrip("."))
-                    for item in self.config.allowed_domains if item
-                )
+                allowed = False
+                for item in self.config.allowed_domains:
+                    if not item:
+                        continue
+                    a = item.lower().rstrip(".")
+                    if domain == a or domain.endswith("." + a):
+                        allowed = True
+                        break
                 if not allowed:
                     return {"allowed": False, "reason": f"Domain not in whitelist: {domain}"}
+
             return {"allowed": True, "reason": "URL validated"}
         except Exception as exc:
             return {"allowed": False, "reason": f"URL validation error: {exc}"}

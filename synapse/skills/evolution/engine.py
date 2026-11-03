@@ -28,38 +28,42 @@ class EvolutionResult:
     new_version: str
     changes: list[str]
     checkpoint_id: str | None = None
+    error: str | None = None
+    is_simulated: bool = False
     protocol_version: str = "1.0"
 
 
 class SkillEvolutionEngine:
     """Autonomous skill evolution engine.
-    
+
     Handles the complete lifecycle of skill evolution including:
     - Performance monitoring
     - Evolution planning
     - Rollback on failure
     - Audit logging
     """
-    
+
     protocol_version: str = PROTOCOL_VERSION
-    
+
     # Performance thresholds
     PERFORMANCE_THRESHOLD_SUCCESS_RATE = 0.8
     PERFORMANCE_THRESHOLD_LATENCY_MS = 300
-    
+
     def __init__(
         self,
         policy_engine: Any = None,
         capability_manager: Any = None,
         audit_logger: Any = None,
         checkpoint_manager: Any = None,
-        rollback_manager: Any = None
+        rollback_manager: Any = None,
+        skill_registry: Any = None,
     ):
         self.policy_engine = policy_engine
         self.capability_manager = capability_manager
         self.audit_logger = audit_logger
         self.checkpoint_manager = checkpoint_manager
         self.rollback_manager = rollback_manager
+        self.skill_registry = skill_registry
     
     def should_evolve(self, skill_metrics: dict[str, Any]) -> bool:
         """Determine if skill should be evolved based on metrics.
