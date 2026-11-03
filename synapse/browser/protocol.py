@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
+
+PROTOCOL_VERSION: str = "1.0"
 class CapabilityDenied(PermissionError): pass
 @dataclass(frozen=True)
 class BrowserSession: id:str; owner_id:str; url:str|None=None

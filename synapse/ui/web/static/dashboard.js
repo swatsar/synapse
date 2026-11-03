@@ -884,12 +884,12 @@
       $('rt-model').textContent = res.model_used || d.model || 'auto';
       $('rt-domain').textContent = d.detected_domain || 'general';
       $('rt-cost').textContent = d.cost_tier || '$$';
-      $('rt-conf').textContent = `${Math.round((d.confidence || 0.9) * 100)}%`;
+      $('rt-conf').textContent = `${Math.round((d.confidence ?? 0.9) * 100)}%`;
       $('rt-reason').textContent = d.reason || 'Автоматическое выполнение через OmniRouter';
       $('rt-fallback').textContent = (d.fallback_chain || []).map(f => `${f.provider}/${f.model}`).join(' → ') || 'нет';
 
       $('rt-output-box').hidden = false;
-      $('rt-output').textContent = res.content || '[Пустой ответ]';
+      $('rt-output').textContent = res.content ?? '[Пустой ответ]';
       $('rt-meta').textContent = `Провайдер: ${res.provider_used} · Модель: ${res.model_used} · Время: ${res.duration_seconds}с (Всего: ${res.total_duration_seconds}с)`;
       notify(`Выполнение через OmniRouter завершено (${res.model_used})`);
     } catch (err) {
@@ -929,8 +929,12 @@
         runBtn.addEventListener('click', async () => {
           runBtn.disabled = true; runBtn.textContent = 'Выполнение...';
           try {
+            const params = JSON.parse($('skill-exec-params')?.value || '{}');
+            if (!params || Array.isArray(params) || typeof params !== 'object') {
+              throw new Error('Параметры навыка должны быть JSON-объектом.');
+            }
             const res = await api(`/platform/skills/${encodeURIComponent(skill.id)}/execute`, {
-              method: 'POST', body: JSON.stringify({}),
+              method: 'POST', body: JSON.stringify(params),
             });
             $('skill-exec-card').hidden = false;
             $('skill-exec-title').textContent = `Результат навыка: ${skill.name}`;

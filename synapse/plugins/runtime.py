@@ -6,6 +6,8 @@ from typing import Any, Awaitable, Callable
 
 from synapse.plugins.manifest import DependencyError, PluginLifecycle, PluginManifest, PluginRecord
 
+PROTOCOL_VERSION: str = "1.0"
+
 
 class PluginRuntime:
     """Manage plugin records, dependencies, services, and permissions.

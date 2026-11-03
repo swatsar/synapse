@@ -115,6 +115,7 @@ class SecurityAuditor:
             # Check secret patterns
             for pattern, name, severity, cwe in SECRET_PATTERNS:
                 if pattern.search(line):
+                    redacted = pattern.sub("[REDACTED SECRET]", line)
                     findings.append(
                         SecurityFinding(
                             severity=severity,
@@ -122,7 +123,7 @@ class SecurityAuditor:
                             description=f"Potential {name} detected in source file.",
                             file_path=file_path,
                             line_number=line_idx,
-                            snippet=line[:120].strip(),
+                            snippet=redacted[:160].strip(),
                             recommendation="Move sensitive credentials into environment variables or secrets manager.",
                             cwe=cwe,
                         )
@@ -160,7 +161,14 @@ class SecurityAuditor:
 
     def run_audit(self, target_dir: Optional[str | Path] = None) -> SecurityAuditReport:
         """Run full security audit over the directory."""
-        scan_dir = Path(target_dir or self.workspace_root).resolve()
+        scan_dir = Path(target_dir or self.workspace_root).expanduser()
+        if not scan_dir.is_absolute():
+            scan_dir = self.workspace_root / scan_dir
+        scan_dir = scan_dir.resolve()
+        if not scan_dir.is_relative_to(self.workspace_root):
+            raise ValueError("Audit target must stay inside the workspace")
+        if not scan_dir.is_dir():
+            raise ValueError("Audit target must be an existing directory")
         findings: list[SecurityFinding] = []
         scanned_count = 0
 

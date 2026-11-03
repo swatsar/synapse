@@ -56,7 +56,7 @@ async def get_model_catalog(request: Request) -> dict[str, Any]:
 async def get_router_health(request: Request) -> dict[str, Any]:
     """Return provider readiness and availability status."""
     r = _get_router(request)
-    return r.health_check()
+    return await r.health_check_async()
 
 
 @router.get("/stats")
@@ -70,7 +70,7 @@ async def get_router_stats(request: Request) -> dict[str, Any]:
 async def route_task(request: Request, body: RouteRequest) -> dict[str, Any]:
     """Analyze task requirements and compute the optimal model routing decision."""
     r = _get_router(request)
-    decision = r.route(body.task, body.requirements)
+    decision = await r.route_async(body.task, body.requirements)
     return {
         "decision": decision.to_dict(),
         "protocol_version": PROTOCOL_VERSION,

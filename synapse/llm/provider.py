@@ -69,14 +69,10 @@ class LiteLLMProvider:
                 "usage": dict(response.usage) if response.usage else {},
                 "protocol_version": PROTOCOL_VERSION,
             }
-        except ImportError:
-            # litellm not installed — graceful degradation
-            return {
-                "content": f"[LLM unavailable — litellm not installed] Prompt: {prompt[:100]}",
-                "model": self.model,
-                "usage": {},
-                "protocol_version": PROTOCOL_VERSION,
-            }
+        except ImportError as exc:
+            raise RuntimeError(
+                f"LLM backend unavailable ({self.model}): litellm is not installed"
+            ) from exc
         except Exception as e:
             raise RuntimeError(f"LLM call failed ({self.model}): {e}") from e
 
@@ -178,7 +174,7 @@ def create_default_router() -> LLMRouter:
         router.register(LiteLLMProvider("openai", "gpt-4o", priority=LLMPriority.PRIMARY))
     # Anthropic
     if os.getenv("ANTHROPIC_API_KEY"):
-        router.register(LiteLLMProvider("anthropic", "claude-3-5-sonnet-20241022", priority=LLMPriority.FALLBACK))
+        router.register(LiteLLMProvider("anthropic", "claude-sonnet-5-5", priority=LLMPriority.FALLBACK))
     # Google
     if os.getenv("GOOGLE_API_KEY"):
         router.register(LiteLLMProvider("google", "gemini-1.5-pro", priority=LLMPriority.FALLBACK))

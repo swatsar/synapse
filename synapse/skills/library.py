@@ -213,7 +213,7 @@ class SkillLibrary:
                 name="Browser Navigation",
                 description="Securely navigate and inspect approved web domains with screenshot feedback.",
                 parameters=[
-                    SkillParameter(name="url", type_name="string", description="Web address to navigate to", required=True, default="https://example.com"),
+                    SkillParameter(name="url", type_name="string", description="Web address to navigate to", required=False, default="https://example.com"),
                 ],
                 required_capabilities=["browser:navigate"],
                 risk_level=3,
@@ -267,9 +267,11 @@ class SkillLibrary:
 
         # 8. SFT Dataset Export Skill
         def _sft_export_skill(format: str = "chatml") -> dict[str, Any]:
+            if format not in {"chatml", "alpaca"}:
+                raise ValueError("Dataset format must be 'chatml' or 'alpaca'")
             from synapse.harnesses.trajectory import get_trajectory_harness
             samples = get_trajectory_harness().export_sft_dataset(format=format)
-            return {"count": len(samples), "format": format, "samples": samples[:5]}
+            return {"count": len(samples), "format": format, "preview": samples[:5]}
 
         self.register(
             ComposableSkill(

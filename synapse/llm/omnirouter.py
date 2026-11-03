@@ -14,6 +14,7 @@ Specification: 3.4.1
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -121,8 +122,8 @@ DEFAULT_MODEL_CATALOG: dict[str, ModelDescriptor] = {
         display_name="Claude Opus 5.5",
         tier=ModelTier.FRONTIER,
         cost_tier=CostTier.HIGH,
-        context_window=200_000,
-        max_output=8_192,
+        context_window=1_000_000,
+        max_output=131_072,
         strengths=("complex_reasoning", "system_architecture", "security_audit", "deep_refactoring"),
         capabilities={"tool_calling": True, "computer_use": True, "vision": True, "reasoning": True, "streaming": True},
     ),
@@ -132,8 +133,8 @@ DEFAULT_MODEL_CATALOG: dict[str, ModelDescriptor] = {
         display_name="Claude Sonnet 5.5",
         tier=ModelTier.STANDARD,
         cost_tier=CostTier.MEDIUM,
-        context_window=200_000,
-        max_output=8_192,
+        context_window=1_000_000,
+        max_output=131_072,
         strengths=("coding", "agentic_workflows", "computer_use", "tool_use", "data_analysis"),
         capabilities={"tool_calling": True, "computer_use": True, "vision": True, "reasoning": True, "streaming": True},
     ),
@@ -143,8 +144,8 @@ DEFAULT_MODEL_CATALOG: dict[str, ModelDescriptor] = {
         display_name="Claude Haiku 5.5",
         tier=ModelTier.FAST,
         cost_tier=CostTier.LOW,
-        context_window=200_000,
-        max_output=4_096,
+        context_window=1_000_000,
+        max_output=131_072,
         strengths=("low_latency", "fast_triage", "classification", "summarization"),
         capabilities={"tool_calling": True, "computer_use": False, "vision": True, "reasoning": False, "streaming": True},
     ),
@@ -154,8 +155,8 @@ DEFAULT_MODEL_CATALOG: dict[str, ModelDescriptor] = {
         display_name="Claude Fable 5.1",
         tier=ModelTier.STANDARD,
         cost_tier=CostTier.MEDIUM,
-        context_window=200_000,
-        max_output=8_192,
+        context_window=1_000_000,
+        max_output=131_072,
         strengths=("creative_writing", "extended_synthesis", "documentation"),
         capabilities={"tool_calling": True, "computer_use": False, "vision": False, "reasoning": True, "streaming": True},
     ),
@@ -328,9 +329,16 @@ class OmniRouter:
         self,
         default_model: str = "claude-sonnet-5-5",
         catalog: Optional[dict[str, ModelDescriptor]] = None,
+        provider_registry: Any = None,
+        request_timeout: float = 60.0,
     ):
         self.catalog = catalog or dict(DEFAULT_MODEL_CATALOG)
         self.default_model = default_model if default_model in self.catalog else "claude-sonnet-5-5"
+        self.provider_registry = provider_registry
+        self.request_timeout = request_timeout
+        self._availability: dict[str, bool] = {}
+        self._profiles: dict[str, Any] = {}
+        self._ollama_models: set[str] = set()
         self._stats = {
             "routed_total": 0,
             "routes_by_model": {},
@@ -344,16 +352,87 @@ class OmniRouter:
     # ------------------------------------------------------------------
 
     def is_provider_available(self, provider: str) -> bool:
-        """Check if provider credentials or endpoint are active in current environment."""
+        """Return observed readiness, never assuming a local server is running."""
         p = provider.lower()
-        if p == "anthropic":
-            return bool(os.getenv("ANTHROPIC_API_KEY"))
-        elif p == "openai":
-            return bool(os.getenv("OPENAI_API_KEY"))
-        elif p == "ollama":
-            # Ollama local is considered always present or discoverable via default port
-            return True
-        return False
+        if p == "ollama":
+            return self._availability.get(p, False)
+        return self._availability.get(p, bool(os.getenv(f"{p.upper()}_API_KEY")))
+
+    async def _registry(self) -> Any:
+        if self.provider_registry is None:
+            from synapse.api.routes.providers import provider_service
+            self.provider_registry = provider_service.registry
+        return self.provider_registry
+
+    async def _probe_ollama(self, timeout: float = 2.0) -> list[str]:
+        import httpx
+        root = os.getenv("OLLAMA_API_BASE", "http://localhost:11434").rstrip("/").removesuffix("/v1")
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(f"{root}/api/tags")
+                response.raise_for_status()
+            models = [m.get("name", "") for m in response.json().get("models", [])]
+            self._ollama_models = {m for m in models if m}
+            self._availability["ollama"] = True
+            return sorted(self._ollama_models)
+        except Exception as exc:
+            self._ollama_models = set()
+            self._availability["ollama"] = False
+            logger.info("Ollama is unavailable: %s", exc)
+            return []
+
+    async def refresh_providers(self) -> None:
+        """Refresh local and registry-backed readiness and discovered models."""
+        await self._probe_ollama()
+        registry = await self._registry()
+        for profile in await registry.list():
+            self._profiles[profile.id] = profile
+            probe = await registry.test_connection(profile.id, timeout=3.0)
+            self._availability[profile.id] = probe.success
+            if not probe.success:
+                continue
+            models = await registry.discover_models(profile.id, timeout=3.0)
+            names = [m.id for m in models] or list(profile.metadata.get("legacy_models", []))
+            if profile.default_model and profile.default_model not in names:
+                names.insert(0, profile.default_model)
+            for name in names:
+                if name in self.catalog and self.catalog[name].provider != profile.id:
+                    continue
+                self.catalog[name] = ModelDescriptor(
+                    id=name, provider=profile.id, display_name=name,
+                    tier=ModelTier.LOCAL if profile.api_mode.value == "ollama" else ModelTier.STANDARD,
+                    cost_tier=CostTier.FREE if profile.api_mode.value == "ollama" else CostTier.MEDIUM,
+                    context_window=next((m.context_window or 128_000 for m in models if m.id == name), 128_000),
+                    max_output=next((m.max_output or 8_192 for m in models if m.id == name), 8_192),
+                    strengths=("configured_provider",), capabilities={"streaming": True},
+                    is_local=profile.api_mode.value == "ollama",
+                )
+
+    async def route_async(self, task_description: str,
+                          requirements: Optional[dict[str, Any]] = None) -> RouteDecision:
+        await self.refresh_providers()
+        decision = self.route(task_description, requirements)
+        if decision.provider == "ollama" and self._ollama_models:
+            # A configured name is not evidence that a local model is installed.
+            preferred = [decision.model] + [c["model"] for c in decision.fallback_chain
+                                            if c.get("provider") == "ollama"]
+            installed = sorted(self._ollama_models)
+            selected = next((name for want in preferred for name in installed
+                             if name == want or name.split(":", 1)[0] == want), installed[0])
+            desc = self.catalog.get(decision.model)
+            if desc is not None:
+                self.catalog[selected] = ModelDescriptor(
+                    id=selected, provider="ollama", display_name=f"{selected} (Local)",
+                    tier=desc.tier, cost_tier=desc.cost_tier,
+                    context_window=desc.context_window, max_output=desc.max_output,
+                    strengths=desc.strengths, capabilities=desc.capabilities, is_local=True,
+                )
+            decision.model = selected
+            decision.provider_available = True
+            decision.fallback_chain = [
+                {"provider": "ollama", "model": name} for name in installed if name != selected
+            ]
+        return decision
 
     # ------------------------------------------------------------------
     # Domain & Intent Detection
@@ -445,7 +524,7 @@ class OmniRouter:
                 reason="Task requires local offline execution or strict data privacy.",
                 confidence=0.98,
                 fallback_chain=[{"provider": "ollama", "model": "mistral"}, {"provider": "ollama", "model": "phi3"}],
-                provider_available=True,
+                provider_available=self.is_provider_available("ollama"),
                 context_window=desc.context_window,
                 capabilities=desc.capabilities,
             )
@@ -603,75 +682,123 @@ class OmniRouter:
     ) -> dict[str, Any]:
         """Route the task and invoke LiteLLM provider with automatic multi-tier fallback."""
         start_time = time.monotonic()
-        decision = self.route(task_description, requirements)
+        decision = await self.route_async(task_description, requirements)
         effective_prompt = prompt or task_description
-
         self._stats["execution_calls"] += 1
         attempts: list[dict[str, Any]] = []
+        requirements = requirements or {}
 
-        # Try candidates in order: primary decision, then fallbacks
-        candidates = [{"provider": decision.provider, "model": decision.model}] + decision.fallback_chain
-
+        candidates = [{"provider": decision.provider, "model": decision.model}]
+        candidates.extend(decision.fallback_chain)
+        # Prioritize ready/available candidates; fall back to all eligible candidates
+        ready_candidates = [
+            c for c in candidates
+            if self._candidate_ready(c["provider"], c["model"], requirements, check_availability=True)
+        ]
+        if ready_candidates:
+            candidates = ready_candidates
+        else:
+            candidates = [
+                c for c in candidates
+                if self._candidate_ready(c["provider"], c["model"], requirements, check_availability=False)
+            ]
+        seen: set[tuple[str, str]] = set()
         for candidate in candidates:
-            cand_provider = candidate["provider"]
-            cand_model = candidate["model"]
+            cand_provider, cand_model = candidate["provider"], candidate["model"]
+            if (cand_provider, cand_model) in seen:
+                continue
+            seen.add((cand_provider, cand_model))
             candidate_start = time.monotonic()
-
             try:
-                # Lazy import LiteLLMProvider to avoid hard startup dependencies
                 from synapse.llm.provider import LiteLLMProvider
 
-                api_base = None
-                if cand_provider == "ollama":
-                    api_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
-
-                provider_instance = LiteLLMProvider(
-                    name=cand_provider,
-                    model=cand_model,
-                    api_base=api_base,
+                model, api_base, api_key = await self._execution_config(
+                    cand_provider, cand_model,
                 )
-
-                response = await provider_instance.generate(effective_prompt, **kwargs)
+                provider_instance = LiteLLMProvider(
+                    name=cand_provider, model=model, api_base=api_base, api_key=api_key,
+                )
+                response = await asyncio.wait_for(
+                    provider_instance.generate(effective_prompt, **kwargs),
+                    timeout=self.request_timeout,
+                )
                 duration = round(time.monotonic() - candidate_start, 3)
-
                 return {
-                    "content": response.get("content", ""),
-                    "model_used": cand_model,
-                    "provider_used": cand_provider,
+                    "success": True, "content": response.get("content", ""),
+                    "model_used": cand_model, "provider_used": cand_provider,
                     "route_decision": decision.to_dict(),
                     "usage": response.get("usage", {}),
                     "duration_seconds": duration,
                     "total_duration_seconds": round(time.monotonic() - start_time, 3),
-                    "attempts": attempts,
-                    "protocol_version": PROTOCOL_VERSION,
+                    "attempts": attempts, "protocol_version": PROTOCOL_VERSION,
                 }
-            except Exception as e:
-                err_msg = str(e)
+            except Exception as exc:
                 duration = round(time.monotonic() - candidate_start, 3)
-                logger.warning(
-                    "OmniRouter candidate failed (%s/%s): %s", cand_provider, cand_model, err_msg
-                )
-                attempts.append({
-                    "provider": cand_provider,
-                    "model": cand_model,
-                    "error": err_msg,
-                    "duration": duration,
-                })
+                error = (f"Request exceeded {self.request_timeout:g}s"
+                         if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) else str(exc))
+                logger.warning("OmniRouter candidate failed (%s/%s): %s",
+                               cand_provider, cand_model, error)
+                attempts.append({"provider": cand_provider, "model": cand_model,
+                                 "error": error[:500], "duration": duration})
 
         self._stats["execution_failures"] += 1
-        # If all candidates failed (e.g. no internet / no API keys in test mode), return clean fallback
+        reason = ("No provider satisfies the requested constraints or is available."
+                  if not candidates else "All available model candidates failed.")
         return {
-            "content": f"[OmniRouter completed plan without remote credentials] Task: {task_description[:100]}",
-            "model_used": decision.model,
-            "provider_used": decision.provider,
-            "route_decision": decision.to_dict(),
-            "usage": {},
-            "duration_seconds": round(time.monotonic() - start_time, 3),
+            "success": False, "error": reason,
+            "content": "",
+            "model_used": None, "provider_used": None,
+            "route_decision": decision.to_dict(), "usage": {},
             "total_duration_seconds": round(time.monotonic() - start_time, 3),
-            "attempts": attempts,
-            "simulated": True,
-            "protocol_version": PROTOCOL_VERSION,
+            "attempts": attempts, "protocol_version": PROTOCOL_VERSION,
         }
+
+    def _candidate_ready(
+        self,
+        provider: str,
+        model: str,
+        requirements: dict[str, Any],
+        check_availability: bool = True,
+    ) -> bool:
+        descriptor = self.catalog.get(model)
+        if descriptor is None or descriptor.provider != provider:
+            return False
+        if check_availability and not self.is_provider_available(provider):
+            return False
+        if requirements.get("local_only") and not descriptor.is_local:
+            return False
+        for capability, required in (requirements.get("capabilities") or {}).items():
+            if required and not descriptor.capabilities.get(capability, False):
+                return False
+        if check_availability and provider == "ollama" and self._ollama_models and not any(
+            model == name or model == name.split(":", 1)[0] for name in self._ollama_models
+        ):
+            return False
+        return True
+
+    async def _execution_config(self, provider: str, model: str) -> tuple[str, str | None, str | None]:
+        profile = self._profiles.get(provider)
+        if provider == "ollama":
+            return (model if model.startswith("ollama/") else f"ollama/{model}",
+                    os.getenv("OLLAMA_API_BASE", "http://localhost:11434"), None)
+        if profile is None:
+            return model, None, None
+        api_key = None
+        if profile.credential_ref:
+            registry = await self._registry()
+            api_key = (await registry.resolve_credential(profile)).reveal()
+        from synapse.llm.providers.profile import ApiMode
+        prefixes = {
+            ApiMode.OPENAI_CHAT: "openai/", ApiMode.OPENAI_RESPONSES: "openai/",
+            ApiMode.OPENAI_COMPATIBLE: "openai/", ApiMode.ANTHROPIC_MESSAGES: "anthropic/",
+            ApiMode.GEMINI_NATIVE: "gemini/", ApiMode.OLLAMA: "ollama/",
+            ApiMode.AZURE_OPENAI: "azure/", ApiMode.BEDROCK: "bedrock/",
+            ApiMode.VERTEX_AI: "vertex_ai/",
+        }
+        if profile.api_mode == ApiMode.CUSTOM_HTTP:
+            raise RuntimeError(f"Provider '{provider}' uses an unsupported generation protocol")
+        prefix = prefixes[profile.api_mode]
+        return (model if "/" in model else prefix + model), profile.base_url, api_key
 
     # ------------------------------------------------------------------
     # Catalog, Stats & Health
@@ -689,28 +816,31 @@ class OmniRouter:
         }
 
     def health_check(self) -> dict[str, Any]:
-        """Return provider readiness status."""
-        return {
-            "providers": {
-                "anthropic": {
-                    "available": self.is_provider_available("anthropic"),
-                    "key_configured": bool(os.getenv("ANTHROPIC_API_KEY")),
-                    "tier": "frontier",
-                },
-                "openai": {
-                    "available": self.is_provider_available("openai"),
-                    "key_configured": bool(os.getenv("OPENAI_API_KEY")),
-                    "tier": "frontier",
-                },
-                "ollama": {
-                    "available": True,
-                    "endpoint": os.getenv("OLLAMA_API_BASE", "http://localhost:11434"),
-                    "tier": "local",
-                },
-            },
-            "default_model": self.default_model,
-            "protocol_version": PROTOCOL_VERSION,
+        """Return observed readiness without making network requests."""
+        providers = {
+            name: {
+                "available": self.is_provider_available(name),
+                "key_configured": bool(os.getenv(f"{name.upper()}_API_KEY")),
+                "tier": "local" if name == "ollama" else "frontier",
+            }
+            for name in ("anthropic", "openai", "ollama")
         }
+        for name, profile in self._profiles.items():
+            providers[name] = {
+                "available": self.is_provider_available(name),
+                "credential_configured": bool(profile.credential_ref),
+                "enabled": profile.enabled,
+                "tier": "local" if profile.api_mode.value == "ollama" else "configured",
+            }
+        providers["ollama"]["installed_models"] = sorted(self._ollama_models)
+        providers["ollama"]["endpoint"] = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        return {"providers": providers, "default_model": self.default_model,
+                "protocol_version": PROTOCOL_VERSION}
+
+    async def health_check_async(self) -> dict[str, Any]:
+        """Refresh provider health before reporting it to API clients."""
+        await self.refresh_providers()
+        return self.health_check()
 
 
 # Global default instance

@@ -58,6 +58,12 @@ async def test_custom_skill_registration_and_execution(library):
 
 
 @pytest.mark.asyncio
+async def test_sft_export_rejects_unknown_format(library):
+    with pytest.raises(ValueError, match="chatml"):
+        await library.get("sft_export").execute({"format": "unknown"})
+
+
+@pytest.mark.asyncio
 async def test_skill_pipeline_execution(library):
     pipeline = [
         {"skill_id": "code_review", "params": {"code": "def run():\n    print('debug')\n"}},

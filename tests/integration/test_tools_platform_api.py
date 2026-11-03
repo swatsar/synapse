@@ -127,7 +127,7 @@ def test_platform_skills_execution(client):
     assert data["success"] is True
 
 
-def test_platform_router_endpoints_and_execution(client):
+def test_platform_router_endpoints_and_execution(client, monkeypatch):
     # 1. Catalog
     res_cat = client.get("/api/v1/router/catalog")
     assert res_cat.status_code == 200
@@ -149,13 +149,20 @@ def test_platform_router_endpoints_and_execution(client):
     assert route_decision["detected_domain"] == "coding"
     assert "fallback_chain" in route_decision
 
-    # 4. Route execute
+    # 4. Route execute (mock the provider so the test never uses credentials or the network)
+    from synapse.llm.provider import LiteLLMProvider
+
+    async def fake_generate(self, prompt, **kwargs):
+        return {"content": "ok", "usage": {}}
+
+    monkeypatch.setattr(LiteLLMProvider, "generate", fake_generate)
     res_exec = client.post("/api/v1/router/execute", json={
         "task": "Ping test triage",
         "requirements": {"latency": "fast"},
     })
     assert res_exec.status_code == 200
     exec_data = res_exec.json()
+    assert exec_data["content"] == "ok"
     assert "model_used" in exec_data
     assert "duration_seconds" in exec_data
 

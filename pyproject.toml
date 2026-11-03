@@ -130,7 +130,7 @@ markers = [
     "workload: Workload tests",
     "system: System tests",
 ]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --basetemp=.pytest_temp"
 testpaths = [
     "tests",
 ]

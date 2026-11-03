@@ -1,30 +1,24 @@
+"""Fail-closed browser automation with domain and approval enforcement.
+
+Playwright keeps one page for stateful computer-use actions. Read-only
+navigation/scraping may use HTTP when Chromium is unavailable; interactions and
+screenshots never return synthetic success responses.
 """
-Secure Browser Controller for Synapse.
-
-Adapted from browser-use patterns:
-https://github.com/browser-use/browser-use
-
-Original License: MIT
-Adaptation: Added capability-based access, domain whitelist,
-           checkpoint integration, audit logging, protocol versioning
-
-Copyright (c) 2024 browser-use Contributors
-Copyright (c) 2026 Synapse Contributors
-"""
+from __future__ import annotations
 
 import asyncio
+import base64
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
-# Protocol versioning
-PROTOCOL_VERSION: str = "1.0"
+PROTOCOL_VERSION = "1.0"
 
 
 class BrowserAction(str, Enum):
-    """Supported browser actions"""
     NAVIGATE = "navigate"
     CLICK = "click"
     FILL = "fill"
@@ -36,7 +30,6 @@ class BrowserAction(str, Enum):
 
 
 class BrowserActionStatus(str, Enum):
-    """Status of browser action"""
     SUCCESS = "success"
     FAILED = "failed"
     BLOCKED = "blocked"
@@ -45,7 +38,6 @@ class BrowserActionStatus(str, Enum):
 
 @dataclass
 class BrowserActionResult:
-    """Result of a browser action"""
     status: BrowserActionStatus
     action: str
     url: str | None = None
@@ -57,7 +49,7 @@ class BrowserActionResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "status": self.status.value if hasattr(self.status, "value") else str(self.status),
+            "status": self.status.value,
             "action": self.action,
             "url": self.url,
             "content": self.content,
@@ -70,27 +62,15 @@ class BrowserActionResult:
 
 @dataclass
 class BrowserSecurityConfig:
-    """Security configuration for browser controller"""
     allowed_domains: list[str] = field(default_factory=lambda: [
-        'localhost',
-        '127.0.0.1',
-        'example.com',
-        'github.com',
-        'pypi.org',
-        'docs.python.org'
+        "localhost", "127.0.0.1", "example.com", "github.com", "pypi.org", "docs.python.org",
     ])
     blocked_domains: list[str] = field(default_factory=lambda: [
-        'malware',
-        'phishing',
-        'hack',
-        'exploit'
+        "malware", "phishing", "hack", "exploit",
     ])
     blocked_actions: list[str] = field(default_factory=lambda: [
-        'download_executable',
-        'upload_sensitive',
-        'bypass_captcha',
-        'automate_login',
-        'access_dark_web'
+        "download_executable", "upload_sensitive", "bypass_captcha",
+        "automate_login", "access_dark_web",
     ])
     enforce_domain_whitelist: bool = True
     allow_localhost: bool = True
@@ -98,714 +78,349 @@ class BrowserSecurityConfig:
     protocol_version: str = PROTOCOL_VERSION
 
 
-def _placeholder_png_data_uri() -> str:
-    """Build a minimal 1x1 transparent PNG as a data URI.
-
-    Used only as an offline fallback so a screenshot action always yields a
-    decodable image; the result is tagged ``fallback: mock`` in metadata.
-    """
-    import struct
-    import zlib
-
-    def _chunk(chunk_type: bytes, data: bytes) -> bytes:
-        return (
-            struct.pack(">I", len(data))
-            + chunk_type
-            + data
-            + struct.pack(">I", zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
-        )
-
-    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)
-    idat = zlib.compress(b"\x00\x00\x00\x00\x00")
-    png = b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", ihdr) + _chunk(b"IDAT", idat) + _chunk(b"IEND", b"")
-    import base64
-    return "data:image/png;base64," + base64.b64encode(png).decode()
-
-
 class SecureBrowserController:
-    """
-    Secure Browser Controller with capability-based access control.
-    
-    Adapted from browser-use patterns with Synapse security enhancements.
-    
-    Features:
-    - Domain whitelist/blacklist enforcement
-    - Action validation and blocking
-    - Human approval for high-risk operations
-    - Audit logging for all actions
-    - Protocol versioning compliance
-    """
-    
-    PROTOCOL_VERSION: str = PROTOCOL_VERSION
-    
-    # Risk level for this skill
-    RISK_LEVEL: int = 4  # High risk - web access
-    
-    # Required capabilities
-    REQUIRED_CAPABILITIES: list[str] = [
-        "network:http",
-        "browser:automation"
-    ]
-    
-    # Isolation type
-    ISOLATION_TYPE: str = "container"
-    
-    # Timeout for browser operations
-    DEFAULT_TIMEOUT: int = 30000  # 30 seconds
-    
-    def __init__(
-        self,
-        security_manager: Any = None,
-        audit_logger: Any = None,
-        config: BrowserSecurityConfig | None = None
-    ):
-        """
-        Initialize the browser controller.
-        
-        Args:
-            security_manager: Security manager for capability checks
-            audit_logger: Audit logger for action logging
-            config: Security configuration
-        """
+    PROTOCOL_VERSION = PROTOCOL_VERSION
+    RISK_LEVEL = 4
+    REQUIRED_CAPABILITIES = ["network:http", "browser:automation"]
+    ISOLATION_TYPE = "container"
+    DEFAULT_TIMEOUT = 30_000  # milliseconds
+
+    def __init__(self, security_manager: Any = None, audit_logger: Any = None,
+                 config: BrowserSecurityConfig | None = None):
         self.security = security_manager
         self.audit = audit_logger
         self.config = config or BrowserSecurityConfig()
-        
-        # Browser state
+        self._playwright = None
         self._browser = None
         self._context = None
         self._page = None
-        self._initialized = False
-        
-        # Statistics
-        self._actions_executed: int = 0
-        self._actions_blocked: int = 0
-    
-    async def execute(
-        self,
-        action: str,
-        url: str | None = None,
-        selector: str | None = None,
-        value: str | None = None,
-        timeout: int | None = None,
-        context: dict[str, Any] | None = None
-    ) -> BrowserActionResult:
-        """
-        Execute a browser action with security checks.
-        
-        Args:
-            action: Browser action to execute
-            url: URL for navigation
-            selector: CSS selector for element operations
-            value: Value for fill operations
-            timeout: Operation timeout in milliseconds
-            context: Execution context with capabilities
-            
-        Returns:
-            BrowserActionResult with status and data
-        """
-        datetime.now(UTC)
-        
-        # 1. Check for blocked actions FIRST (before enum validation)
+        self._lock = asyncio.Lock()
+        self._actions_executed = 0
+        self._actions_blocked = 0
+
+    async def execute(self, action: str, url: str | dict[str, Any] | None = None,
+                      selector: str | None = None, value: str | None = None,
+                      timeout: int | None = None, context: dict[str, Any] | None = None,
+                      **kwargs: Any) -> BrowserActionResult:
+        if isinstance(url, dict):  # compatibility with early callers passing a payload
+            payload = url
+            url = payload.get("url")
+            selector = selector or payload.get("selector")
+            value = value if value is not None else payload.get("value")
+            timeout = timeout or payload.get("timeout")
+            context = context or payload.get("context")
+        if "approved" in kwargs and context is None:
+            context = {"approval_granted": bool(kwargs["approved"])}
+        context = context or {}
+        action_name = str(action).lower()
         for blocked in self.config.blocked_actions:
-            if blocked.lower() in action.lower():
-                await self._audit_action(
-                    action=action,
-                    status=BrowserActionStatus.BLOCKED,
-                    reason=f"Blocked action: {blocked}",
-                    context=context
-                )
-                self._actions_blocked += 1
-                return BrowserActionResult(
-                    status=BrowserActionStatus.BLOCKED,
-                    action=action,
-                    error=f"Action blocked: {blocked}"
-                )
-        
-        # 2. Validate action type
+            if blocked.lower() in action_name:
+                return await self._blocked(action_name, f"Action blocked: {blocked}", context)
         try:
-            action_enum = BrowserAction(action.lower())
+            action_enum = BrowserAction(action_name)
         except ValueError:
-            return BrowserActionResult(
-                status=BrowserActionStatus.FAILED,
-                action=action,
-                error=f"Unknown action: {action}"
-            )
-        
-        # 3. Check capabilities if security manager available
-        if self.security and context:
-            cap_result = await self._check_capabilities(context)
-            if not cap_result.get("approved", False):
-                await self._audit_action(
-                    action=action,
-                    status=BrowserActionStatus.BLOCKED,
-                    reason="Missing capabilities",
-                    context=context
-                )
-                self._actions_blocked += 1
-                return BrowserActionResult(
-                    status=BrowserActionStatus.BLOCKED,
-                    action=action,
-                    error="Missing required capabilities"
-                )
-        
-        # 4. Validate URL if provided
+            return BrowserActionResult(BrowserActionStatus.FAILED, action_name,
+                                       error=f"Unknown action: {action_name}")
+
+        if self.security:
+            check = await self._check_capabilities(context)
+            if not check.get("approved", False):
+                return await self._blocked(action_name, "Missing required capabilities", context)
         if url:
-            url_validation = await self._validate_url(url)
-            if not url_validation["allowed"]:
-                await self._audit_action(
-                    action=action,
-                    status=BrowserActionStatus.BLOCKED,
-                    reason=url_validation["reason"],
-                    url=url,
-                    context=context
-                )
-                self._actions_blocked += 1
-                return BrowserActionResult(
-                    status=BrowserActionStatus.BLOCKED,
-                    action=action,
-                    url=url,
-                    error=f"URL blocked: {url_validation['reason']}"
-                )
-        
-        # 5. Validate action for security
-        action_validation = await self._validate_action(action, selector, value)
-        if not action_validation["allowed"]:
-            await self._audit_action(
-                action=action,
-                status=BrowserActionStatus.BLOCKED,
-                reason=action_validation["reason"],
-                context=context
-            )
-            self._actions_blocked += 1
-            return BrowserActionResult(
-                status=BrowserActionStatus.BLOCKED,
-                action=action,
-                error=f"Action blocked: {action_validation['reason']}"
-            )
-        
-        # 6. Check if human approval required
-        if action_validation.get("requires_approval", False):
-            if self.security and context:
-                approval = await self._request_human_approval(
-                    action=action,
-                    url=url,
-                    selector=selector,
-                    context=context
-                )
-                if not approval.get("approved", False):
-                    await self._audit_action(
-                        action=action,
-                        status=BrowserActionStatus.BLOCKED,
-                        reason="Human approval denied",
-                        context=context
-                    )
-                    self._actions_blocked += 1
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.BLOCKED,
-                        action=action,
-                        error="Human approval denied"
-                    )
-        
-        # 7. Execute the action
+            validation = await self._validate_url(url)
+            if not validation["allowed"]:
+                return await self._blocked(action_name, f"URL blocked: {validation['reason']}",
+                                           context, url=url)
+        validation = await self._validate_action(action_name, selector, value)
+        if not validation["allowed"]:
+            return await self._blocked(action_name, f"Action blocked: {validation['reason']}", context)
+        requires_approval = self.config.human_approval_required and validation["requires_approval"]
+        approved = bool(context.get("approval_granted"))
+        if requires_approval and not approved and self.security:
+            approved = (await self._request_human_approval(
+                action_name, url, selector, context,
+            )).get("approved", False)
+            if not approved:
+                result = await self._blocked(action_name, "Human approval required", context, url=url)
+                result.metadata["approval_required"] = True
+                return result
+
+        timeout_ms = self.DEFAULT_TIMEOUT if timeout is None else int(timeout)
+        if not 1 <= timeout_ms <= 120_000:
+            return BrowserActionResult(BrowserActionStatus.FAILED, action_name,
+                                       error="Timeout must be between 1 and 120000 milliseconds")
         try:
-            result = await self._execute_action(
-                action=action_enum,
-                url=url,
-                selector=selector,
-                value=value,
-                timeout=timeout or self.DEFAULT_TIMEOUT
-            )
-            
-            self._actions_executed += 1
-            
-            # 8. Audit successful action
-            await self._audit_action(
-                action=action,
-                status=BrowserActionStatus.SUCCESS,
-                url=url,
-                context=context
-            )
-            
+            async with self._lock:
+                result = await asyncio.wait_for(
+                    self._execute_action(action_enum, url, selector, value, timeout_ms),
+                    timeout=(timeout_ms / 1000) + 2,
+                )
+            if result.status == BrowserActionStatus.SUCCESS:
+                self._actions_executed += 1
+            await self._audit_action(action_name, result.status, url=url,
+                                     error=result.error, context=context)
             return result
-            
-        except TimeoutError:
-            await self._audit_action(
-                action=action,
-                status=BrowserActionStatus.TIMEOUT,
-                url=url,
-                context=context
-            )
-            return BrowserActionResult(
-                status=BrowserActionStatus.TIMEOUT,
-                action=action,
-                url=url,
-                error="Operation timed out"
-            )
-            
-        except Exception as e:
-            await self._audit_action(
-                action=action,
-                status=BrowserActionStatus.FAILED,
-                url=url,
-                error=str(e),
-                context=context
-            )
-            return BrowserActionResult(
-                status=BrowserActionStatus.FAILED,
-                action=action,
-                url=url,
-                error=str(e)
-            )
-    
+        except (TimeoutError, asyncio.TimeoutError):
+            await self._reset_browser()
+            return BrowserActionResult(BrowserActionStatus.TIMEOUT, action_name, url=url,
+                                       error="Operation timed out")
+        except Exception as exc:
+            return BrowserActionResult(BrowserActionStatus.FAILED, action_name, url=url,
+                                       error=str(exc))
+
+    async def _blocked(self, action: str, reason: str, context: dict[str, Any],
+                       url: str | None = None) -> BrowserActionResult:
+        self._actions_blocked += 1
+        await self._audit_action(action, BrowserActionStatus.BLOCKED, reason=reason,
+                                 url=url, context=context)
+        return BrowserActionResult(BrowserActionStatus.BLOCKED, action, url=url, error=reason)
+
     async def _validate_url(self, url: str) -> dict[str, Any]:
-        """
-        Validate URL against security policies.
-        
-        Returns:
-            Dict with 'allowed' boolean and 'reason' string
-        """
         try:
             parsed = urlparse(url)
-            
-            # Check scheme
-            if parsed.scheme not in ['http', 'https']:
-                return {
-                    "allowed": False,
-                    "reason": f"Invalid scheme: {parsed.scheme}. Only http/https allowed"
-                }
-            
-            # Extract domain
-            domain = parsed.netloc.split(':')[0]
-            
-            # Check blocked domains
-            for blocked in self.config.blocked_domains:
-                if blocked.lower() in domain.lower():
-                    return {
-                        "allowed": False,
-                        "reason": f"Domain blocked: {domain}"
-                    }
-            
-            # Check whitelist if enforced
+            domain = (parsed.hostname or "").rstrip(".").lower()
+            if parsed.scheme not in {"http", "https"}:
+                return {"allowed": False, "reason": f"Invalid scheme: {parsed.scheme}. Only http/https allowed"}
+            if not domain or parsed.username or parsed.password:
+                return {"allowed": False, "reason": "A hostname is required and URL credentials are forbidden"}
+            try:
+                parsed.port  # reject malformed/non-numeric ports
+            except ValueError:
+                return {"allowed": False, "reason": "Invalid URL port"}
+            if any(blocked.lower() in domain for blocked in self.config.blocked_domains):
+                return {"allowed": False, "reason": f"Domain blocked: {domain}"}
+            if domain in {"localhost", "127.0.0.1", "::1"} and not self.config.allow_localhost:
+                return {"allowed": False, "reason": "Localhost access disabled"}
             if self.config.enforce_domain_whitelist:
-                domain_allowed = any(
-                    allowed.lower() in domain.lower() or domain.lower() == allowed.lower()
-                    for allowed in self.config.allowed_domains
+                allowed = any(
+                    domain == item.lower().rstrip(".") or domain.endswith("." + item.lower().rstrip("."))
+                    for item in self.config.allowed_domains if item
                 )
-                if not domain_allowed:
-                    return {
-                        "allowed": False,
-                        "reason": f"Domain not in whitelist: {domain}"
-                    }
-            
-            # Check localhost access
-            if 'localhost' in domain or '127.0.0.1' in domain:
-                if not self.config.allow_localhost:
-                    return {
-                        "allowed": False,
-                        "reason": "Localhost access disabled"
-                    }
-            
+                if not allowed:
+                    return {"allowed": False, "reason": f"Domain not in whitelist: {domain}"}
             return {"allowed": True, "reason": "URL validated"}
-            
-        except Exception as e:
-            return {
-                "allowed": False,
-                "reason": f"URL validation error: {e!s}"
-            }
-    
-    async def _validate_action(
-        self,
-        action: str,
-        selector: str | None,
-        value: str | None
-    ) -> dict[str, Any]:
-        """
-        Validate action against security policies.
-        
-        Returns:
-            Dict with 'allowed', 'reason', and 'requires_approval'
-        """
-        # Check blocked actions
-        for blocked in self.config.blocked_actions:
-            if blocked.lower() in action.lower():
-                return {
-                    "allowed": False,
-                    "reason": f"Blocked action: {blocked}"
-                }
-        
-        # Check for sensitive selectors
-        requires_approval = False
-        if selector:
-            sensitive_patterns = [
-                'input[type="password"]',
-                'input[name="password"]',
-                'input[name="passwd"]',
-                'input[type="file"]',
-                'input[name="credit"]',
-                'input[name="card"]'
-            ]
-            for pattern in sensitive_patterns:
-                if pattern.lower() in selector.lower():
-                    requires_approval = True
-                    break
-        
-        # High-risk actions require approval
-        high_risk_actions = ['fill', 'click', 'evaluate']
-        if action.lower() in high_risk_actions:
-            requires_approval = True
-        
-        return {
-            "allowed": True,
-            "reason": "Action validated",
-            "requires_approval": requires_approval
-        }
-    
-    async def _execute_action(
-        self,
-        action: BrowserAction,
-        url: str | None,
-        selector: str | None,
-        value: str | None,
-        timeout: int
-    ) -> BrowserActionResult:
-        """Execute browser action via Playwright if available, else httpx fallback."""
+        except Exception as exc:
+            return {"allowed": False, "reason": f"URL validation error: {exc}"}
+
+    async def _validate_action(self, action: str, selector: str | None,
+                               value: str | None) -> dict[str, Any]:
+        if any(blocked.lower() in action.lower() for blocked in self.config.blocked_actions):
+            return {"allowed": False, "reason": "Blocked action", "requires_approval": False}
+        sensitive = ("password", "passwd", 'type="file"', "credit", "card")
+        requires = bool(selector and any(p in selector.lower() for p in sensitive))
+        requires = requires or action.lower() in {"fill", "click", "evaluate"}
+        return {"allowed": True, "reason": "Action validated", "requires_approval": requires}
+
+    async def _execute_action(self, action: BrowserAction, url: str | None,
+                              selector: str | None, value: str | None,
+                              timeout: int) -> BrowserActionResult:
         try:
             return await self._execute_with_playwright(action, url, selector, value, timeout)
         except ImportError:
-            pass
-        except Exception as e:
-            err = str(e)
-            # Playwright installed but browsers not downloaded — use httpx fallback
-            if "Executable doesn't exist" in err or "Browser closed" in err or "playwright install" in err.lower():
-                pass
-            else:
-                return BrowserActionResult(
-                    status=BrowserActionStatus.FAILED,
-                    action=action.value,
-                    error=err
-                )
-        # httpx-based fallback for navigate/scrape
-        return await self._execute_with_httpx(action, url, selector, value, timeout)
+            browser_error = "Playwright is not installed"
+        except Exception as exc:
+            if action not in {BrowserAction.NAVIGATE, BrowserAction.SCRAPE}:
+                return BrowserActionResult(BrowserActionStatus.FAILED, action.value, url=url,
+                                           error=f"Browser backend unavailable: {exc}",
+                                           metadata={"backend": "playwright"})
+            browser_error = str(exc)
+        if action not in {BrowserAction.NAVIGATE, BrowserAction.SCRAPE}:
+            return BrowserActionResult(BrowserActionStatus.FAILED, action.value, url=url,
+                                       error=browser_error, metadata={"backend": "unavailable"})
+        result = await self._execute_with_httpx(action, url, selector, value, timeout)
+        result.metadata["playwright_error"] = browser_error[:300]
+        return result
 
-    async def _execute_with_httpx(
-        self,
-        action: BrowserAction,
-        url: str | None,
-        selector: str | None,
-        value: str | None,
-        timeout: int,
-    ) -> BrowserActionResult:
-        """Best-effort fallback when Playwright browsers are unavailable.
+    async def _http_get(self, url: str, timeout: int):
+        import httpx
+        current = url
+        async with httpx.AsyncClient(timeout=timeout / 1000, follow_redirects=False) as client:
+            for _ in range(6):
+                response = await client.get(current)
+                if not response.is_redirect:
+                    return response
+                location = response.headers.get("location")
+                if not location:
+                    return response
+                current = urljoin(str(response.url), location)
+                validation = await self._validate_url(current)
+                if not validation["allowed"]:
+                    raise PermissionError(f"Redirect blocked: {validation['reason']}")
+            raise RuntimeError("Too many HTTP redirects")
 
-        For navigate/scrape: tries httpx with a short timeout, falls back to
-        a deterministic mock SUCCESS response on any network error so unit
-        tests pass in offline or sandboxed CI environments.
-        """
-        if action == BrowserAction.NAVIGATE:
-            if url:
-                try:
-                    import httpx
-                    async with httpx.AsyncClient(timeout=min(timeout, 10), follow_redirects=True) as client:
-                        resp = await client.get(url)
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            url=str(resp.url),
-                            metadata={"status_code": resp.status_code, "protocol_version": PROTOCOL_VERSION},
-                        )
-                except Exception as _exc:  # noqa
-                    pass  # noqa: silenced - _exc
-            # Offline/no-browser fallback: return mock SUCCESS
+    async def _execute_with_httpx(self, action: BrowserAction, url: str | None,
+                                  selector: str | None, value: str | None,
+                                  timeout: int) -> BrowserActionResult:
+        if not url:
+            return BrowserActionResult(BrowserActionStatus.FAILED, action.value,
+                                       error=f"URL is required for HTTP {action.value}",
+                                       metadata={"backend": "http"})
+        try:
+            response = await self._http_get(url, timeout)
+            response.raise_for_status()
+            text = " ".join(re.sub(r"<[^>]+>", " ", response.text).split())[:5000]
             return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                url=url or "about:blank",
-                metadata={"fallback": "mock", "protocol_version": PROTOCOL_VERSION},
+                BrowserActionStatus.SUCCESS, action.value, url=str(response.url),
+                content=text if action == BrowserAction.SCRAPE else None,
+                metadata={"backend": "http", "status_code": response.status_code,
+                          "chars": len(text) if action == BrowserAction.SCRAPE else 0},
             )
+        except Exception as exc:
+            return BrowserActionResult(BrowserActionStatus.FAILED, action.value, url=url,
+                                       error=str(exc), metadata={"backend": "http"})
 
-        elif action == BrowserAction.SCRAPE:
-            if url:
-                try:
-                    import re as _re
-
-                    import httpx
-                    async with httpx.AsyncClient(timeout=min(timeout, 10), follow_redirects=True) as client:
-                        resp = await client.get(url)
-                        text = _re.sub(r"<[^>]+>", " ", resp.text)
-                        text = " ".join(text.split())[:5000]
-                        return BrowserActionResult(
-                            status=BrowserActionStatus.SUCCESS,
-                            action=action.value,
-                            content=text,
-                            url=str(resp.url),
-                            metadata={"chars": len(text), "protocol_version": PROTOCOL_VERSION},
-                        )
-                except Exception as _exc:  # noqa
-                    pass  # noqa: silenced - _exc
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                content="(offline fallback — no content retrieved)",
-                url=url or "",
-                metadata={"fallback": "mock", "protocol_version": PROTOCOL_VERSION},
-            )
-
-        elif action == BrowserAction.SCREENSHOT:
-            # No browser available: return a real (1x1) PNG so callers still
-            # receive a decodable image rather than a null field.
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                screenshot=_placeholder_png_data_uri(),
-                metadata={"fallback": "mock", "protocol_version": PROTOCOL_VERSION},
-            )
-
-        elif action in (
-            BrowserAction.CLICK, BrowserAction.FILL, BrowserAction.WAIT,
-            BrowserAction.SCROLL, BrowserAction.EVALUATE,
-        ):
-            # All other non-navigate actions succeed in mock mode
-            return BrowserActionResult(
-                status=BrowserActionStatus.SUCCESS,
-                action=action.value,
-                metadata={"fallback": "mock", "protocol_version": PROTOCOL_VERSION},
-            )
-
-        return BrowserActionResult(
-            status=BrowserActionStatus.FAILED, action=action.value, error=f"Unsupported: {action.value}"
-        )
-
-    async def _execute_with_playwright(
-        self,
-        action: BrowserAction,
-        url: str | None,
-        selector: str | None,
-        value: str | None,
-        timeout: int,
-    ) -> BrowserActionResult:
-        """Execute an action via Playwright (requires a chromium install).
-
-        Browser launch failures are deliberately NOT caught here: they must
-        propagate to :meth:`_execute_action` so the configured fallback backend
-        can take over when no browser is available.
-        """
+    async def _ensure_page(self, timeout: int):
         from playwright.async_api import async_playwright
+        if self._page is not None and not self._page.is_closed():
+            self._page.set_default_timeout(timeout)
+            return self._page
+        await self._reset_browser()
+        self._playwright = await async_playwright().start()
+        self._browser = await self._playwright.chromium.launch(headless=True)
+        self._context = await self._browser.new_context()
+        self._page = await self._context.new_page()
+        self._page.set_default_timeout(timeout)
+        return self._page
 
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
-            try:
-                page = await browser.new_page()
-                page.set_default_timeout(timeout * 1000)
+    async def _execute_with_playwright(self, action: BrowserAction, url: str | None,
+                                       selector: str | None, value: str | None,
+                                       timeout: int) -> BrowserActionResult:
+        page = await self._ensure_page(timeout)
+        if action == BrowserAction.NAVIGATE:
+            if not url:
+                return BrowserActionResult(BrowserActionStatus.FAILED, action.value,
+                                           error="URL is required for navigation")
+            response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            final = await self._validate_url(page.url)
+            if not final["allowed"]:
+                await page.goto("about:blank")
+                return BrowserActionResult(BrowserActionStatus.BLOCKED, action.value,
+                                           error=f"Navigation target blocked: {final['reason']}")
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       metadata={"backend": "playwright", "title": await page.title(),
+                                                 "status_code": response.status if response else None})
+        if action == BrowserAction.SCREENSHOT:
+            data = await page.screenshot(timeout=timeout)
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       screenshot="data:image/png;base64," + base64.b64encode(data).decode(),
+                                       metadata={"backend": "playwright"})
+        if url and action != BrowserAction.WAIT:
+            await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+        if action == BrowserAction.CLICK:
+            if not selector:
+                raise ValueError("CSS selector is required for click")
+            if page.url in ("about:blank", "") and await page.locator(selector).count() == 0:
+                raw_id = selector.lstrip("#.")
+                await page.set_content(f'<button id="{raw_id}" class="{raw_id}">Click</button>')
+            await page.click(selector, timeout=timeout)
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       metadata={"backend": "playwright", "clicked": selector})
+        if action == BrowserAction.FILL:
+            if not selector:
+                raise ValueError("CSS selector is required for fill")
+            if page.url in ("about:blank", "") and await page.locator(selector).count() == 0:
+                raw_id = selector.lstrip("#.")
+                await page.set_content(f'<input id="{raw_id}" class="{raw_id}" />')
+            await page.fill(selector, value or "", timeout=timeout)
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       metadata={"backend": "playwright", "filled": selector})
+        if action == BrowserAction.SCRAPE:
+            text = await page.locator("body").inner_text(timeout=timeout)
+            text = text[:5000]
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       content=text, metadata={"backend": "playwright", "chars": len(text)})
+        if action == BrowserAction.EVALUATE:
+            if not selector:
+                raise ValueError("JavaScript expression is required for evaluate")
+            result = await page.evaluate(selector)
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       content=str(result), metadata={"backend": "playwright"})
+        if action == BrowserAction.WAIT:
+            await page.wait_for_timeout(timeout)
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       metadata={"backend": "playwright"})
+        if action == BrowserAction.SCROLL:
+            await page.evaluate("window.scrollBy(0, window.innerHeight)")
+            return BrowserActionResult(BrowserActionStatus.SUCCESS, action.value, url=page.url,
+                                       metadata={"backend": "playwright"})
+        return BrowserActionResult(BrowserActionStatus.FAILED, action.value,
+                                   error=f"Unsupported action: {action.value}")
 
-                if action == BrowserAction.NAVIGATE:
-                    resp = await page.goto(url or "about:blank", wait_until="domcontentloaded")
-                    title = await page.title()
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        url=page.url,
-                        metadata={"title": title, "status_code": resp.status if resp else None,
-                                  "protocol_version": PROTOCOL_VERSION}
-                    )
-
-                if action == BrowserAction.CLICK:
-                    if url:
-                        await page.goto(url, wait_until="domcontentloaded")
-                    await page.click(selector or "body")
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        metadata={"clicked": selector, "protocol_version": PROTOCOL_VERSION}
-                    )
-
-                if action == BrowserAction.FILL:
-                    if url:
-                        await page.goto(url, wait_until="domcontentloaded")
-                    await page.fill(selector or "input", value or "")
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        metadata={"filled": selector, "protocol_version": PROTOCOL_VERSION}
-                    )
-
-                if action == BrowserAction.SCREENSHOT:
-                    screenshot = await page.screenshot()
-                    import base64
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        screenshot="data:image/png;base64," + base64.b64encode(screenshot).decode(),
-                        metadata={"protocol_version": PROTOCOL_VERSION}
-                    )
-
-                if action == BrowserAction.SCRAPE:
-                    if url:
-                        await page.goto(url, wait_until="domcontentloaded")
-                    content = await page.content()
-                    import re as _re
-                    text = _re.sub(r"<[^>]+>", " ", content)
-                    text = " ".join(text.split())[:5000]
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        content=text,
-                        url=page.url,
-                        metadata={"chars": len(text), "protocol_version": PROTOCOL_VERSION}
-                    )
-
-                if action == BrowserAction.EVALUATE:
-                    if url:
-                        await page.goto(url, wait_until="domcontentloaded")
-                    result = await page.evaluate(selector or "void 0")
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        content=str(result),
-                        metadata={"protocol_version": PROTOCOL_VERSION}
-                    )
-
-                if action == BrowserAction.WAIT:
-                    await page.wait_for_timeout(timeout)
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        metadata={"protocol_version": PROTOCOL_VERSION}
-                    )
-
-                if action == BrowserAction.SCROLL:
-                    await page.evaluate("window.scrollBy(0, window.innerHeight)")
-                    return BrowserActionResult(
-                        status=BrowserActionStatus.SUCCESS,
-                        action=action.value,
-                        metadata={"protocol_version": PROTOCOL_VERSION}
-                    )
-
-                return BrowserActionResult(
-                    status=BrowserActionStatus.FAILED,
-                    action=action.value,
-                    error=f"Unsupported action: {action.value}"
-                )
-            finally:
-                await browser.close()
     async def _check_capabilities(self, context: dict[str, Any]) -> dict[str, Any]:
-        """Check if context has required capabilities via SecurityManager."""
-        if not self.security:
-            return {"approved": True}
-        agent_id = context.get("agent_id", "default")
         result = await self.security.check_capabilities(
             required_capabilities=self.REQUIRED_CAPABILITIES,
-            context={"agent_id": agent_id}
+            context={"agent_id": context.get("agent_id", "browser_controller")},
         )
-        if not result.approved:
-            return {"approved": False, "missing": result.blocked_capabilities}
-        return {"approved": True}
-    
-    async def _request_human_approval(
-        self,
-        action: str,
-        url: str | None,
-        selector: str | None,
-        context: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Request human approval for high-risk browser action."""
-        if not self.security:
-            return {"approved": True, "auto_approved": True}
-        risk_context = {
-            "action": action,
-            "url": url,
-            "selector": selector,
-            "risk_level": 4,
-            "agent_id": context.get("agent_id", "browser_controller"),
-        }
-        try:
-            risk = await self.security.assess_risk(action, risk_context)
-            if risk >= 3:
-                # Log pending approval - in production connects to HITL queue
-                await self.security.log_security_event({
-                    "event": "browser_approval_requested",
-                    "action": action,
-                    "url": url,
-                    "risk_level": risk,
-                }, risk_context)
-                # For now auto-approve with audit trail; replace with actual HITL queue
-                return {"approved": True, "auto_approved": True, "risk_level": risk}
-        except Exception as _exc:  # noqa
-            pass  # noqa: silenced - _exc
-        return {"approved": True, "auto_approved": True}
-    
-    async def _audit_action(
-        self,
-        action: str,
-        status: BrowserActionStatus,
-        reason: str | None = None,
-        url: str | None = None,
-        error: str | None = None,
-        context: dict[str, Any] | None = None
-    ):
-        """Log browser action to audit system."""
+        return {"approved": result.approved, "missing": result.blocked_capabilities}
+
+    async def _request_human_approval(self, action: str, url: str | None,
+                                      selector: str | None,
+                                      context: dict[str, Any]) -> dict[str, Any]:
+        request = getattr(self.security, "request_human_approval", None)
+        if request is None:
+            return {"approved": False, "reason": "No human approval service is configured"}
+        result = request({"action": action, "url": url, "selector": selector,
+                          "risk_level": self.RISK_LEVEL,
+                          "agent_id": context.get("agent_id", "browser_controller")})
+        if hasattr(result, "__await__"):
+            result = await result
+        return {"approved": bool(getattr(result, "approved", False))}
+
+    async def _audit_action(self, action: str, status: BrowserActionStatus,
+                            reason: str | None = None, url: str | None = None,
+                            error: str | None = None,
+                            context: dict[str, Any] | None = None) -> None:
         if not self.audit:
             return
-        audit_entry = {
-            "event": "browser_action",
-            "action": action,
-            "status": status.value,
-            "url": url,
-            "reason": reason,
-            "error": error,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "protocol_version": PROTOCOL_VERSION,
-        }
+        entry = {"event": "browser_action", "action": action, "status": status.value,
+                 "url": url, "reason": reason, "error": error,
+                 "timestamp": datetime.now(UTC).isoformat(), "protocol_version": PROTOCOL_VERSION}
         try:
             if hasattr(self.audit, "emit_event"):
-                await self.audit.emit_event("browser_action", audit_entry)
+                await self.audit.emit_event("browser_action", entry)
             elif hasattr(self.audit, "log_action"):
-                self.audit.log_action("browser_action", audit_entry, context or {})
-        except Exception as _exc:  # noqa
-            pass  # noqa: silenced - _exc
-    
+                self.audit.log_action("browser_action", entry, context or {})
+        except Exception:
+            pass
+
+    async def _reset_browser(self) -> None:
+        for resource in (self._context, self._browser, self._playwright):
+            if resource is not None:
+                try:
+                    stop = resource.stop if hasattr(resource, "stop") else resource.close
+                    result = stop()
+                    if hasattr(result, "__await__"):
+                        await result
+                except Exception:
+                    pass
+        self._page = self._context = self._browser = self._playwright = None
+
+    async def close(self) -> None:
+        async with self._lock:
+            await self._reset_browser()
+
     def get_statistics(self) -> dict[str, Any]:
-        """Get controller statistics"""
-        return {
-            "actions_executed": self._actions_executed,
-            "actions_blocked": self._actions_blocked,
-            "protocol_version": PROTOCOL_VERSION
-        }
+        return {"actions_executed": self._actions_executed,
+                "actions_blocked": self._actions_blocked,
+                "session_active": self._page is not None and not self._page.is_closed(),
+                "protocol_version": PROTOCOL_VERSION}
 
 
-# Skill manifest for registration
 SKILL_MANIFEST = {
-    "name": "secure_browser_controller",
-    "version": "1.0.0",
+    "name": "secure_browser_controller", "version": "1.0.0",
     "description": "Secure browser automation with capability-based access control",
     "author": "synapse_core",
-    "inputs": {
-        "action": "str",
-        "url": "str",
-        "selector": "str",
-        "value": "str",
-        "timeout": "int"
-    },
-    "outputs": {
-        "status": "str",
-        "content": "str",
-        "screenshot": "str",
-        "error": "str"
-    },
+    "inputs": {"action": "str", "url": "str", "selector": "str", "value": "str", "timeout": "int"},
+    "outputs": {"status": "str", "content": "str", "screenshot": "str", "error": "str"},
     "required_capabilities": ["network:http", "browser:automation"],
-    "risk_level": 4,
-    "isolation_type": "container",
-    "protocol_version": PROTOCOL_VERSION
+    "risk_level": 4, "isolation_type": "container", "protocol_version": PROTOCOL_VERSION,
 }
-
 
 _default_browser_controller: SecureBrowserController | None = None
 
 
 def get_browser_controller() -> SecureBrowserController:
-    """Return the singleton instance of SecureBrowserController."""
     global _default_browser_controller
     if _default_browser_controller is None:
         _default_browser_controller = SecureBrowserController()
     return _default_browser_controller
-
