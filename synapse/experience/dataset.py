@@ -101,6 +101,16 @@ class DatasetSnapshotStore:
         path.write_text(json.dumps(snapshot.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
         return snapshot
 
+    def list(self) -> list[dict[str, Any]]:
+        """List persisted immutable snapshot manifests."""
+        snapshots: list[dict[str, Any]] = []
+        for path in sorted(self.root.glob("ds_*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+            try:
+                snapshots.append(json.loads(path.read_text(encoding="utf-8")))
+            except (OSError, ValueError):
+                continue
+        return snapshots
+
     def load(self, snapshot_id: str) -> DatasetSnapshot:
         path = self.root / f"{snapshot_id}.json"
         if not path.is_file():

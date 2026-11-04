@@ -150,6 +150,21 @@ class ExperienceStore:
         rows = db.execute(query, params).fetchall()
         return [ExperienceRecord.from_dict(json.loads(row[0])) for row in rows]
 
+    def get_records(self, experience_ids: list[str] | tuple[str, ...]) -> list[ExperienceRecord]:
+        """Return records by immutable ids, preserving the requested order."""
+        if not experience_ids:
+            return []
+        db = self._connect()
+        placeholders = ",".join("?" for _ in experience_ids)
+        rows = db.execute(
+            f"SELECT payload_json FROM experiences WHERE experience_id IN ({placeholders})",  # noqa: S608
+            list(experience_ids),
+        ).fetchall()
+        records = {record.experience_id: record for record in (
+            ExperienceRecord.from_dict(json.loads(row[0])) for row in rows
+        )}
+        return [records[record_id] for record_id in experience_ids if record_id in records]
+
     def count(self, *, verified_only: bool = False) -> int:
         db = self._connect()
         query = "SELECT COUNT(*) FROM experiences"

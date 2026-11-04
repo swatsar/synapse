@@ -58,7 +58,7 @@ def check_training_preflight(
     else:
         model_path = Path(base_model).expanduser()
         evidence["base_model"] = str(base_model)
-        if not model_path.exists() and not isinstance(base_model, str):
+        if not model_path.exists() or not model_path.is_dir():
             blockers.append("base_model_path_not_found")
 
     try:

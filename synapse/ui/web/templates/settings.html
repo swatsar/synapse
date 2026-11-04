@@ -77,5 +77,6 @@
 </section>
 <p class="muted">Базовые настройки runtime инициализируются из конфигурации сервиса и профилей развертывания.</p><p id="notice" role="status"></p>
 <section class="card"><h2>Текущий runtime</h2><pre id="settings">Загрузка…</pre></section>
-<section class="card"><h2>Резервные копии SQLite</h2><button id="create-backup" type="button">Создать резервную копию</button><div id="backups" class="muted">Загрузка…</div></section>
+<section class="card"><h2>Обучение LoRA / QLoRA</h2><p class="panel-description">Обучение запускается только на verified snapshot. Preflight показывает реальные блокеры; результат содержит loss, hashes и reload forward-pass.</p><div class="actions"><button id="create-snapshot" type="button">Создать verified snapshot</button><button id="training-preflight" type="button" class="secondary">Preflight</button><button id="run-training" type="button">Запустить LoRA step</button></div><pre id="training-status" class="muted">Ожидание…</pre></section>
+<section class="card"><h2>Open-weight модели</h2><p class="panel-description">Модель объявляется manifest’ом и скачивается с Hugging Face только по явному действию. Наличие каталога не означает, что веса скачаны или verified.</p><form id="model-declare-form"><label for="model-id">Model ID</label><input id="model-id" required value="Qwen/Qwen2.5-0.5B-Instruct"><label for="model-revision">Revision</label><input id="model-revision" value="main"><button type="submit">Добавить manifest</button></form><div id="models" class="muted">Загрузка…</div></section>
 </main></body></html>

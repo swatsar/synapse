@@ -20,7 +20,9 @@
 | Codex CLI | `codex-cli 0.166.0`, `codex exec --help` доступны | live read-only smoke: `returncode=0`, 17 events; safe policy блокировала shell branch check, output это отразил |
 | Claude Code CLI | `Claude Code 2.1.316` доступен | live read-only smoke: `returncode=0`, 4 events; safe mode, без edits/bash |
 | Credentials | env backend доступен; внешние LLM credentials не использовались | blocked для live provider smoke |
-| GPU/training | GPU и compatible open-weight model не проверялись | blocked |
+| GPU/training | RTX 3060 12 GiB, CUDA 12.6; Qwen/Qwen2.5-0.5B-Instruct скачана и локально загружается | подтверждено live smoke |
+| Training preflight | Установлены `torch==2.8.0+cu126`, `transformers==4.57.3`, `peft==0.17.1`, `trl==0.24.0`, `datasets==3.3.2`; preflight блокирует отсутствие verified snapshot/base model | подтверждено тестами |
+| Real LoRA training | Реальный 1-step LoRA: loss `6.091617584228516`, trainable `540672`, base hash `0d41648e…139a1e`, reload forward-pass=true; adapter сохранён в disposable smoke output | подтверждено live smoke; promotion/serving ещё не включены |
 | Training preflight | На Windows Python 3.12 отсутствуют `torch`, `transformers`, `peft`, `trl`, `datasets`; CUDA недоступна для текущего окружения; preflight блокирует обучение без verified snapshot/base model | подтверждено fail-closed тестами; training не запускался |
 | Full Windows suite | clean full-suite pass не получен | blocked/не подтверждено |
 
@@ -84,7 +86,7 @@ claude --help
 - единое подключение `InvocationService` ко всем HTTP/UI/slash/MCP/plugin/browser/patch paths;
 - verified-only dataset snapshots с immutable manifest/hash и независимой верификацией;
 - настоящий torch/transformers/peft/trl LoRA/QLoRA trainer и serving path;
-- независимые held-out eval, promotion gates и rollback registry;
+- independent held-out eval, promotion gates и rollback registry;
 - доказанный full Windows suite pass;
 - deployment smoke в Docker/production profile с реальными credentials.
 
