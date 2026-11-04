@@ -21,6 +21,7 @@
 | Claude Code CLI | `Claude Code 2.1.316` доступен | live read-only smoke: `returncode=0`, 4 events; safe mode, без edits/bash |
 | Credentials | env backend доступен; внешние LLM credentials не использовались | blocked для live provider smoke |
 | GPU/training | GPU и compatible open-weight model не проверялись | blocked |
+| Training preflight | На Windows Python 3.12 отсутствуют `torch`, `transformers`, `peft`, `trl`, `datasets`; CUDA недоступна для текущего окружения; preflight блокирует обучение без verified snapshot/base model | подтверждено fail-closed тестами; training не запускался |
 | Full Windows suite | clean full-suite pass не получен | blocked/не подтверждено |
 
 ## Локальный запуск
