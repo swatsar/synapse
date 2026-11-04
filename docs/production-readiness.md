@@ -15,6 +15,7 @@
 | Task/run ledger | SQLite WorkEngine с явными переходами, optimistic version/revision, lease recovery и event ledger | подтверждено unit-тестами |
 | HTTP task invocation | API task создаёт durable Task/Run, lease, проходит через `InvocationService`, сохраняет `invocation_receipt` и terminal state; approval без доступного container остаётся unavailable | подтверждено `tests/test_real_task_execution.py` |
 | Canonical experience evidence | `ExperienceRecord`/`ExperienceStore` сохраняет immutable-at-write hash, provenance и разделяет `execution_success` от независимого `verifier_passed`; HTTP task записи пока `inconclusive` до verifier | подтверждено unit-тестом; verified dataset ещё не включён |
+| Dataset snapshot boundary | `DatasetSnapshotStore` принимает только verified+eligible records, сохраняет manifest hash и disjoint train/dev/holdout split; пустой verified набор блокируется | подтверждено unit-тестом; trainer/serving ещё не включены |
 | Unified invocation boundary | `InvocationService` существует и проверяет auth/capabilities/approval/budget; интеграция всех execution paths ещё не завершена | частично подтверждено |
 | Codex CLI | `codex-cli 0.166.0`, `codex exec --help` доступны | live read-only smoke: `returncode=0`, 17 events; safe policy блокировала shell branch check, output это отразил |
 | Claude Code CLI | `Claude Code 2.1.316` доступен | live read-only smoke: `returncode=0`, 4 events; safe mode, без edits/bash |
