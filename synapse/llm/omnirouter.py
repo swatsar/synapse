@@ -21,6 +21,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 PROTOCOL_VERSION: str = "1.0"
@@ -115,7 +116,18 @@ class RouteDecision:
 
 # Canonical model catalog
 DEFAULT_MODEL_CATALOG: dict[str, ModelDescriptor] = {
-    # Anthropic Claude 5 Family
+    "local_qwen": ModelDescriptor(
+        id="local_qwen",
+        provider="local_transformers",
+        display_name="Local Qwen (downloaded model)",
+        tier=ModelTier.LOCAL,
+        cost_tier=CostTier.FREE,
+        context_window=32_768,
+        max_output=2_048,
+        strengths=("local_privacy", "offline", "agent_executor"),
+        capabilities={"tool_calling": False, "computer_use": False, "vision": False, "reasoning": True, "streaming": False},
+        is_local=True,
+    ),
     "claude-opus-5-5": ModelDescriptor(
         id="claude-opus-5-5",
         provider="anthropic",
@@ -339,6 +351,7 @@ class OmniRouter:
         self._availability: dict[str, bool] = {}
         self._profiles: dict[str, Any] = {}
         self._ollama_models: set[str] = set()
+        self._local_model_providers: dict[str, Any] = {}
         self._circuit_breakers: dict[str, Any] = {}
         self._stats = {
             "routed_total": 0,
@@ -420,31 +433,68 @@ class OmniRouter:
                     strengths=("configured_provider",), capabilities={"streaming": True},
                     is_local=profile.api_mode.value == "ollama",
                 )
+        try:
+            from synapse.models import get_model_registry
+            for manifest in get_model_registry().list():
+                if manifest.status != "downloaded" or not manifest.local_path or not Path(manifest.local_path).is_dir():
+                    continue
+                self.catalog[manifest.model_id] = ModelDescriptor(
+                    id=manifest.model_id,
+                    provider="local_transformers",
+                    display_name=f"Local {manifest.model_id}",
+                    tier=ModelTier.LOCAL,
+                    cost_tier=CostTier.FREE,
+                    context_window=32_768,
+                    max_output=2_048,
+                    strengths=("local_privacy", "offline", "agent_executor"),
+                    capabilities={"reasoning": True, "streaming": False},
+                    is_local=True,
+                )
+        except Exception as exc:
+            logger.debug("local model registry refresh failed: %s", exc)
 
     async def route_async(self, task_description: str,
                           requirements: Optional[dict[str, Any]] = None) -> RouteDecision:
         await self.refresh_providers()
-        decision = self.route(task_description, requirements)
-        if decision.provider == "ollama" and self._ollama_models:
-            # A configured name is not evidence that a local model is installed.
-            preferred = [decision.model] + [c["model"] for c in decision.fallback_chain
-                                            if c.get("provider") == "ollama"]
-            installed = sorted(self._ollama_models)
-            selected = next((name for want in preferred for name in installed
-                             if name == want or name.split(":", 1)[0] == want), installed[0])
-            desc = self.catalog.get(decision.model)
-            if desc is not None:
-                self.catalog[selected] = ModelDescriptor(
-                    id=selected, provider="ollama", display_name=f"{selected} (Local)",
-                    tier=desc.tier, cost_tier=desc.cost_tier,
-                    context_window=desc.context_window, max_output=desc.max_output,
-                    strengths=desc.strengths, capabilities=desc.capabilities, is_local=True,
+        requirements = requirements or {}
+        explicit_model = requirements.get("model")
+        local_only = bool(requirements.get("local_only") or requirements.get("privacy"))
+        if explicit_model:
+            manifest = None
+            try:
+                from synapse.models import get_model_registry
+                manifest = get_model_registry().get(explicit_model)
+            except Exception:
+                manifest = None
+            if manifest is not None and manifest.status == "downloaded" and manifest.local_path:
+                self.catalog.setdefault(
+                    explicit_model,
+                    ModelDescriptor(
+                        id=explicit_model,
+                        provider="local_transformers",
+                        display_name=f"Local {explicit_model}",
+                        tier=ModelTier.LOCAL,
+                        cost_tier=CostTier.FREE,
+                        context_window=32_768,
+                        max_output=2_048,
+                        strengths=("local_privacy", "offline", "agent_executor"),
+                        capabilities={"reasoning": True, "streaming": False},
+                        is_local=True,
+                    ),
                 )
-            decision.model = selected
-            decision.provider_available = True
-            decision.fallback_chain = [
-                {"provider": "ollama", "model": name} for name in installed if name != selected
-            ]
+        if local_only and explicit_model and explicit_model in self.catalog:
+            decision = self.route(task_description, {**requirements, "model": explicit_model})
+            decision.fallback_chain = []
+            decision.provider_available = self._candidate_ready(
+                decision.provider, decision.model, requirements, check_availability=True
+            )
+            return decision
+        decision = self.route(task_description, requirements)
+        if local_only:
+            # Preserve the established Ollama default for generic local-only routing.
+            # A downloaded Transformers model participates only when explicitly selected
+            # by model id, preventing a new local artifact from silently changing policy.
+            return decision
         return decision
 
     # ------------------------------------------------------------------
@@ -735,18 +785,33 @@ class OmniRouter:
 
             candidate_start = time.monotonic()
             try:
-                from synapse.llm.provider import LiteLLMProvider
+                if cand_provider == "local_transformers":
+                    provider_instance = self._local_model_providers.get(cand_model)
+                    if provider_instance is None:
+                        from synapse.models import get_model_registry
+                        from synapse.llm.local_model import LocalTransformersProvider
+                        manifest = get_model_registry().get(cand_model)
+                        if manifest is None or manifest.status != "downloaded" or not manifest.local_path:
+                            raise RuntimeError("local model manifest is not downloaded")
+                        provider_instance = LocalTransformersProvider(manifest.local_path)
+                        self._local_model_providers[cand_model] = provider_instance
+                    response = await asyncio.wait_for(
+                        provider_instance.generate(effective_prompt, **kwargs),
+                        timeout=self.request_timeout,
+                    )
+                else:
+                    from synapse.llm.provider import LiteLLMProvider
 
-                model, api_base, api_key = await self._execution_config(
-                    cand_provider, cand_model,
-                )
-                provider_instance = LiteLLMProvider(
-                    name=cand_provider, model=model, api_base=api_base, api_key=api_key,
-                )
-                response = await asyncio.wait_for(
-                    provider_instance.generate(effective_prompt, **kwargs),
-                    timeout=self.request_timeout,
-                )
+                    model, api_base, api_key = await self._execution_config(
+                        cand_provider, cand_model,
+                    )
+                    provider_instance = LiteLLMProvider(
+                        name=cand_provider, model=model, api_base=api_base, api_key=api_key,
+                    )
+                    response = await asyncio.wait_for(
+                        provider_instance.generate(effective_prompt, **kwargs),
+                        timeout=self.request_timeout,
+                    )
                 cb.record_success()
                 duration = round(time.monotonic() - candidate_start, 3)
                 return {
@@ -790,12 +855,17 @@ class OmniRouter:
         descriptor = self.catalog.get(model)
         if descriptor is None or descriptor.provider != provider:
             return False
-        if check_availability and not self.is_provider_available(provider):
-            return False
-        if requirements.get("local_only") and not descriptor.is_local:
-            return False
-        for capability, required in (requirements.get("capabilities") or {}).items():
-            if required and not descriptor.capabilities.get(capability, False):
+        if check_availability and provider == "local_transformers":
+            try:
+                from synapse.models import get_model_registry
+                manifest = get_model_registry().get(model)
+                return bool(
+                    manifest
+                    and manifest.status == "downloaded"
+                    and manifest.local_path
+                    and Path(manifest.local_path).is_dir()
+                )
+            except Exception:
                 return False
         if check_availability and provider == "ollama" and self._ollama_models and not any(
             model == name or model == name.split(":", 1)[0] for name in self._ollama_models
@@ -805,6 +875,8 @@ class OmniRouter:
 
     async def _execution_config(self, provider: str, model: str) -> tuple[str, str | None, str | None]:
         profile = self._profiles.get(provider)
+        if provider == "local_transformers":
+            return model, None, None
         if provider == "ollama":
             return (model if model.startswith("ollama/") else f"ollama/{model}",
                     os.getenv("OLLAMA_API_BASE", "http://localhost:11434"), None)

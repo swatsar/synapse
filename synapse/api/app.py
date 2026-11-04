@@ -228,7 +228,7 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
     if router is None:
         from synapse.llm.omnirouter import get_omnirouter
         router = get_omnirouter()
-    route_decision = router.route(task["task"], task.get("payload"))
+    route_decision = await router.route_async(task["task"], task.get("payload"))
     store.add_event(task["session_id"], task_id, "router", route_decision.to_dict())
 
     async def progress(step: str, data: dict[str, Any]) -> None:
