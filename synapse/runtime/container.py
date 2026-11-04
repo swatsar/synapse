@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Set
 
 from synapse.api.invocation_service import InvocationService, get_invocation_service
+from synapse.experience import ExperienceStore
 from synapse.api.workspace_store import WorkspaceStore, default_workspace_store
 from synapse.harnesses.hallmark import HallmarkHarness, get_hallmark_harness
 from synapse.integrations.browser_controller import SecureBrowserController, get_browser_controller
@@ -116,6 +117,7 @@ class RuntimeContainer:
         self.worker_backend = worker_backend or IsolatedWorkerBackend()
         work_db = self.workspace_root / ".synapse" / "work.sqlite3"
         self.work_engine = work_engine or WorkEngine(work_db)
+        self.experience_store = ExperienceStore(self.workspace_root / ".synapse" / "experience.sqlite3")
 
         # Lifecycle State
         self._is_started = False
@@ -205,6 +207,11 @@ class RuntimeContainer:
                 await self.work_engine.close()
             except Exception as e:
                 logger.error("Error closing work engine: %s", e)
+        if self.experience_store:
+            try:
+                self.experience_store.close()
+            except Exception as e:
+                logger.error("Error closing experience store: %s", e)
 
         self._is_started = False
         logger.info("Synapse RuntimeContainer stopped")

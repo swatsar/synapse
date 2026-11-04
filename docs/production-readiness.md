@@ -14,6 +14,7 @@
 | Provider transport | OpenAI-compatible и Ollama adapters; unsupported modes fail closed | подтверждено тестами |
 | Task/run ledger | SQLite WorkEngine с явными переходами, optimistic version/revision, lease recovery и event ledger | подтверждено unit-тестами |
 | HTTP task invocation | API task создаёт durable Task/Run, lease, проходит через `InvocationService`, сохраняет `invocation_receipt` и terminal state; approval без доступного container остаётся unavailable | подтверждено `tests/test_real_task_execution.py` |
+| Canonical experience evidence | `ExperienceRecord`/`ExperienceStore` сохраняет immutable-at-write hash, provenance и разделяет `execution_success` от независимого `verifier_passed`; HTTP task записи пока `inconclusive` до verifier | подтверждено unit-тестом; verified dataset ещё не включён |
 | Unified invocation boundary | `InvocationService` существует и проверяет auth/capabilities/approval/budget; интеграция всех execution paths ещё не завершена | частично подтверждено |
 | Codex CLI | `codex-cli 0.166.0`, `codex exec --help` доступны | live read-only smoke: `returncode=0`, 17 events; safe policy блокировала shell branch check, output это отразил |
 | Claude Code CLI | `Claude Code 2.1.316` доступен | live read-only smoke: `returncode=0`, 4 events; safe mode, без edits/bash |
@@ -79,7 +80,7 @@ claude --help
 
 - production-safe Codex/Claude executor adapters с полным JSONL event contract, cancel/resume и receipt;
 - единое подключение `InvocationService` ко всем HTTP/UI/slash/MCP/plugin/browser/patch paths;
-- canonical `ExperienceStore` и verified-only dataset snapshots;
+- verified-only dataset snapshots с immutable manifest/hash и независимой верификацией;
 - настоящий torch/transformers/peft/trl LoRA/QLoRA trainer и serving path;
 - независимые held-out eval, promotion gates и rollback registry;
 - доказанный full Windows suite pass;

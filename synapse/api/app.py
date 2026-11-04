@@ -295,6 +295,26 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
             error=outcome.get("error"), result=result, completed_at=utc_now(),
             duration_ms=round((time.monotonic() - started) * 1000),
         )
+        if container is not None and getattr(container, "experience_store", None) is not None:
+            from synapse.experience import ExperienceRecord
+            receipt = result.get("invocation_receipt", {}) if isinstance(result, dict) else {}
+            container.experience_store.append(ExperienceRecord(
+                task_id=task_id,
+                run_id=receipt.get("run_id", durable_run.id if durable_run else task_id),
+                session_id=task["session_id"],
+                objective=task["task"],
+                inputs=task.get("payload") or {},
+                executor="orchestrator.handle",
+                provider=(route_decision.to_dict().get("provider") if route_decision else None),
+                model=(route_decision.to_dict().get("model") if route_decision else None),
+                execution_success=bool(outcome.get("success", False)),
+                verifier_passed=None,
+                verifier_status="inconclusive",
+                eligibility="ineligible",
+                error=outcome.get("error"),
+                latency_ms=record.get("duration_ms"),
+                provenance={"source": "http_task", "invocation_receipt": receipt},
+            ))
         if status == "approval_required":
             risk_level = (result or {}).get("plan", {}).get("risk_level", 3)
             approval = store.create_approval(record, risk_level)
