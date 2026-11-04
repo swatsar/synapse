@@ -36,6 +36,7 @@ from synapse.security.capability_manager import CapabilityManager
 from synapse.security.execution_guard import ExecutionGuard
 from synapse.skills.dynamic.registry import SkillRegistry
 from synapse.skills.library import SkillLibrary, get_skill_library
+from synapse.work.engine import WorkEngine
 
 PROTOCOL_VERSION: str = "1.0"
 logger = logging.getLogger("synapse.runtime.container")
@@ -81,13 +82,16 @@ class RuntimeContainer:
         codex_engine: Optional[CodexEngine] = None,
         browser_controller: Optional[SecureBrowserController] = None,
         worker_backend: Optional[IsolatedWorkerBackend] = None,
+        work_engine: Optional[WorkEngine] = None,
     ):
         self.workspace_root = Path(workspace_root or os.getenv("SYNAPSE_WORKSPACE_ROOT", os.getcwd())).resolve()
 
         # Core Security & Governance
         self.capability_manager = capability_manager or CapabilityManager()
         self.execution_guard = execution_guard or ExecutionGuard(capability_manager=self.capability_manager)
-        self.invocation_service = invocation_service or get_invocation_service()
+        self.invocation_service = invocation_service or InvocationService(
+            capability_manager=self.capability_manager
+        )
 
         # LLM, Credentials & Routing
         self.credential_store = credential_store or default_credential_store()
@@ -110,6 +114,8 @@ class RuntimeContainer:
         self.codex_engine = codex_engine or get_codex_engine(self.workspace_root)
         self.browser_controller = browser_controller or get_browser_controller()
         self.worker_backend = worker_backend or IsolatedWorkerBackend()
+        work_db = self.workspace_root / ".synapse" / "work.sqlite3"
+        self.work_engine = work_engine or WorkEngine(work_db)
 
         # Lifecycle State
         self._is_started = False
@@ -193,6 +199,12 @@ class RuntimeContainer:
                 self.workspace_store.close()
             except Exception as e:
                 logger.error("Error closing workspace store: %s", e)
+
+        if self.work_engine:
+            try:
+                await self.work_engine.close()
+            except Exception as e:
+                logger.error("Error closing work engine: %s", e)
 
         self._is_started = False
         logger.info("Synapse RuntimeContainer stopped")

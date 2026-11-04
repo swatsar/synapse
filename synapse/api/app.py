@@ -202,6 +202,24 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Task runtime is not initialized")
     started = time.monotonic()
+    container = getattr(application.state, "container", None)
+    invocation = getattr(container, "invocation_service", None)
+    work_engine = getattr(container, "work_engine", None)
+    durable_task = None
+    lease = None
+    durable_run = None
+    if work_engine is not None:
+        from synapse.work import Run, Task, WorkStatus
+        durable_task = await work_engine.create_task(
+            Task(id=task_id, title=task["task"], description=task["task"])
+        )
+        durable_run = await work_engine.create_run(Run(task_id=task_id))
+        lease = await work_engine.checkout(task_id, "api-worker")
+        if lease is None:
+            raise RuntimeError("Task could not acquire a durable execution lease")
+        await work_engine.transition_task(task_id, WorkStatus.RUNNING)
+        await work_engine.transition_run(durable_run.id, WorkStatus.RUNNING)
+
     store.update_task(task_id, status="running", started_at=utc_now())
     store.add_event(task["session_id"], task_id, "task", {"status": "running"})
 
@@ -226,7 +244,50 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
         # This private field is added only after the persisted approval decision.
         request["_approval_granted"] = True
     try:
-        outcome = await orchestrator.handle(request)
+        async def invoke_orchestrator(**params: Any) -> dict[str, Any]:
+            return await orchestrator.handle(params["request"])
+
+        if invocation is not None:
+            from synapse.api.invocation_service import InvocationContext
+            invocation_result = await invocation.invoke(
+                action_type="task",
+                action_name="orchestrator.handle",
+                handler=invoke_orchestrator,
+                context=InvocationContext(
+                    identity="api",
+                    session_id=task["session_id"],
+                    run_id=durable_run.id if durable_run else task_id,
+                    workspace_root=Path(getattr(container, "workspace_root", Path.cwd())),
+                    capabilities=["fs:read", "llm:route"],
+                    approval_granted=bool(task.get("approval_id")),
+                    is_network_request=True,
+                    auth_authenticated=True,
+                ),
+                required_capabilities=["fs:read"],
+                risk_level=1,
+                params={"request": request},
+            )
+            outcome = invocation_result.result or {"success": False, "error": invocation_result.error}
+            if isinstance(outcome.get("result"), dict):
+                outcome["result"]["invocation_receipt"] = invocation_result.receipt
+            else:
+                outcome["invocation_receipt"] = invocation_result.receipt
+            if not invocation_result.success and not outcome.get("error"):
+                outcome["error"] = invocation_result.error
+        else:
+            outcome = await orchestrator.handle(request)
+        status = outcome.get("status", "failed")
+        if work_engine is not None and durable_run is not None:
+            from synapse.work import WorkStatus
+            if status == "approval_required":
+                await work_engine.transition_run(durable_run.id, WorkStatus.WAITING_APPROVAL)
+                if lease is not None:
+                    await work_engine.release(lease, WorkStatus.WAITING_APPROVAL)
+            else:
+                final_status = WorkStatus.COMPLETED if bool(outcome.get("success", False)) else WorkStatus.FAILED
+                await work_engine.transition_run(durable_run.id, final_status)
+                if lease is not None:
+                    await work_engine.release(lease, final_status)
         status = outcome.get("status", "failed")
         result = outcome.get("result", outcome)
         record = store.update_task(
@@ -251,6 +312,23 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
         })
         return record
     except Exception as exc:
+        if work_engine is not None and durable_run is not None:
+            from synapse.work import WorkStatus
+            try:
+                await work_engine.transition_run(durable_run.id, WorkStatus.FAILED)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Failed to persist durable run failure", extra={"run_id": durable_run.id}
+                )
+            if lease is not None:
+                try:
+                    await work_engine.release(lease, WorkStatus.FAILED)
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).exception(
+                        "Failed to release durable task lease", extra={"task_id": task_id}
+                    )
         record = store.update_task(
             task_id, status="failed", success=False, error=str(exc),
             completed_at=utc_now(), duration_ms=round((time.monotonic() - started) * 1000),

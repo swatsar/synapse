@@ -13,6 +13,7 @@
 | Dynamic skills | Stage A acceptance: AST manifest без импорта в control-plane, capabilities и subprocess worker | подтверждено тестами |
 | Provider transport | OpenAI-compatible и Ollama adapters; unsupported modes fail closed | подтверждено тестами |
 | Task/run ledger | SQLite WorkEngine с явными переходами, optimistic version/revision, lease recovery и event ledger | подтверждено unit-тестами |
+| HTTP task invocation | API task создаёт durable Task/Run, lease, проходит через `InvocationService`, сохраняет `invocation_receipt` и terminal state; approval без доступного container остаётся unavailable | подтверждено `tests/test_real_task_execution.py` |
 | Unified invocation boundary | `InvocationService` существует и проверяет auth/capabilities/approval/budget; интеграция всех execution paths ещё не завершена | частично подтверждено |
 | Codex CLI | `codex-cli 0.166.0`, `codex exec --help` доступны | live read-only smoke: `returncode=0`, 17 events; safe policy блокировала shell branch check, output это отразил |
 | Claude Code CLI | `Claude Code 2.1.316` доступен | live read-only smoke: `returncode=0`, 4 events; safe mode, без edits/bash |

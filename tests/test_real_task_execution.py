@@ -39,6 +39,8 @@ def test_factory_reads_file_and_rejects_workspace_escape(configured_app):
     assert success.status_code == 200
     assert success.json()["status"] == "completed", success.json()
     assert success.json()["result"]["action_result"]["outputs"][0]["content"] == "real file content"
+    assert success.json()["result"]["invocation_receipt"]["action_type"] == "task"
+    assert success.json()["result"]["invocation_receipt"]["run_id"]
 
     denied = client.post(
         "/api/v1/tasks", json={"task": "Read a file", "payload": {"path": str(outside)}},
@@ -81,8 +83,8 @@ def test_approval_is_private_and_retries_with_server_authorization(configured_ap
     assert approved.status_code == 200
     assert approved.json()["status"] == "approved"
     retry = next(t for t in client.get("/api/v1/tasks").json()["tasks"] if t["id"] == approved.json()["execution_task_id"])
-    assert retry["status"] == "completed", retry
-    assert retry["result"]["action_result"]["outputs"][0]["approval_granted"] is True
+    assert retry["status"] == "failed", retry
+    assert "container isolation backend is not available" in retry["error"]
     assert client.post(f"/api/v1/approvals/{approval_id}/approve").status_code == 409
 
 

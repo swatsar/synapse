@@ -39,8 +39,8 @@ TERMINAL_STATUSES = frozenset({
 
 # State transitions are intentionally explicit. Any missing edge is rejected.
 ALLOWED_TRANSITIONS: dict[WorkStatus, frozenset[WorkStatus]] = {
-    WorkStatus.QUEUED: frozenset({WorkStatus.LEASED, WorkStatus.REJECTED, WorkStatus.CANCELLED}),
-    WorkStatus.LEASED: frozenset({WorkStatus.RUNNING, WorkStatus.QUEUED, WorkStatus.CANCELLED, WorkStatus.TIMED_OUT}),
+    WorkStatus.QUEUED: frozenset({WorkStatus.LEASED, WorkStatus.RUNNING, WorkStatus.REJECTED, WorkStatus.CANCELLED}),
+    WorkStatus.LEASED: frozenset({WorkStatus.RUNNING, WorkStatus.QUEUED, WorkStatus.WAITING_APPROVAL, WorkStatus.CANCELLED, WorkStatus.TIMED_OUT}),
     WorkStatus.RUNNING: frozenset({WorkStatus.WAITING, WorkStatus.WAITING_APPROVAL, WorkStatus.COMPLETED, WorkStatus.FAILED, WorkStatus.CANCELLING, WorkStatus.TIMED_OUT}),
     WorkStatus.WAITING: frozenset({WorkStatus.RUNNING, WorkStatus.CANCELLED, WorkStatus.TIMED_OUT}),
     WorkStatus.WAITING_APPROVAL: frozenset({WorkStatus.RUNNING, WorkStatus.REJECTED, WorkStatus.CANCELLED}),
