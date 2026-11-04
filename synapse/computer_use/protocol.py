@@ -2,6 +2,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 from synapse.browser.protocol import CapabilityGuard
+
+PROTOCOL_VERSION: str = "1.0"
 class ComputerUseBackend(ABC):
  @abstractmethod
  async def screen_read(self)->dict[str,Any]: ...

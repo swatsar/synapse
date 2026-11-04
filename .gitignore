@@ -11,6 +11,7 @@ __pycache__/
 .pytest_cache/
 .pytest-*/
 .pytest_tmp/
+.pytest_temp/
 .mypy_cache/
 .coverage
 htmlcov/
@@ -20,6 +21,7 @@ htmlcov/
 # Build artifacts
 build/
 dist/
+node_modules/
 *.egg-info/
 
 # Misc artifacts

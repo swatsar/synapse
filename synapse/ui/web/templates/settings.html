@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synapse — настройки</title><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script><script src="/static/settings.js" defer></script></head>
 <body><main class="container"><header><h1>Настройки</h1><nav><a href="/">Задачи</a><a href="/providers.html">Провайдеры</a><a href="/agents.html">Компоненты</a><a class="active" href="/settings.html">Настройки</a></nav></header>
-<section class="card"><h2>Подключение</h2><form id="api-key-form"><label for="api-key">API-ключ</label><div class="actions"><input id="api-key" type="password" autocomplete="off"><button type="submit">Применить</button></div></form></section>
+<section class="card" id="api-auth-card" hidden><h2>Защита HTTP API</h2><p id="api-auth-help" class="panel-description"></p><form id="api-key-form"><label for="api-key">SYNAPSE_API_KEY</label><div class="actions"><input id="api-key" type="password" autocomplete="off"><button type="submit">Сохранить в этой вкладке</button></div></form></section>
 <section class="card">
   <h2>Тонкие настройки OmniRouter & Провайдеров</h2>
   <p class="panel-description">Маршрутизация запросов между моделями (Claude 5, OpenAI, Ollama), бюджет задержки и стоимости.</p>
@@ -76,6 +76,7 @@
   </div>
 </section>
 <p class="muted">Базовые настройки runtime инициализируются из конфигурации сервиса и профилей развертывания.</p><p id="notice" role="status"></p>
-<section class="card"><h2>Текущий runtime</h2><pre id="settings">Загрузка…</pre></section>
-<section class="card"><h2>Резервные копии SQLite</h2><button id="create-backup" type="button">Создать резервную копию</button><div id="backups" class="muted">Загрузка…</div></section>
+<section class="card"><h2>Репликация агента</h2><p class="panel-description">Bundle переносит память, задачи, verified experience/datasets, model registry, adapters, trajectories, skills и plugins. Секреты не экспортируются. Это portable snapshot, а не автоматическая peer-синхронизация.</p><div class="actions"><button id="replica-export" type="button">Экспортировать snapshot</button><button id="replica-refresh" type="button" class="secondary">Обновить список</button></div><pre id="replica-status" class="muted">Загрузка…</pre></section>
+<section class="card"><h2>Обучение LoRA / QLoRA</h2><p class="panel-description">Обучение запускается только на verified snapshot. Preflight показывает реальные блокеры; результат содержит loss, hashes и reload forward-pass.</p><div class="actions"><button id="create-snapshot" type="button">Создать verified snapshot</button><button id="training-preflight" type="button" class="secondary">Preflight</button><button id="run-training" type="button">Запустить LoRA step</button></div><pre id="training-status" class="muted">Ожидание…</pre></section>
+<section class="card"><h2>Open-weight модели</h2><p class="panel-description">Модель объявляется manifest’ом и скачивается с Hugging Face только по явному действию. Наличие каталога не означает, что веса скачаны или verified.</p><form id="model-declare-form"><label for="model-id">Model ID</label><input id="model-id" required value="Qwen/Qwen2.5-0.5B-Instruct"><label for="model-revision">Revision</label><input id="model-revision" value="main"><button type="submit">Добавить manifest</button></form><div id="models" class="muted">Загрузка…</div></section>
 </main></body></html>

@@ -78,10 +78,21 @@ class ComposableSkill:
         else:
             res = self.handler(**kwargs)
 
+        success = True
+        error_msg = None
+        if isinstance(res, dict):
+            if res.get("success") is False:
+                success = False
+                error_msg = res.get("error")
+            elif res.get("status") in {"failed", "blocked", "timeout"}:
+                success = False
+                error_msg = res.get("error") or f"Action status: {res.get('status')}"
+
         return {
             "skill_id": self.id,
             "result": res,
-            "success": True,
+            "success": success,
+            "error": error_msg,
             "protocol_version": self.protocol_version,
         }
 
@@ -204,7 +215,7 @@ class SkillLibrary:
         # 5. Browser Navigation Skill
         async def _browser_nav(url: str = "https://example.com") -> dict[str, Any]:
             from synapse.integrations.browser_controller import get_browser_controller
-            res = await get_browser_controller().execute("navigate", {"url": url})
+            res = await get_browser_controller().execute("navigate", url=url)
             return res.to_dict()
 
         self.register(
@@ -213,7 +224,7 @@ class SkillLibrary:
                 name="Browser Navigation",
                 description="Securely navigate and inspect approved web domains with screenshot feedback.",
                 parameters=[
-                    SkillParameter(name="url", type_name="string", description="Web address to navigate to", required=True, default="https://example.com"),
+                    SkillParameter(name="url", type_name="string", description="Web address to navigate to", required=False, default="https://example.com"),
                 ],
                 required_capabilities=["browser:navigate"],
                 risk_level=3,
@@ -267,9 +278,11 @@ class SkillLibrary:
 
         # 8. SFT Dataset Export Skill
         def _sft_export_skill(format: str = "chatml") -> dict[str, Any]:
+            if format not in {"chatml", "alpaca"}:
+                raise ValueError("Dataset format must be 'chatml' or 'alpaca'")
             from synapse.harnesses.trajectory import get_trajectory_harness
             samples = get_trajectory_harness().export_sft_dataset(format=format)
-            return {"count": len(samples), "format": format, "samples": samples[:5]}
+            return {"count": len(samples), "format": format, "preview": samples[:5]}
 
         self.register(
             ComposableSkill(

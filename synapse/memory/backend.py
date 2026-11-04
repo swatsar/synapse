@@ -3,6 +3,8 @@ from __future__ import annotations
 import json, uuid
 from synapse.memory.protocol import MemoryBackend, MemoryHit, MemoryKind, MemoryRecord, MemoryScope
 from synapse.memory.store import MemoryStore
+
+PROTOCOL_VERSION: str = "1.0"
 class SynapseNativeMemory(MemoryBackend):
     def __init__(self, store:MemoryStore|None=None): self.store=store or MemoryStore()
     async def retain(self, record:MemoryRecord)->MemoryRecord:

@@ -11,6 +11,7 @@ Specification: 3.4.1
 
 from __future__ import annotations
 
+import json
 import logging
 import shlex
 from dataclasses import dataclass, field
@@ -186,7 +187,7 @@ class SlashCommandEngine:
             )
         )
 
-        # /skills [list | run <id>]
+        # /skills [list | run <id> [params_json]]
         async def _skills_handler(*args) -> dict[str, Any]:
             from synapse.skills.library import get_skill_library
             lib = get_skill_library()
@@ -197,14 +198,29 @@ class SlashCommandEngine:
                 skill = lib.get(skill_id)
                 if not skill:
                     return {"error": f"Skill '{skill_id}' not found."}
-                return await skill.execute({})
-            return {"error": "Usage: /skills [list | run <skill_id>]"}
+                try:
+                    raw_params = " ".join(args[2:]).strip() if len(args) > 2 else ""
+                    if (raw_params.startswith("'") and raw_params.endswith("'")) or (
+                        raw_params.startswith('"') and raw_params.endswith('"')
+                    ):
+                        inner = raw_params[1:-1].strip()
+                        if (inner.startswith("{") and inner.endswith("}")) or (
+                            inner.startswith("[") and inner.endswith("]")
+                        ):
+                            raw_params = inner
+                    params = json.loads(raw_params) if raw_params else {}
+                except json.JSONDecodeError as exc:
+                    return {"error": f"Invalid skill parameters JSON: {exc.msg} at column {exc.colno}."}
+                if not isinstance(params, dict):
+                    return {"error": "Skill parameters must be a JSON object."}
+                return await skill.execute(params)
+            return {"error": "Usage: /skills [list | run <skill_id> [params_json]]"}
 
         self.register(
             SlashCommandDef(
                 name="skills",
                 description="Explore composable skills catalog or invoke a skill.",
-                usage="/skills [list | run <skill_id>]",
+                usage="/skills [list | run <skill_id> [params_json]]",
                 handler=_skills_handler,
                 category="skills",
             )
@@ -217,6 +233,8 @@ class SlashCommandEngine:
             if not args:
                 return {"status": "ready", "workspace_root": str(engine.workspace_root)}
             target = (engine.workspace_root / args[0]).resolve()
+            if not target.is_relative_to(engine.workspace_root):
+                return {"error": "File path escapes workspace root."}
             return {"file": args[0], "exists": target.exists(), "size_bytes": target.stat().st_size if target.exists() else 0}
 
         self.register(
@@ -236,6 +254,8 @@ class SlashCommandEngine:
                 return {"error": "Usage: /ast <python_file_path>"}
             engine = get_codex_engine()
             target = (engine.workspace_root / args[0]).resolve()
+            if not target.is_relative_to(engine.workspace_root):
+                return {"error": "File path escapes workspace root."}
             if not target.exists():
                 return {"error": f"File {args[0]} not found."}
             code = target.read_text(encoding="utf-8")
@@ -346,7 +366,21 @@ class SlashCommandEngine:
         if not clean.startswith("/"):
             raise ValueError(f"Not a valid slash command: {text}")
 
-        parts = shlex.split(clean)
+        try:
+            # Keep JSON string quoting intact for /skills run. Other commands
+            # retain the familiar shell-style parsing of quoted arguments.
+            if clean.lower().startswith("/skills "):
+                parts = shlex.split(clean, posix=False)
+                if len(parts) > 3:
+                    parts[3:] = [clean.split(None, 3)[3]]
+            else:
+                parts = shlex.split(clean)
+        except ValueError as exc:
+            return SlashCommandResult(command="", args=[], success=False,
+                                      output=f"Invalid command syntax: {exc}")
+        if not parts or not parts[0][1:]:
+            return SlashCommandResult(command="", args=[], success=False,
+                                      output="Command name is required. Type /help for available commands.")
         cmd_name = parts[0][1:].lower()
         args = parts[1:]
 
@@ -365,10 +399,13 @@ class SlashCommandEngine:
                 res = await cmd_def.handler(*args)
             else:
                 res = cmd_def.handler(*args)
+            success = True
+            if isinstance(res, dict):
+                success = res.get("success") is not False and res.get("status") not in {"failed", "blocked", "timeout"}
             return SlashCommandResult(
                 command=cmd_name,
                 args=args,
-                success=True,
+                success=success,
                 output=res,
             )
         except Exception as e:

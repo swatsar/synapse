@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -69,6 +69,11 @@ def _session(application: FastAPI, session_id: str) -> dict[str, Any]:
 async def lifespan(application: FastAPI):
     """Own runtime resources and await outstanding work during graceful shutdown."""
     from synapse.core.orchestrator import build_orchestrator
+    from synapse.runtime.container import get_runtime_container
+
+    container = get_runtime_container()
+    application.state.container = container
+    await container.start()
 
     # A new application lifespan starts a fresh rate-limit window. In-flight
     # limits stay unchanged; this prevents separate embedded runs sharing state.
@@ -82,10 +87,10 @@ async def lifespan(application: FastAPI):
             workspace_root=os.getenv("SYNAPSE_WORKSPACE_ROOT") or None,
         )
         application.state.checkpoint_manager = application.state.orchestrator.checkpoint_manager
+        container.orchestrator = application.state.orchestrator
     if owns_store:
-        application.state.workspace_store = default_workspace_store()
-    from synapse.llm.omnirouter import get_omnirouter
-    application.state.omnirouter = get_omnirouter()
+        application.state.workspace_store = container.workspace_store
+    application.state.omnirouter = container.omnirouter
     jobs: set[asyncio.Task] = set()
     application.state.background_jobs = jobs
     try:
@@ -100,6 +105,7 @@ async def lifespan(application: FastAPI):
         if owns_store:
             application.state.workspace_store.close()
             application.state.workspace_store = None
+        await container.stop()
 
 
 app = FastAPI(title="Synapse Agent Platform", version="3.4.1", lifespan=lifespan)
@@ -178,7 +184,11 @@ def _schedule(application: FastAPI, task_id: str) -> None:
     jobs = getattr(application.state, "background_jobs", None)
     if jobs is None:
         raise HTTPException(status_code=503, detail="Background runtime is not initialized")
-    job = asyncio.create_task(_execute_task(application, task_id), name=f"synapse:{task_id}")
+    container = getattr(application.state, "container", None)
+    if container is not None:
+        job = container.register_background_task(_execute_task(application, task_id))
+    else:
+        job = asyncio.create_task(_execute_task(application, task_id), name=f"synapse:{task_id}")
     jobs.add(job)
     job.add_done_callback(jobs.discard)
 
@@ -192,6 +202,24 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Task runtime is not initialized")
     started = time.monotonic()
+    container = getattr(application.state, "container", None)
+    invocation = getattr(container, "invocation_service", None)
+    work_engine = getattr(container, "work_engine", None)
+    durable_task = None
+    lease = None
+    durable_run = None
+    if work_engine is not None:
+        from synapse.work import Run, Task, WorkStatus
+        durable_task = await work_engine.create_task(
+            Task(id=task_id, title=task["task"], description=task["task"])
+        )
+        durable_run = await work_engine.create_run(Run(task_id=task_id))
+        lease = await work_engine.checkout(task_id, "api-worker")
+        if lease is None:
+            raise RuntimeError("Task could not acquire a durable execution lease")
+        await work_engine.transition_task(task_id, WorkStatus.RUNNING)
+        await work_engine.transition_run(durable_run.id, WorkStatus.RUNNING)
+
     store.update_task(task_id, status="running", started_at=utc_now())
     store.add_event(task["session_id"], task_id, "task", {"status": "running"})
 
@@ -200,7 +228,7 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
     if router is None:
         from synapse.llm.omnirouter import get_omnirouter
         router = get_omnirouter()
-    route_decision = router.route(task["task"], task.get("payload"))
+    route_decision = await router.route_async(task["task"], task.get("payload"))
     store.add_event(task["session_id"], task_id, "router", route_decision.to_dict())
 
     async def progress(step: str, data: dict[str, Any]) -> None:
@@ -216,7 +244,50 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
         # This private field is added only after the persisted approval decision.
         request["_approval_granted"] = True
     try:
-        outcome = await orchestrator.handle(request)
+        async def invoke_orchestrator(**params: Any) -> dict[str, Any]:
+            return await orchestrator.handle(params["request"])
+
+        if invocation is not None:
+            from synapse.api.invocation_service import InvocationContext
+            invocation_result = await invocation.invoke(
+                action_type="task",
+                action_name="orchestrator.handle",
+                handler=invoke_orchestrator,
+                context=InvocationContext(
+                    identity="api",
+                    session_id=task["session_id"],
+                    run_id=durable_run.id if durable_run else task_id,
+                    workspace_root=Path(getattr(container, "workspace_root", Path.cwd())),
+                    capabilities=["fs:read", "llm:route"],
+                    approval_granted=bool(task.get("approval_id")),
+                    is_network_request=True,
+                    auth_authenticated=True,
+                ),
+                required_capabilities=["fs:read"],
+                risk_level=1,
+                params={"request": request},
+            )
+            outcome = invocation_result.result or {"success": False, "error": invocation_result.error}
+            if isinstance(outcome.get("result"), dict):
+                outcome["result"]["invocation_receipt"] = invocation_result.receipt
+            else:
+                outcome["invocation_receipt"] = invocation_result.receipt
+            if not invocation_result.success and not outcome.get("error"):
+                outcome["error"] = invocation_result.error
+        else:
+            outcome = await orchestrator.handle(request)
+        status = outcome.get("status", "failed")
+        if work_engine is not None and durable_run is not None:
+            from synapse.work import WorkStatus
+            if status == "approval_required":
+                await work_engine.transition_run(durable_run.id, WorkStatus.WAITING_APPROVAL)
+                if lease is not None:
+                    await work_engine.release(lease, WorkStatus.WAITING_APPROVAL)
+            else:
+                final_status = WorkStatus.COMPLETED if bool(outcome.get("success", False)) else WorkStatus.FAILED
+                await work_engine.transition_run(durable_run.id, final_status)
+                if lease is not None:
+                    await work_engine.release(lease, final_status)
         status = outcome.get("status", "failed")
         result = outcome.get("result", outcome)
         record = store.update_task(
@@ -224,6 +295,26 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
             error=outcome.get("error"), result=result, completed_at=utc_now(),
             duration_ms=round((time.monotonic() - started) * 1000),
         )
+        if container is not None and getattr(container, "experience_store", None) is not None:
+            from synapse.experience import ExperienceRecord
+            receipt = result.get("invocation_receipt", {}) if isinstance(result, dict) else {}
+            container.experience_store.append(ExperienceRecord(
+                task_id=task_id,
+                run_id=receipt.get("run_id", durable_run.id if durable_run else task_id),
+                session_id=task["session_id"],
+                objective=task["task"],
+                inputs=task.get("payload") or {},
+                executor="orchestrator.handle",
+                provider=(route_decision.to_dict().get("provider") if route_decision else None),
+                model=(route_decision.to_dict().get("model") if route_decision else None),
+                execution_success=bool(outcome.get("success", False)),
+                verifier_passed=None,
+                verifier_status="inconclusive",
+                eligibility="ineligible",
+                error=outcome.get("error"),
+                latency_ms=record.get("duration_ms"),
+                provenance={"source": "http_task", "invocation_receipt": receipt},
+            ))
         if status == "approval_required":
             risk_level = (result or {}).get("plan", {}).get("risk_level", 3)
             approval = store.create_approval(record, risk_level)
@@ -241,6 +332,23 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
         })
         return record
     except Exception as exc:
+        if work_engine is not None and durable_run is not None:
+            from synapse.work import WorkStatus
+            try:
+                await work_engine.transition_run(durable_run.id, WorkStatus.FAILED)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Failed to persist durable run failure", extra={"run_id": durable_run.id}
+                )
+            if lease is not None:
+                try:
+                    await work_engine.release(lease, WorkStatus.FAILED)
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).exception(
+                        "Failed to release durable task lease", extra={"task_id": task_id}
+                    )
         record = store.update_task(
             task_id, status="failed", success=False, error=str(exc),
             completed_at=utc_now(), duration_ms=round((time.monotonic() - started) * 1000),
@@ -280,23 +388,41 @@ async def _run_task(
     return await _execute_task(application, record["id"])
 
 
+@app.get("/runtime-info")
+async def runtime_info():
+    """Expose non-secret UI capability information for clear onboarding."""
+    configured = bool(os.getenv("SYNAPSE_API_KEY"))
+    return {
+        "api_auth_required": configured,
+        "api_auth_description": (
+            "Защита HTTP API включена. Используйте значение SYNAPSE_API_KEY; "
+            "это не ключ провайдера модели."
+            if configured else
+            "Защита HTTP API отключена для локального режима. Ключ не требуется."
+        ),
+        "protocol_version": PROTOCOL_VERSION,
+    }
+
+
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy", "version": "3.4.1", "protocol_version": PROTOCOL_VERSION,
-            "timestamp": datetime.now(UTC).isoformat()}
+async def health_check(request: Request):
+    from synapse.runtime.container import get_runtime_container
+    container = getattr(request.app.state, "container", None) or get_runtime_container()
+    return await container.health()
 
 
 @app.get("/api/v1/status")
 async def get_status(request: Request):
+    from synapse.runtime.container import get_runtime_container
+    container = getattr(request.app.state, "container", None) or get_runtime_container()
+    health_data = await container.health()
     tasks = _store(request.app).list_all_tasks()
     approvals = _store(request.app).list_approvals()
-    router = getattr(request.app.state, "omnirouter", None)
-    if router is None:
-        from synapse.llm.omnirouter import get_omnirouter
-        router = get_omnirouter()
+    router = container.omnirouter
     stats = router.get_stats()
     return {
-        "status": "operational",
+        "status": health_data.get("status", "operational"),
+        "subsystems": health_data.get("subsystems", {}),
         "agents_count": sum(getattr(request.app.state.orchestrator, name, None) is not None
                             for name in ("planner", "critic", "learning_engine", "skill_registry")),
         "pending_approvals": sum(a["status"] == "pending" for a in approvals),

@@ -354,9 +354,13 @@ class SandboxRegistry:
         ).hexdigest()
 
 
-# Default sandbox implementation for testing
+# Test-only sandbox implementation
 class ProcessSandbox:
-    """Simple process-based sandbox for testing"""
+    """Test-only in-process sandbox for lightweight unit tests.
+    Explicitly marked as simulated. Not suitable for production untrusted code execution.
+    """
+    is_test_only: bool = True
+    is_simulated: bool = True
 
     def __init__(self):
         self._sandbox_type = SandboxType.PROCESS

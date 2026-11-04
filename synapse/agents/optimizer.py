@@ -29,6 +29,7 @@ class OptimizationResponse:
     optimized_code: str = ""
     optimized_prompt: str = ""
     error: str = ""
+    is_simulated: bool = False
     protocol_version: str = "1.0"
 
 
@@ -100,19 +101,23 @@ class OptimizerAgent:
         
         # Generate optimized code via LLM
         optimized_code = ""
+        is_simulated = False
         if self.llm_provider:
             try:
                 prompt = self._build_code_optimization_prompt(request)
                 optimized_code = await self.llm_provider.generate(prompt)
             except RuntimeError:
                 optimized_code = self._generate_fallback_code(request)
+                is_simulated = True
         else:
             optimized_code = self._generate_fallback_code(request)
-        
+            is_simulated = True
+
         return OptimizationResponse(
             success=True,
             optimization_id=optimization_id,
-            optimized_code=optimized_code
+            optimized_code=optimized_code,
+            is_simulated=is_simulated,
         )
     
     async def optimize_prompt(self, request: OptimizationRequest) -> OptimizationResponse:
@@ -137,19 +142,23 @@ class OptimizerAgent:
         
         # Generate optimized prompt via LLM
         optimized_prompt = ""
+        is_simulated = False
         if self.llm_provider:
             try:
                 prompt = self._build_prompt_optimization_prompt(request)
                 optimized_prompt = await self.llm_provider.generate(prompt)
             except RuntimeError:
                 optimized_prompt = self._generate_fallback_prompt(request)
+                is_simulated = True
         else:
             optimized_prompt = self._generate_fallback_prompt(request)
-        
+            is_simulated = True
+
         return OptimizationResponse(
             success=True,
             optimization_id=optimization_id,
-            optimized_prompt=optimized_prompt
+            optimized_prompt=optimized_prompt,
+            is_simulated=is_simulated,
         )
     
     def _build_code_optimization_prompt(self, request: OptimizationRequest) -> str:

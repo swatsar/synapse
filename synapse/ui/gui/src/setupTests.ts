@@ -1,9 +1,10 @@
 import '@testing-library/jest-dom'
+import { vi } from 'vitest'
 
-// Mock Tauri API
-global.window = Object.create(window)
+// Mock Tauri API without replacing the browser window global.
 Object.defineProperty(window, '__TAURI__', {
+  configurable: true,
   value: {
-    invoke: jest.fn(),
+    invoke: vi.fn(),
   },
 })
