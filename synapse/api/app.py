@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -69,6 +69,11 @@ def _session(application: FastAPI, session_id: str) -> dict[str, Any]:
 async def lifespan(application: FastAPI):
     """Own runtime resources and await outstanding work during graceful shutdown."""
     from synapse.core.orchestrator import build_orchestrator
+    from synapse.runtime.container import get_runtime_container
+
+    container = get_runtime_container()
+    application.state.container = container
+    await container.start()
 
     # A new application lifespan starts a fresh rate-limit window. In-flight
     # limits stay unchanged; this prevents separate embedded runs sharing state.
@@ -82,10 +87,10 @@ async def lifespan(application: FastAPI):
             workspace_root=os.getenv("SYNAPSE_WORKSPACE_ROOT") or None,
         )
         application.state.checkpoint_manager = application.state.orchestrator.checkpoint_manager
+        container.orchestrator = application.state.orchestrator
     if owns_store:
-        application.state.workspace_store = default_workspace_store()
-    from synapse.llm.omnirouter import get_omnirouter
-    application.state.omnirouter = get_omnirouter()
+        application.state.workspace_store = container.workspace_store
+    application.state.omnirouter = container.omnirouter
     jobs: set[asyncio.Task] = set()
     application.state.background_jobs = jobs
     try:
@@ -100,6 +105,7 @@ async def lifespan(application: FastAPI):
         if owns_store:
             application.state.workspace_store.close()
             application.state.workspace_store = None
+        await container.stop()
 
 
 app = FastAPI(title="Synapse Agent Platform", version="3.4.1", lifespan=lifespan)
@@ -178,7 +184,11 @@ def _schedule(application: FastAPI, task_id: str) -> None:
     jobs = getattr(application.state, "background_jobs", None)
     if jobs is None:
         raise HTTPException(status_code=503, detail="Background runtime is not initialized")
-    job = asyncio.create_task(_execute_task(application, task_id), name=f"synapse:{task_id}")
+    container = getattr(application.state, "container", None)
+    if container is not None:
+        job = container.register_background_task(_execute_task(application, task_id))
+    else:
+        job = asyncio.create_task(_execute_task(application, task_id), name=f"synapse:{task_id}")
     jobs.add(job)
     job.add_done_callback(jobs.discard)
 
@@ -281,22 +291,24 @@ async def _run_task(
 
 
 @app.get("/health")
-async def health_check():
-    return {"status": "healthy", "version": "3.4.1", "protocol_version": PROTOCOL_VERSION,
-            "timestamp": datetime.now(UTC).isoformat()}
+async def health_check(request: Request):
+    from synapse.runtime.container import get_runtime_container
+    container = getattr(request.app.state, "container", None) or get_runtime_container()
+    return await container.health()
 
 
 @app.get("/api/v1/status")
 async def get_status(request: Request):
+    from synapse.runtime.container import get_runtime_container
+    container = getattr(request.app.state, "container", None) or get_runtime_container()
+    health_data = await container.health()
     tasks = _store(request.app).list_all_tasks()
     approvals = _store(request.app).list_approvals()
-    router = getattr(request.app.state, "omnirouter", None)
-    if router is None:
-        from synapse.llm.omnirouter import get_omnirouter
-        router = get_omnirouter()
+    router = container.omnirouter
     stats = router.get_stats()
     return {
-        "status": "operational",
+        "status": health_data.get("status", "operational"),
+        "subsystems": health_data.get("subsystems", {}),
         "agents_count": sum(getattr(request.app.state.orchestrator, name, None) is not None
                             for name in ("planner", "critic", "learning_engine", "skill_registry")),
         "pending_approvals": sum(a["status"] == "pending" for a in approvals),

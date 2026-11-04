@@ -339,6 +339,7 @@ class OmniRouter:
         self._availability: dict[str, bool] = {}
         self._profiles: dict[str, Any] = {}
         self._ollama_models: set[str] = set()
+        self._circuit_breakers: dict[str, Any] = {}
         self._stats = {
             "routed_total": 0,
             "routes_by_model": {},
@@ -351,9 +352,21 @@ class OmniRouter:
     # Environment & Availability Verification
     # ------------------------------------------------------------------
 
+    def get_circuit_breaker(self, provider: str) -> Any:
+        p = provider.lower()
+        if hasattr(self, "provider_registry") and self.provider_registry is not None and hasattr(self.provider_registry, "get_circuit_breaker"):
+            return self.provider_registry.get_circuit_breaker(p)
+        if p not in self._circuit_breakers:
+            from synapse.llm.providers.circuit_breaker import CircuitBreaker
+            self._circuit_breakers[p] = CircuitBreaker(name=p, failure_threshold=5, recovery_timeout_sec=30.0)
+        return self._circuit_breakers[p]
+
     def is_provider_available(self, provider: str) -> bool:
         """Return observed readiness, never assuming a local server is running."""
         p = provider.lower()
+        cb = self.get_circuit_breaker(p)
+        if not cb.allow_request():
+            return False
         if p == "ollama":
             return self._availability.get(p, False)
         return self._availability.get(p, bool(os.getenv(f"{p.upper()}_API_KEY")))
@@ -708,6 +721,18 @@ class OmniRouter:
             if (cand_provider, cand_model) in seen:
                 continue
             seen.add((cand_provider, cand_model))
+
+            cb = self.get_circuit_breaker(cand_provider)
+            if not cb.allow_request():
+                logger.info("Skipping candidate (%s/%s): circuit breaker is OPEN", cand_provider, cand_model)
+                attempts.append({
+                    "provider": cand_provider,
+                    "model": cand_model,
+                    "error": f"Circuit breaker OPEN (retry in {cb.time_until_retry():.1f}s)",
+                    "duration": 0.0,
+                })
+                continue
+
             candidate_start = time.monotonic()
             try:
                 from synapse.llm.provider import LiteLLMProvider
@@ -722,6 +747,7 @@ class OmniRouter:
                     provider_instance.generate(effective_prompt, **kwargs),
                     timeout=self.request_timeout,
                 )
+                cb.record_success()
                 duration = round(time.monotonic() - candidate_start, 3)
                 return {
                     "success": True, "content": response.get("content", ""),
@@ -733,6 +759,7 @@ class OmniRouter:
                     "attempts": attempts, "protocol_version": PROTOCOL_VERSION,
                 }
             except Exception as exc:
+                cb.record_failure(exc)
                 duration = round(time.monotonic() - candidate_start, 3)
                 error = (f"Request exceeded {self.request_timeout:g}s"
                          if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) else str(exc))

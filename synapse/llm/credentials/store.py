@@ -146,4 +146,6 @@ def create_default_credential_store() -> CredentialStore:
     return store
 
 
-__all__ = ["CredentialStore", "create_default_credential_store"]
+default_credential_store = create_default_credential_store
+
+__all__ = ["CredentialStore", "create_default_credential_store", "default_credential_store"]
