@@ -17,7 +17,10 @@
         table.append(body); root.append(table);
       } else root.append(el('p', 'Компоненты не зарегистрированы.', 'muted'));
       await loadIntegrations();
-    } catch (error) { clear(root).append(el('p', error.message, 'error')); notify('Ошибка загрузки компонентов.', true); }
+    } catch (error) {
+      clear(root).append(el('p', `Не удалось загрузить компоненты: ${error.message}`, 'error'));
+      notify('Ошибка загрузки компонентов.', true);
+    }
   }
   async function loadIntegrations() {
     const root = document.getElementById('integrations');
@@ -35,7 +38,9 @@
       head.append(hr); table.append(head); const body = el('tbody');
       rows.forEach(values => { const row = el('tr'); values.forEach(value => row.append(el('td', value))); body.append(row); });
       table.append(body); root.append(table);
-    } catch (error) { clear(root).append(el('p', error.message, 'error')); }
+    } catch (error) {
+      clear(root).append(el('p', `Не удалось загрузить интеграции: ${error.message}`, 'error'));
+    }
   }
   window.addEventListener('synapse-refresh', load); load();
 })();

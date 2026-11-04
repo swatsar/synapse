@@ -24,3 +24,17 @@ def test_runtime_info_explains_api_key_scope(monkeypatch):
     data = response.json()
     assert data["api_auth_required"] is False
     assert "не требуется" in data["api_auth_description"]
+
+
+def test_plain_chat_request_does_not_fail_capability_bootstrap(monkeypatch):
+    monkeypatch.delenv("SYNAPSE_API_KEY", raising=False)
+    with TestClient(app) as client:
+        response = client.post("/api/v1/tasks", json={"task": "Привет, ответь коротко"})
+    assert response.status_code == 200
+    assert response.json().get("error") != "Security check failed"
+    security = response.json().get("result", {}).get("security_result", {})
+    assert "memory:read" not in security.get("issues", [])
+    # The generic executor is now a real local-model path; success depends on
+    # the downloaded model/runtime, never on a synthetic fallback.
+    action = response.json().get("result", {}).get("action_result", {})
+    assert action.get("errors", [{}])[0].get("error") != "Active skill not found: generic_executor"

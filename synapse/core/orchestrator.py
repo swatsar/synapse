@@ -907,15 +907,29 @@ def build_orchestrator(
     from synapse.core.capability_scope import CapabilityToken
 
     security = SecurityManager()
-    security.capability_manager.register_token(CapabilityToken(
-        scope="fs:read",
-        issued_to="orchestrator",
-        issued_by="builtin-bootstrap",
-    ))
+    for capability in (
+        "fs:read",
+        "memory:read",
+        "memory:write",
+        "net:http",
+        "code:generate",
+    ):
+        security.capability_manager.register_token(CapabilityToken(
+            scope=capability,
+            issued_to="orchestrator",
+            issued_by="builtin-bootstrap",
+        ))
     checkpoint_mgr = CheckpointManager()
 
     skill_capability_manager = SkillCapabilityManager()
-    skill_capability_manager.grant("fs:read")
+    for capability in (
+        "fs:read",
+        "memory:read",
+        "memory:write",
+        "net:http",
+        "code:generate",
+    ):
+        skill_capability_manager.grant(capability)
     skill_registry = SkillRegistry(capability_manager=skill_capability_manager)
     skill_registry.register_builtin(
         SkillManifest(
@@ -926,6 +940,18 @@ def build_orchestrator(
             trust_level="verified",
         ),
         ReadFileSkill(workspace_root=workspace),
+    )
+
+    from synapse.skills.builtins.local_executor import execute_local_task
+    skill_registry.register_builtin(
+        SkillManifest(
+            name="generic_executor",
+            description="Execute ordinary chat/general tasks with the downloaded local model",
+            required_capabilities=["memory:read"],
+            risk_level=1,
+            trust_level="trusted",
+        ),
+        execute_local_task,
     )
 
     # Supported local skills have deterministic fallback plans. An external
