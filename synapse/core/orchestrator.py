@@ -914,7 +914,9 @@ def build_orchestrator(
     ))
     checkpoint_mgr = CheckpointManager()
 
-    skill_registry = SkillRegistry(capability_manager=SkillCapabilityManager())
+    skill_capability_manager = SkillCapabilityManager()
+    skill_capability_manager.grant("fs:read")
+    skill_registry = SkillRegistry(capability_manager=skill_capability_manager)
     skill_registry.register_builtin(
         SkillManifest(
             name="read_file",

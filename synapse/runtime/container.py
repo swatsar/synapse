@@ -103,7 +103,9 @@ class RuntimeContainer:
         self.workspace_store = workspace_store or default_workspace_store()
         self.skill_library = skill_library or get_skill_library()
         self.dynamic_skill_registry = dynamic_skill_registry or SkillRegistry(capability_manager=self.capability_manager)
-        self.memory_vault = memory_vault or get_memory_vault(self.workspace_root)
+        self.memory_vault = memory_vault or get_memory_vault(
+            self.workspace_root / ".synapse" / "memory_vault.json"
+        )
         self.benchmark_harness = benchmark_harness or get_hallmark_harness()
         self.codex_engine = codex_engine or get_codex_engine(self.workspace_root)
         self.browser_controller = browser_controller or get_browser_controller()
@@ -209,7 +211,7 @@ class RuntimeContainer:
 
         # 1. Database / Workspace Store
         try:
-            sessions = self.workspace_store.list_sessions(limit=1)
+            sessions = self.workspace_store.list_sessions()
             subsystems["workspace_store"] = SubsystemHealth(
                 name="workspace_store",
                 status="healthy",
