@@ -24,7 +24,8 @@
 | Training preflight | Установлены `torch==2.8.0+cu126`, `transformers==4.57.3`, `peft==0.17.1`, `trl==0.24.0`, `datasets==3.3.2`; preflight блокирует отсутствие verified snapshot/base model | подтверждено тестами |
 | Real LoRA training | Реальный 1-step LoRA: loss `6.091617584228516`, trainable `540672`, base hash `0d41648e…139a1e`, reload forward-pass=true; adapter сохранён в disposable smoke output | подтверждено live smoke; promotion/serving ещё не включены |
 | Training preflight | На Windows Python 3.12 отсутствуют `torch`, `transformers`, `peft`, `trl`, `datasets`; CUDA недоступна для текущего окружения; preflight блокирует обучение без verified snapshot/base model | подтверждено fail-closed тестами; training не запускался |
-| Full Windows suite | clean full-suite pass не получен | blocked/не подтверждено |
+| Portable replication bundle | ZIP bundle с manifest/SHA-256 для memory/work/experience/datasets/model registry/adapters/trajectories/skills/plugins; secrets исключаются, import проверяет hash | подтверждено unit-тестом; live peer sync не включён |
+| HTTP/UI clarity | API key field hidden when `SYNAPSE_API_KEY` is unset; Settings explains that it protects HTTP API and is not a provider key | подтверждено browser smoke |
 
 ## Локальный запуск
 
@@ -86,7 +87,8 @@ claude --help
 - единое подключение `InvocationService` ко всем HTTP/UI/slash/MCP/plugin/browser/patch paths;
 - verified-only dataset snapshots с immutable manifest/hash и независимой верификацией;
 - настоящий torch/transformers/peft/trl LoRA/QLoRA trainer и serving path;
-- independent held-out eval, promotion gates и rollback registry;
+- полноценная live peer-синхронизация между компьютерами и конфликт-резолюция;
+- независимая held-out eval, promotion gates и rollback registry;
 - доказанный full Windows suite pass;
 - deployment smoke в Docker/production profile с реальными credentials.
 

@@ -388,6 +388,22 @@ async def _run_task(
     return await _execute_task(application, record["id"])
 
 
+@app.get("/runtime-info")
+async def runtime_info():
+    """Expose non-secret UI capability information for clear onboarding."""
+    configured = bool(os.getenv("SYNAPSE_API_KEY"))
+    return {
+        "api_auth_required": configured,
+        "api_auth_description": (
+            "Защита HTTP API включена. Используйте значение SYNAPSE_API_KEY; "
+            "это не ключ провайдера модели."
+            if configured else
+            "Защита HTTP API отключена для локального режима. Ключ не требуется."
+        ),
+        "protocol_version": PROTOCOL_VERSION,
+    }
+
+
 @app.get("/health")
 async def health_check(request: Request):
     from synapse.runtime.container import get_runtime_container

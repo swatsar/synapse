@@ -34,7 +34,26 @@
     } catch (error) { clear(root).append(el('p', error.message, 'error')); }
   }
 
-  async function loadTraining() {
+  async function loadReplication() {
+    const root = document.getElementById('replica-status');
+    if (!root) return;
+    try {
+      const [status, bundles] = await Promise.all([api('/replication/status'), api('/replication/bundles')]);
+      root.textContent = json({status, bundles: bundles.bundles});
+    } catch (error) { root.textContent = error.message; }
+  }
+
+  document.getElementById('replica-export')?.addEventListener('click', async event => {
+    event.currentTarget.disabled = true;
+    try {
+      const result = await api('/replication/export', {method: 'POST'});
+      notify(`Snapshot экспортирован: ${result.path}`);
+      await loadReplication();
+    } catch (error) { notify(error.message, true); }
+    finally { event.currentTarget.disabled = false; }
+  });
+  document.getElementById('replica-refresh')?.addEventListener('click', loadReplication);
+
     const root = document.getElementById('training-status');
     if (!root) return;
     try {
@@ -85,6 +104,17 @@
     } catch (error) { notify(error.message, true); }
   });
 
+  async function loadApiAuthInfo() {
+    const card = document.getElementById('api-auth-card');
+    const help = document.getElementById('api-auth-help');
+    if (!card || !help) return;
+    try {
+      const info = await api('/runtime-info');
+      card.hidden = !info.api_auth_required;
+      help.textContent = info.api_auth_description;
+    } catch (_) { card.hidden = true; }
+  }
+
   async function load() {
     try {
       const [system, security, memory, connectors] = await Promise.all(['system', 'security', 'memory', 'connectors'].map(name => api(`/settings/${name}`)));
@@ -92,6 +122,7 @@
       await loadBackups();
       await loadModels();
       await loadTraining();
+      await loadReplication();
     } catch (error) { notify(error.message, true); }
   }
   document.getElementById('create-backup').addEventListener('click', async event => {
@@ -133,6 +164,7 @@
     finally { event.currentTarget.disabled = false; }
   });
 
+  loadApiAuthInfo();
   loadLocalConfig();
   window.addEventListener('synapse-refresh', load); load();
 })();
