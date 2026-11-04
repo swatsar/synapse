@@ -102,7 +102,19 @@ async def test_file_commands_reject_workspace_escape(engine, monkeypatch, tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_bench_command(engine):
+async def test_handler_failure_is_not_wrapped_as_success(engine):
+    async def blocked_handler(*args):
+        return {"success": False, "status": "blocked", "error": "approval_required"}
+
+    engine.register(SlashCommandDef(
+        name="blocked_fixture",
+        description="fixture",
+        usage="/blocked_fixture",
+        handler=blocked_handler,
+    ))
+    result = await engine.execute("/blocked_fixture")
+    assert result.success is False
+    assert result.output["error"] == "approval_required"
     res = await engine.execute("/bench custom_run")
     assert res.success is True
     assert "suite_id" in res.output

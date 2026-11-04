@@ -399,10 +399,13 @@ class SlashCommandEngine:
                 res = await cmd_def.handler(*args)
             else:
                 res = cmd_def.handler(*args)
+            success = True
+            if isinstance(res, dict):
+                success = res.get("success") is not False and res.get("status") not in {"failed", "blocked", "timeout"}
             return SlashCommandResult(
                 command=cmd_name,
                 args=args,
-                success=True,
+                success=success,
                 output=res,
             )
         except Exception as e:

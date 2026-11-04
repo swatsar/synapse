@@ -39,6 +39,13 @@ logger = logging.getLogger("synapse.api.routes.tools_platform")
 router = APIRouter()
 
 
+def _with_receipt(inv_res) -> dict[str, Any]:
+    """Return invocation output together with the authoritative execution receipt."""
+    payload = dict(inv_res.result or {})
+    payload["invocation_receipt"] = dict(inv_res.receipt)
+    return payload
+
+
 # -------------------------------------------------------------
 # 1. Cloudflare Security Audit Scanner Endpoints
 # -------------------------------------------------------------
@@ -75,7 +82,7 @@ async def run_security_audit(request: AuditScanRequest) -> dict[str, Any]:
     if not inv_res.success:
         status_code = 403 if inv_res.requires_approval else 400
         raise HTTPException(status_code=status_code, detail=inv_res.error)
-    return inv_res.result or {}
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------
@@ -186,7 +193,7 @@ async def execute_skill(request: SkillExecuteRequest) -> dict[str, Any]:
     if not inv_res.success:
         status_code = 403 if inv_res.requires_approval else 400
         raise HTTPException(status_code=status_code, detail=inv_res.error)
-    return inv_res.result or {}
+    return _with_receipt(inv_res)
 
 
 @router.post("/skills/{skill_id}/execute")
@@ -276,10 +283,14 @@ async def execute_slash_command(request: SlashCommandRequest) -> dict[str, Any]:
         approval_granted=request.approval_granted,
         capabilities=["slash:execute", "fs:read", "code:analyze", "llm:route"],
     )
+    async def _execute_slash(command_line: str):
+        result = await engine.execute(command_line)
+        return result.to_dict()
+
     inv_res = await service.invoke(
         action_type="slash",
         action_name=request.command.split()[0],
-        handler=engine.execute,
+        handler=_execute_slash,
         context=context,
         required_capabilities=["slash:execute"],
         risk_level=1,
@@ -288,7 +299,7 @@ async def execute_slash_command(request: SlashCommandRequest) -> dict[str, Any]:
     if not inv_res.success:
         status_code = 403 if inv_res.requires_approval else 400
         raise HTTPException(status_code=status_code, detail=inv_res.error)
-    return inv_res.result or {}
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------
@@ -333,7 +344,7 @@ async def apply_patches(request: ApplyPatchesRequest) -> dict[str, Any]:
     if not inv_res.success:
         status_code = 403 if inv_res.requires_approval else 400
         raise HTTPException(status_code=status_code, detail=inv_res.error)
-    return inv_res.result or {}
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------
@@ -421,13 +432,15 @@ async def execute_browser_action(request: BrowserActionRequest) -> dict[str, Any
         )
         return res.to_dict()
 
+    read_only_actions = {"navigate", "screenshot", "scrape", "wait", "scroll"}
+    action_risk = 1 if request.action.lower() in read_only_actions else 3
     inv_res = await service.invoke(
         action_type="browser",
         action_name=request.action,
         handler=_do_browser_action,
         context=context,
         required_capabilities=["browser:navigate"],
-        risk_level=3,
+        risk_level=action_risk,
         params={
             "action": request.action,
             "url": request.url,
@@ -439,7 +452,7 @@ async def execute_browser_action(request: BrowserActionRequest) -> dict[str, Any
     if not inv_res.success:
         status_code = 403 if inv_res.requires_approval else 400
         raise HTTPException(status_code=status_code, detail=inv_res.error)
-    return inv_res.result or {}
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------
