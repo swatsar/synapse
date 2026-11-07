@@ -277,7 +277,14 @@ h1 { font-size: 15px; font-weight: 550; line-height: 1.4; margin: 2px 0 0; overf
 
 /* Shared secondary pages */
 .container { max-width: 1050px; padding: 30px; margin: auto; }
+.container.page { padding-top: 38px; }
 .container > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px; padding-bottom: 18px; }
+.page-brand { display: flex; align-items: center; gap: 11px; margin-right: 18px; }
+.page-brand-name { font-size: 15px; font-weight: 650; letter-spacing: .2px; color: var(--text); }
+.page-heading { margin-right: auto; }
+.page-heading h1 { margin: 0 0 3px; }
+.page-status { padding: 0; color: var(--muted); font-size: 11px; }
+.page-status .runtime-version { margin-left: 8px; }
 .container h1 { font-size: 22px; }
 .container nav { display: flex; gap: 5px; flex-wrap: wrap; }
 .container nav a { text-decoration: none; color: var(--muted); padding: 7px 10px; border-radius: 6px; font-size: 12px; }
