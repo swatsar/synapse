@@ -3,6 +3,7 @@
   const {api, element: el, clear, notify, json} = window.synapse;
   async function loadBackups() {
     const root = document.getElementById('backups');
+    if (!root) return;
     try {
       const data = await api('/settings/backups'); clear(root);
       if (!data.backups.length) { root.append(el('p', 'Резервных копий нет.', 'muted')); return; }
@@ -168,7 +169,8 @@
   async function load() {
     try {
       const [system, security, memory, connectors] = await Promise.all(['system', 'security', 'memory', 'connectors'].map(name => api(`/settings/${name}`)));
-      document.getElementById('settings').textContent = json({system: system.settings, security: security.settings, memory: memory.settings, connectors: connectors.settings});
+      const settingsRoot = document.getElementById('settings');
+      if (settingsRoot) settingsRoot.textContent = json({system: system.settings, security: security.settings, memory: memory.settings, connectors: connectors.settings});
       await loadBackups();
       await loadModels();
       await loadTraining();
@@ -177,7 +179,7 @@
       await loadVellyStatus();
     } catch (error) { notify(error.message, true); }
   }
-  document.getElementById('create-backup').addEventListener('click', async event => {
+  document.getElementById('create-backup')?.addEventListener('click', async event => {
     event.currentTarget.disabled = true;
     try { const backup = await api('/settings/backup', {method: 'POST'}); notify(`Создана копия ${backup.backup_id}.`); await loadBackups(); }
     catch (error) { notify(error.message, true); }

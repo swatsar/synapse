@@ -50,9 +50,12 @@ def make_security_headers_middleware() -> Callable:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        # The web UI composes dynamic panels with inline style attributes
+        # (e.g. stat cards, hidden flags, inspector widths), so allow inline
+        # styles while keeping scripts external-only and the rest locked down.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; "
-            "style-src 'self'; connect-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; connect-src 'self'; "
             "object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
         )
         return response
