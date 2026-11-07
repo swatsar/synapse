@@ -54,6 +54,7 @@
   });
   document.getElementById('replica-refresh')?.addEventListener('click', loadReplication);
 
+  async function loadTraining() {
     const root = document.getElementById('training-status');
     if (!root) return;
     try {
@@ -115,6 +116,55 @@
     } catch (_) { card.hidden = true; }
   }
 
+  async function loadIntegrations() {
+    const root = document.getElementById('integrations-agents');
+    if (!root) return;
+    try {
+      const data = await api('/integrations/agents');
+      clear(root);
+      if (!data.agents.length) { root.append(el('p', 'CLI-агенты не обнаружены.', 'muted')); return; }
+      for (const agent of data.agents) {
+        const row = el('div', `${agent.id} — ${agent.enabled ? 'подключён' : (agent.configured ? 'найден, отключён' : 'не найден на этом компьютере')}`);
+        row.style.marginBottom = '6px';
+        const connectBtn = el('button', agent.enabled ? 'Отключить' : 'Подключить', 'secondary small-button');
+        connectBtn.type = 'button';
+        connectBtn.addEventListener('click', async () => {
+          connectBtn.disabled = true;
+          try {
+            if (agent.enabled) {
+              await api(`/integrations/executors/${encodeURIComponent(agent.id)}`, {method: 'PATCH', body: JSON.stringify({enabled: false})});
+              notify(`Агент ${agent.id} отключён.`);
+            } else {
+              await api(`/integrations/agents/${encodeURIComponent(agent.id)}/connect`, {method: 'POST'});
+              await api(`/integrations/executors/${encodeURIComponent(agent.id)}`, {method: 'PATCH', body: JSON.stringify({enabled: true})});
+              notify(`Агент ${agent.id} подключён.`);
+            }
+            await loadIntegrations();
+          } catch (error) { notify(error.message, true); connectBtn.disabled = false; }
+        });
+        row.append(' ', connectBtn);
+        root.append(row);
+      }
+    } catch (error) { clear(root).append(el('p', error.message, 'error')); }
+  }
+
+  async function loadVellyStatus() {
+    const root = document.getElementById('velly-status');
+    if (!root) return;
+    try {
+      const data = await api('/integrations/velly');
+      root.textContent = json(data);
+    } catch (error) { root.textContent = error.message; }
+  }
+
+  document.getElementById('sync-velly-btn')?.addEventListener('click', async event => {
+    event.currentTarget.disabled = true;
+    try { const result = await api('/integrations/velly/sync', {method: 'POST'}); notify(`Синхронизировано агентов: ${result.synced.length}`); await loadIntegrations(); }
+    catch (error) { notify(error.message, true); }
+    finally { event.currentTarget.disabled = false; }
+  });
+  document.getElementById('refresh-agents-btn')?.addEventListener('click', loadIntegrations);
+
   async function load() {
     try {
       const [system, security, memory, connectors] = await Promise.all(['system', 'security', 'memory', 'connectors'].map(name => api(`/settings/${name}`)));
@@ -123,6 +173,8 @@
       await loadModels();
       await loadTraining();
       await loadReplication();
+      await loadIntegrations();
+      await loadVellyStatus();
     } catch (error) { notify(error.message, true); }
   }
   document.getElementById('create-backup').addEventListener('click', async event => {

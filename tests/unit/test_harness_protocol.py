@@ -33,25 +33,34 @@ def test_jsonl_parser_preserves_unknown_events_and_final_text():
 def test_external_cli_argv_is_scoped_and_non_bypass():
     request = HarnessRequest("t", "r", "inspect", workspace_id="C:/workspace")
     codex = CodexHarness(enabled=True)
-    codex_argv = codex.build_argv("codex", request, __import__("pathlib").Path("C:/workspace"))
+    codex_argv = codex.build_argv(["codex"], request, __import__("pathlib").Path("C:/workspace"))
     assert "--sandbox" in codex_argv
     assert "read-only" in codex_argv
     assert "--dangerously-bypass-approvals-and-sandbox" not in codex_argv
 
     claude = ClaudeCodeHarness(enabled=True)
-    claude_argv = claude.build_argv("claude", request, __import__("pathlib").Path("C:/workspace"))
+    claude_argv = claude.build_argv(["claude"], request, __import__("pathlib").Path("C:/workspace"))
     assert "--permission-mode" in claude_argv
     assert "dontAsk" in claude_argv
     assert "--dangerously-skip-permissions" not in claude_argv
+
+
+def test_harness_command_override_resolves_npm_wrapped_cli():
+    request = HarnessRequest("t", "r", "inspect", workspace_id="C:/workspace")
+    codex = CodexHarness(enabled=True, command=["node", "codex.js"])
+    assert codex.command_argv == ["node", "codex.js"]
+    argv = codex.build_argv(codex.command_argv, request, __import__("pathlib").Path("C:/workspace"))
+    assert argv[:2] == ["node", "codex.js"]
+    assert "--sandbox" in argv
 
 
 class FixtureCliHarness(ExternalCliHarness):
     name = "fixture"
     command = sys.executable
 
-    def build_argv(self, executable, request, workspace):
+    def build_argv(self, prefix, request, workspace):
         payload = json.dumps({"type": "result", "result": request.prompt})
-        return [executable, "-c", f"print({payload!r})"]
+        return [*prefix, "-c", f"print({payload!r})"]
 
 
 @pytest.mark.asyncio

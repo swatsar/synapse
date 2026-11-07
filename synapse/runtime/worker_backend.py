@@ -24,6 +24,24 @@ from synapse.core.models import ExecutionContext, ResourceLimits
 PROTOCOL_VERSION: str = "1.0"
 logger = logging.getLogger("synapse.runtime.worker_backend")
 
+
+def _context_workspace_root(context: ExecutionContext | None) -> str | None:
+    """Resolve the documented workspace root to expose inside worker subprocesses.
+
+    Prefers the explicit workspace_root carried on the context memory store (set by
+    build_orchestrator), then the SYNAPSE_WORKSPACE_ROOT env var, then the current
+    directory. Returns an absolute path string or None when nothing is available.
+    """
+    if context is not None:
+        memory = getattr(context, "memory_store", None)
+        root = getattr(memory, "workspace_root", None) if memory is not None else None
+        if root:
+            return str(Path(root).expanduser().resolve())
+    env_root = os.getenv("SYNAPSE_WORKSPACE_ROOT")
+    if env_root:
+        return str(Path(env_root).expanduser().resolve())
+    return str(Path.cwd().resolve()) if Path.cwd().exists() else None
+
 # Environment variables safe to propagate to worker subprocesses
 SAFE_ENV_VARS = {
     "PATH",
@@ -100,6 +118,13 @@ def run():
         capabilities=capabilities,
         approval_granted=context_data.get("approval_granted", False),
     )
+    # Re-attach a minimal memory-store view so read-only skills (workspace audit,
+    # security audit, read_file) resolve against the real workspace root instead of
+    # the worker's temporary cwd.
+    worker_ws = context_data.get("workspace_root")
+    if worker_ws:
+        from types import SimpleNamespace
+        ctx.memory_store = SimpleNamespace(workspace_root=worker_ws)
 
     if target_type == "file":
         file_path = payload["file_path"]
@@ -240,6 +265,7 @@ class IsolatedWorkerBackend:
             "trace_id": getattr(context, "trace_id", "default"),
             "capabilities": getattr(context, "capabilities", []),
             "approval_granted": getattr(context, "approval_granted", False),
+            "workspace_root": _context_workspace_root(context),
         }
 
         payload = {

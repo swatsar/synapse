@@ -135,24 +135,6 @@ class EncryptedDatabaseSecretBackend(SecretBackend):
         self._db_path = db_path if db_path is not None else ":memory:"
         key = master_key if master_key is not None else os.getenv(key_env_var)
         if not key:
-            key_file = Path(os.path.expanduser("~/.synapse/secret.key"))
-            if key_file.exists():
-                try:
-                    key = key_file.read_text(encoding="utf-8").strip()
-                except Exception:
-                    pass
-            if not key:
-                try:
-                    key_file.parent.mkdir(parents=True, exist_ok=True)
-                    import secrets
-                    key = secrets.token_urlsafe(32)
-                    key_file.write_text(key, encoding="utf-8")
-                except Exception:
-                    pass
-        if not key and self._db_path == ":memory:":
-            import secrets
-            key = secrets.token_urlsafe(32)
-        if not key:
             raise SecretBackendUnavailable(
                 "db", f"no master key (set {key_env_var} or pass master_key)"
             )

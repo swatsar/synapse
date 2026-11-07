@@ -74,6 +74,11 @@ PLAN_PROMPT = """You are a Planner Agent for an autonomous AI platform.
 
 TASK: {task}
 
+IMPORTANT INTERPRETATION RULES:
+- "изучи приложение", "изучи рабочую среду", "проведи аудит", "исследуй проект" means read-only workspace inspection first: inventory files, inspect entry points/configuration, run safe static checks, then report evidence and recommendations.
+- "модифицируй себя", "измени свои веса", "обучи себя" does not grant permission to alter the running model or base weights. Explain the boundary and, if useful, plan a proposal, dataset/eval, or adapter training workflow requiring explicit approval and holdout promotion gate.
+- Never claim that a scan, code change, training run, or model modification happened unless a corresponding tool result proves it.
+
 RELEVANT MEMORY (from past executions):
 {memory_context}
 
@@ -262,6 +267,68 @@ class PlannerAgent:
         t = task.lower()
         steps: list[ActionStep] = []
         payload = ((context or {}).get("perceived") or {}).get("metadata") or {}
+        audit_request = any(k in t for k in ("изучи свое приложение", "изучи приложение", "рабочую среду", "проведи аудит", "исследуй проект", "audit the project", "inspect the workspace"))
+        self_change_request = any(k in t for k in ("модифицируй себя", "изменить свои веса", "измени свои веса", "обучи себя", "modify yourself", "change your weights"))
+
+        if audit_request:
+            steps.append(ActionStep(
+                step_id="step_1", action="Inspect workspace files and application structure", skill="workspace_audit",
+                params={"path": payload.get("path", "."), "read_only": True},
+                required_capabilities=["fs:read"], risk_level=1,
+            ))
+            if any(k in t for k in ("безопас", "security", "уязвим", "vulnerability")):
+                steps.append(ActionStep(
+                    step_id="step_2", action="Run read-only security audit", skill="security_audit",
+                    params={"target_dir": payload.get("path", ".")},
+                    required_capabilities=["fs:read"], risk_level=1,
+                ))
+            return steps
+
+        if self_change_request:
+            # A self-change request phrased as learning/training runs the real
+            # adapter learning loop; bare "change your weights" stays a boundary
+            # explanation, because base weights are never edited live.
+            wants_training = any(k in t for k in ("обучи", "научи", "выучи", "train", "teach", "learn")) or payload.get("learning_topic")
+            if wants_training:
+                topic = str(payload.get("learning_topic") or self._match_learning_request(t) or "общий диалог")
+                steps.append(ActionStep(
+                    step_id="step_1", action=f"Run learning loop for topic '{topic}'", skill="learning_loop",
+                    params={"topic": topic, "language": payload.get("language", "Russian"), "max_cycles": payload.get("max_cycles", 3)},
+                    required_capabilities=["memory:read", "fs:read", "fs:write"], risk_level=3,
+                ))
+                return steps
+            steps.append(ActionStep(
+                step_id="step_1", action="Explain model and weight modification boundary", skill="generic_executor",
+                params={"task": task, "max_new_tokens": 2048, "safety_boundary": "no_self_modification"},
+                required_capabilities=["memory:read"], risk_level=1,
+            ))
+            return steps
+
+        # Delegate to an installed external coding agent (Claude Code / Codex)
+        # when the user asks to interact with them or hand the task over.
+        agent_request = payload.get("executor") or self._match_agent_request(t)
+        if agent_request:
+            agent_id = str(agent_request)
+            if agent_id.startswith("agent:"):
+                agent_id = agent_id.split(":", 1)[1]
+            if agent_id in {"codex", "claude_code"}:
+                steps.append(ActionStep(
+                    step_id="step_1", action=f"Delegate task to external agent {agent_id}", skill="external_agent",
+                    params={"agent": agent_id, "task": task},
+                    required_capabilities=["fs:read", "os:process"], risk_level=2,
+                ))
+                return steps
+
+        # Chat-driven learning loop: teach the local model a topic through the
+        # verified generate → snapshot → LoRA cycle while holdout improves.
+        learning_topic = self._match_learning_request(t)
+        if learning_topic is not None:
+            steps.append(ActionStep(
+                step_id="step_1", action=f"Run learning loop for topic '{learning_topic}'", skill="learning_loop",
+                params={"topic": learning_topic, "language": payload.get("language", "Russian"), "max_cycles": payload.get("max_cycles", 3)},
+                required_capabilities=["memory:read", "fs:read", "fs:write"], risk_level=3,
+            ))
+            return steps
 
         if any(k in t for k in ["read", "open", "load", "get file"]):
             path = payload.get("path")
@@ -307,6 +374,44 @@ class PlannerAgent:
                 required_capabilities=["memory:read"], risk_level=1,
             ))
         return steps
+
+    def _match_agent_request(self, task_lower: str) -> str | None:
+        """Detect a request to interact with an external coding agent CLI."""
+        agent_names = {
+            "claude code": "claude_code",
+            "claude_code": "claude_code",
+            "клод код": "claude_code",
+            "кодекс": "codex",
+            "codex": "codex",
+        }
+        cues = (
+            "подключи", "запусти", "спроси", "попроси", "через", "передай",
+            "connect", "run", "ask", "delegate", "use", "интерфейс",
+        )
+        for name, agent_id in agent_names.items():
+            if name not in task_lower:
+                continue
+            if any(cue in task_lower for cue in cues):
+                return agent_id
+        if any(k in task_lower for k in ("внешний агент", "external agent", "внешнего агента")):
+            return "codex"
+        return None
+
+    def _match_learning_request(self, task_lower: str) -> str | None:
+        """Detect a chat learning request and extract the topic, if any."""
+        triggers = (
+            "научи", "обучи", "выучи", "научись", "потренируй", "обучение",
+            "teach", "learn", "train",
+        )
+        if not any(trigger in task_lower for trigger in triggers):
+            return None
+        for cue in ("меня", "me", "модель", "model", "себя"):
+            task_lower = task_lower.replace(cue, " ", 1)
+        topic = re.sub(
+            r"(научи|обучи|выучи|научись|потренируй|обучение|teach|learn|train)[ingа-яё]*\s*",
+            " ", task_lower, count=1,
+        ).strip(" :,.!?\"'")
+        return topic if topic else "общий диалог"
 
     def _assess_risk(self, task: str, steps: list[ActionStep]) -> int:
         return max((s.risk_level for s in steps), default=1)

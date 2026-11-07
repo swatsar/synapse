@@ -75,6 +75,23 @@ def _workspace(request: HarnessRequest) -> Path | None:
     return path
 
 
+def _write_authorized(request: HarnessRequest, workspace: Path, write_enabled: bool) -> bool:
+    """Require per-run confirmation and a declared workspace scope for writes."""
+    if not write_enabled:
+        return True
+    if request.metadata.get("write_confirmation") is not True:
+        return False
+    raw_scope = request.metadata.get("workspace_scope")
+    if not raw_scope:
+        return False
+    scope = Path(str(raw_scope)).expanduser().resolve()
+    try:
+        workspace.relative_to(scope)
+    except ValueError:
+        return False
+    return scope.is_dir()
+
+
 def _safe_env() -> dict[str, str]:
     """Pass only non-secret process settings; CLIs resolve auth themselves."""
     allowed = {
@@ -97,6 +114,15 @@ def _text_from(value: Any) -> str:
                 if text:
                     return text
     return ""
+
+
+def _normalize_command(value: Any) -> list[str]:
+    """Normalize a persisted/explicit command override to a non-empty argv list."""
+    if isinstance(value, str) and value.strip():
+        return [value.strip()]
+    if isinstance(value, (list, tuple)) and value and all(isinstance(item, str) and item.strip() for item in value):
+        return [item.strip() for item in value]
+    return []
 
 
 def parse_jsonl(stdout: str) -> tuple[tuple[dict[str, Any], ...], str]:
@@ -158,14 +184,29 @@ class ExternalCliHarness(HarnessAdapter):
     command: str = ""
 
     def __init__(self, *, executable: str | None = None, enabled: bool | None = None,
-                 timeout_seconds: float = 120.0):
+                 timeout_seconds: float = 120.0, write_enabled: bool = False,
+                 command: list[str] | tuple[str, ...] | str | None = None):
         self.executable = executable or self.command
-        self.enabled = _enabled() if enabled is None else enabled
-        self.timeout_seconds = timeout_seconds
+        configured: dict[str, Any] = {}
+        if enabled is None or timeout_seconds == 120.0 or not write_enabled:
+            try:
+                from synapse.integrations.control_plane import get_control_plane
+                configured = get_control_plane().executor_config().get(self.name, {})
+            except (OSError, TypeError, ValueError):
+                configured = {}
+        self.enabled = bool(configured["enabled"]) if enabled is None and "enabled" in configured else (_enabled() if enabled is None else enabled)
+        self.timeout_seconds = float(configured.get("timeout_seconds", timeout_seconds))
+        self.write_enabled = bool(configured.get("write_enabled", write_enabled))
+        # An explicit argv (for example [node, codex.js] for npm-wrapped CLIs)
+        # overrides plain executable resolution; persisted config wins last.
+        self.command_argv: list[str] = _normalize_command(command) if command else []
+        configured_command = _normalize_command(configured.get("command"))
+        if configured_command:
+            self.command_argv = configured_command
 
     @abstractmethod
-    def build_argv(self, executable: str, request: HarnessRequest, workspace: Path) -> list[str]:
-        """Build an argv-only command for the concrete CLI."""
+    def build_argv(self, prefix: list[str], request: HarnessRequest, workspace: Path) -> list[str]:
+        """Build an argv-only command for the concrete CLI from the resolved prefix."""
 
     async def execute(self, request: HarnessRequest) -> HarnessResult:
         if not self.enabled:
@@ -173,12 +214,19 @@ class ExternalCliHarness(HarnessAdapter):
         workspace = _workspace(request)
         if workspace is None:
             return HarnessResult(False, error="executor workspace_root is required and must be an existing directory")
-        executable = shutil.which(self.executable)
-        if executable is None:
-            return HarnessResult(False, error=f"executor executable not found: {self.executable}")
+        if not _write_authorized(request, workspace, self.write_enabled):
+            return HarnessResult(False, error="write mode requires explicit write_confirmation and workspace_scope containing workspace_root")
+        prefix = list(self.command_argv)
+        if not prefix:
+            executable = shutil.which(self.executable)
+            if executable is None:
+                return HarnessResult(False, error=f"executor executable not found: {self.executable}")
+            prefix = [executable]
+        if os.name == "nt" and prefix[0].lower().endswith((".cmd", ".bat")):
+            prefix = ["cmd.exe", "/c", *prefix]
         if not request.prompt.strip():
             return HarnessResult(False, error="executor prompt is empty")
-        argv = self.build_argv(executable, request, workspace)
+        argv = self.build_argv(prefix, request, workspace)
         started = asyncio.get_running_loop().time()
         process: asyncio.subprocess.Process | None = None
         try:
@@ -219,6 +267,8 @@ class ExternalCliHarness(HarnessAdapter):
             "returncode": process.returncode,
             "duration_ms": duration_ms,
             "workspace": str(workspace),
+            "write_enabled": self.write_enabled,
+            "write_authorized": self.write_enabled and request.metadata.get("write_confirmation") is True,
             "event_count": len(events),
             "stderr_present": bool(stderr),
             "argv": argv[0:2],
@@ -234,10 +284,11 @@ class CodexHarness(ExternalCliHarness):
     name = "codex"
     command = "codex"
 
-    def build_argv(self, executable: str, request: HarnessRequest, workspace: Path) -> list[str]:
+    def build_argv(self, prefix: list[str], request: HarnessRequest, workspace: Path) -> list[str]:
+        sandbox = "workspace-write" if self.write_enabled else "read-only"
         return [
-            executable, "exec", "--json", "--ephemeral", "--ignore-user-config",
-            "--sandbox", "read-only", "--cd", str(workspace), request.prompt,
+            *prefix, "exec", "--json", "--ephemeral", "--ignore-user-config",
+            "--sandbox", sandbox, "--cd", str(workspace), request.prompt,
         ]
 
 
@@ -245,11 +296,13 @@ class ClaudeCodeHarness(ExternalCliHarness):
     name = "claude_code"
     command = "claude"
 
-    def build_argv(self, executable: str, request: HarnessRequest, workspace: Path) -> list[str]:
+    def build_argv(self, prefix: list[str], request: HarnessRequest, workspace: Path) -> list[str]:
+        tools = "Read,Glob,Grep,Write,Edit" if self.write_enabled else "Read,Glob,Grep"
+        permission_mode = "acceptEdits" if self.write_enabled else "dontAsk"
         return [
-            executable, "-p", request.prompt, "--output-format", "stream-json", "--verbose",
+            *prefix, "-p", request.prompt, "--output-format", "stream-json", "--verbose",
             "--no-session-persistence", "--safe-mode", "--strict-mcp-config",
-            "--permission-mode", "dontAsk", "--tools", "Read,Glob,Grep",
+            "--permission-mode", permission_mode, "--tools", tools,
             "--add-dir", str(workspace),
         ]
 

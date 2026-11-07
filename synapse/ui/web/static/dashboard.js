@@ -401,19 +401,31 @@
 
     if (text.startsWith('/')) {
       state.submitting = true; $('send-task').disabled = true;
+      const commandName = text.split(' ')[0];
       try {
         if (!state.sessionId) await createSession();
         state.session.messages = state.session.messages || [];
         state.session.messages.push({role: 'user', content: text, created_at: new Date().toISOString()});
+        state.session.messages.push({role: 'assistant', content: `Выполняю команду ${commandName}… Это может занять несколько минут.`, created_at: new Date().toISOString(), pending_slash: true});
+        $('task').value = ''; resizeComposer();
+        renderMessages();
         const slashRes = await api('/platform/slash/execute', {
           method: 'POST', body: JSON.stringify({command: text})
         });
         const outStr = typeof slashRes.output === 'object' ? JSON.stringify(slashRes.output, null, 2) : String(slashRes.output);
-        state.session.messages.push({role: 'assistant', content: outStr, created_at: new Date().toISOString()});
-        $('task').value = ''; resizeComposer();
+        // Replace the pending placeholder with the actual command result.
+        const pending = state.session.messages.findLast(message => message.pending_slash);
+        if (pending) {
+          pending.content = outStr;
+          delete pending.pending_slash;
+        } else {
+          state.session.messages.push({role: 'assistant', content: outStr, created_at: new Date().toISOString()});
+        }
         renderMessages();
-        notify(`Команда ${text.split(' ')[0]} выполнена.`);
+        notify(`Команда ${commandName} выполнена.`);
       } catch (err) {
+        const pending = state.session.messages?.findLast?.(message => message.pending_slash);
+        if (pending) { pending.content = `Команда ${commandName} завершилась с ошибкой: ${err.message}`; delete pending.pending_slash; renderMessages(); }
         notify(err.message, true);
       } finally {
         state.submitting = false; $('send-task').disabled = false; $('task').focus();
@@ -431,7 +443,11 @@
       const selectedModel = $('model-select')?.value;
       if (selectedModel && selectedModel !== 'auto') {
         payload = payload || {};
-        payload.model = selectedModel;
+        if (selectedModel.startsWith('agent:')) {
+          payload.executor = selectedModel.slice('agent:'.length);
+        } else {
+          payload.model = selectedModel;
+        }
         if (selectedModel.startsWith('llama') || selectedModel.startsWith('codellama')) {
           payload.local_only = true;
         }
@@ -468,6 +484,22 @@
   async function copyText(text) {
     try { await navigator.clipboard.writeText(text || ''); notify('Скопировано.'); }
     catch { notify('Браузер не разрешил доступ к буферу обмена.', true); }
+  }
+
+  async function loadAgentAvailability() {
+    const group = $('agent-options-group');
+    if (!group) return;
+    try {
+      const data = await api('/integrations/agents');
+      for (const option of group.querySelectorAll('option')) {
+        const agentId = option.value.slice('agent:'.length);
+        const agent = (data.agents || []).find(item => item.id === agentId);
+        if (!agent) continue;
+        option.disabled = !agent.enabled && !agent.configured;
+        if (!agent.enabled) option.textContent = option.textContent.replace(/\s*(отключён|включён)$/, '') + (agent.configured ? ' · отключён' : ' · не найден');
+        else option.textContent = option.textContent.replace(/\s*· (отключён|не найден)$/, '');
+      }
+    } catch (error) { /* inventory is optional; leave options as-is */ }
   }
 
   function exportSession() {
@@ -973,6 +1005,7 @@
 
   (async function init() {
     await api('/workspace').then(info => { $('workspace-label').textContent = info.root; $('workspace-label').title = info.root; }).catch(error => { if (error.status !== 401) notify(error.message, true); });
+    loadAgentAvailability();
     await loadSessions(); await loadSession(); startPolling();
   })();
 })();

@@ -208,17 +208,27 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
     durable_task = None
     lease = None
     durable_run = None
-    if work_engine is not None:
-        from synapse.work import Run, Task, WorkStatus
-        durable_task = await work_engine.create_task(
-            Task(id=task_id, title=task["task"], description=task["task"])
+    try:
+        if work_engine is not None:
+            from synapse.work import Run, Task, WorkStatus
+            durable_task = await work_engine.create_task(
+                Task(id=task_id, title=task["task"], description=task["task"])
+            )
+            durable_run = await work_engine.create_run(Run(task_id=task_id))
+            lease = await work_engine.checkout(task_id, "api-worker")
+            if lease is None:
+                raise RuntimeError("Task could not acquire a durable execution lease")
+            await work_engine.transition_task(task_id, WorkStatus.RUNNING)
+            await work_engine.transition_run(durable_run.id, WorkStatus.RUNNING)
+    except Exception as exc:
+        error = f"Не удалось запустить durable execution: {exc}"
+        record = store.update_task(
+            task_id, status="failed", success=False, error=error,
+            completed_at=utc_now(), duration_ms=round((time.monotonic() - started) * 1000),
         )
-        durable_run = await work_engine.create_run(Run(task_id=task_id))
-        lease = await work_engine.checkout(task_id, "api-worker")
-        if lease is None:
-            raise RuntimeError("Task could not acquire a durable execution lease")
-        await work_engine.transition_task(task_id, WorkStatus.RUNNING)
-        await work_engine.transition_run(durable_run.id, WorkStatus.RUNNING)
+        store.add_message(task["session_id"], "assistant", error, task_id)
+        store.add_event(task["session_id"], task_id, "task", {"status": "failed", "error": error})
+        return record
 
     store.update_task(task_id, status="running", started_at=utc_now())
     store.add_event(task["session_id"], task_id, "task", {"status": "running"})
@@ -359,7 +369,7 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
 
 
 def result_message(task: dict[str, Any]) -> str:
-    """Human-readable summary; the complete structured result remains available."""
+    """Return the complete assistant text without replacing it by a summary."""
     status = task.get("status")
     if status == "approval_required":
         return "Действие требует вашего подтверждения. Оно ещё не выполнялось."
@@ -367,10 +377,11 @@ def result_message(task: dict[str, Any]) -> str:
         return task.get("error") or "Задача завершилась с ошибкой."
     result = task.get("result") or {}
     outputs = (result.get("action_result") or {}).get("outputs") or []
-    if len(outputs) == 1 and isinstance(outputs[0].get("content"), str):
-        return outputs[0]["content"]
+    contents = [item.get("content", "") for item in outputs if isinstance(item, dict) and isinstance(item.get("content"), str) and item.get("content")]
+    if contents:
+        return "\n\n".join(contents)
     if outputs:
-        return f"Выполнено шагов: {len(outputs)}. Результат доступен на панели справа."
+        return f"Выполнено шагов: {len(outputs)}. Структурированный результат доступен в деталях."
     return "Задача выполнена."
 
 

@@ -39,3 +39,8 @@ Thumbs.db
 .local-smoke/
 uv.lock
 
+
+
+# Playwright agent artifacts
+.playwright-mcp/
+preview-8001.pid

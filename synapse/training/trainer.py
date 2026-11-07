@@ -32,6 +32,11 @@ class TrainingRunEvidence:
     total_parameter_count: int = 0
     steps: int = 0
     final_loss: float | None = None
+    holdout_loss_before: float | None = None
+    holdout_loss_after: float | None = None
+    holdout_metric: str = "causal_lm_loss"
+    promotion_gate: str = "not_evaluated"
+    promotion_status: str = "not_promoted"
     reload_forward_pass: bool = False
     blockers: tuple[str, ...] = ()
     mode: str = "lora"
@@ -47,6 +52,21 @@ def _sha256_tree(root: Path) -> str:
         digest.update(str(path.relative_to(root)).replace("\\", "/").encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()
+
+
+def _loss_on_records(model: Any, tokenizer: Any, records: list[Any], device: str, max_length: int) -> float | None:
+    texts = [_training_text(record) for record in records]
+    if not texts:
+        return None
+    encoded = tokenizer(texts, return_tensors="pt", padding=True, truncation=True, max_length=max_length)
+    input_ids = encoded["input_ids"].to(device)
+    attention_mask = encoded["attention_mask"].to(device)
+    model.eval()
+    import torch
+    with torch.no_grad():
+        output = model(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
+    value = float(output.loss.detach().cpu().item())
+    return value if torch.isfinite(output.loss) else None
 
 
 def _training_text(record: Any) -> str:
@@ -114,16 +134,24 @@ def train_lora(
         )
 
     records = experience_store.get_records(snapshot.train_ids)
-    if len(records) != len(snapshot.train_ids):
+    holdout_records = experience_store.get_records(snapshot.holdout_ids)
+    if len(records) != len(snapshot.train_ids) or len(holdout_records) != len(snapshot.holdout_ids):
         raise RuntimeError("snapshot references missing experience records")
-    if any(not record.verified_for_training for record in records):
+    if any(not record.verified_for_training for record in records + holdout_records):
         raise RuntimeError("snapshot contains a record that is no longer verified")
     texts = [_training_text(record) for record in records]
+    holdout_texts = [_training_text(record) for record in holdout_records]
     if not all(texts):
         return TrainingRunEvidence(
             status="blocked", run_id=run_id, base_model=str(base_path), base_model_hash=base_hash,
             snapshot_id=snapshot.snapshot_id, snapshot_manifest_hash=snapshot.manifest_hash,
             adapter_path=None, blockers=("verified_records_require_non_empty_training_text",), mode=mode,
+        )
+    if not all(holdout_texts):
+        return TrainingRunEvidence(
+            status="blocked", run_id=run_id, base_model=str(base_path), base_model_hash=base_hash,
+            snapshot_id=snapshot.snapshot_id, snapshot_manifest_hash=snapshot.manifest_hash,
+            adapter_path=None, blockers=("holdout_records_require_non_empty_training_text",), mode=mode,
         )
 
     torch, LoraConfig, PeftModel, TaskType, get_peft_model, AutoModelForCausalLM, AutoTokenizer = _load_runtime()
@@ -136,6 +164,13 @@ def train_lora(
         str(base_path), local_files_only=True, dtype=dtype,
     ).to(device)
     model.config.use_cache = False
+    holdout_loss_before = _loss_on_records(model, tokenizer, holdout_records, device, max_length)
+    if holdout_loss_before is None:
+        return TrainingRunEvidence(
+            status="blocked", run_id=run_id, base_model=str(base_path), base_model_hash=base_hash,
+            snapshot_id=snapshot.snapshot_id, snapshot_manifest_hash=snapshot.manifest_hash,
+            adapter_path=None, blockers=("holdout_metric_unavailable",), mode=mode,
+        )
     target_modules = ["q_proj", "v_proj"]
     available_names = {name.rsplit(".", 1)[-1] for name, _ in model.named_modules()}
     target_modules = [name for name in target_modules if name in available_names]
@@ -178,12 +213,21 @@ def train_lora(
                              attention_mask=attention_mask[:, : min(8, attention_mask.shape[1])])
         if not torch.isfinite(probe.logits).all():
             raise RuntimeError("reloaded adapter produced non-finite logits")
+        holdout_loss_after = _loss_on_records(reloaded, tokenizer, holdout_records, device, max_length)
+        if holdout_loss_after is None:
+            raise RuntimeError("holdout metric unavailable after reload")
+        promoted = holdout_loss_after < holdout_loss_before
+        promotion_gate = "holdout_loss_after_lt_before"
+        promotion_status = "promoted" if promoted else "blocked_no_holdout_improvement"
         manifest = {
             "run_id": run_id, "mode": mode, "base_model": str(base_path),
             "base_model_hash": base_hash, "adapter_hash": adapter_hash,
             "snapshot_id": snapshot.snapshot_id, "snapshot_manifest_hash": snapshot.manifest_hash,
             "trainable_parameter_count": trainable, "total_parameter_count": total,
             "steps": max(1, steps), "final_loss": final_loss,
+            "holdout_metric": "causal_lm_loss", "holdout_loss_before": holdout_loss_before,
+            "holdout_loss_after": holdout_loss_after, "promotion_gate": promotion_gate,
+            "promotion_status": promotion_status,
         }
         (output_path / "training_manifest.json").write_text(
             json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -193,7 +237,9 @@ def train_lora(
             snapshot_id=snapshot.snapshot_id, snapshot_manifest_hash=snapshot.manifest_hash,
             adapter_path=str(output_path), trainable_parameter_count=trainable,
             total_parameter_count=total, steps=max(1, steps), final_loss=final_loss,
-            reload_forward_pass=True, mode=mode,
+            holdout_loss_before=holdout_loss_before, holdout_loss_after=holdout_loss_after,
+            holdout_metric="causal_lm_loss", promotion_gate=promotion_gate,
+            promotion_status=promotion_status, reload_forward_pass=True, mode=mode,
         )
     except Exception as exc:
         return TrainingRunEvidence(

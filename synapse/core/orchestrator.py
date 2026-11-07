@@ -880,7 +880,12 @@ def build_orchestrator(
     from synapse.memory.store import MemoryStore
     from synapse.memory.vector_store import VectorMemoryStore
     from synapse.security.capability_manager import CapabilityManager as SkillCapabilityManager
+    from synapse.skills.builtins.external_agent import execute_external_agent
+    from synapse.skills.builtins.learning_loop import execute_learning_loop
+    from synapse.skills.builtins.local_executor import execute_local_task
     from synapse.skills.builtins.read_file import ReadFileSkill
+    from synapse.skills.builtins.security_audit import execute_security_audit
+    from synapse.skills.builtins.workspace_audit import execute_workspace_audit
     from synapse.skills.dynamic.registry import SkillRegistry
 
     # Initialize determinism components
@@ -901,6 +906,7 @@ def build_orchestrator(
     if db != ":memory:":
         _os.makedirs(_os.path.dirname(_os.path.abspath(db)), exist_ok=True)
     memory = MemoryStore(db_path=db)
+    memory.workspace_root = workspace
     vector = VectorMemoryStore(persist_directory=vector_persist_dir)
     memory.vector_store = vector  # attach semantic store
 
@@ -924,10 +930,12 @@ def build_orchestrator(
     skill_capability_manager = SkillCapabilityManager()
     for capability in (
         "fs:read",
+        "fs:write",
         "memory:read",
         "memory:write",
         "net:http",
         "code:generate",
+        "os:process",
     ):
         skill_capability_manager.grant(capability)
     skill_registry = SkillRegistry(capability_manager=skill_capability_manager)
@@ -941,8 +949,26 @@ def build_orchestrator(
         ),
         ReadFileSkill(workspace_root=workspace),
     )
-
-    from synapse.skills.builtins.local_executor import execute_local_task
+    skill_registry.register_builtin(
+        SkillManifest(
+            name="workspace_audit",
+            description="Read-only inventory of workspace structure and key project metadata",
+            required_capabilities=["fs:read"],
+            risk_level=1,
+            trust_level="verified",
+        ),
+        execute_workspace_audit,
+    )
+    skill_registry.register_builtin(
+        SkillManifest(
+            name="security_audit",
+            description="Read-only static security audit of the workspace",
+            required_capabilities=["fs:read"],
+            risk_level=1,
+            trust_level="verified",
+        ),
+        execute_security_audit,
+    )
     skill_registry.register_builtin(
         SkillManifest(
             name="generic_executor",
@@ -952,6 +978,26 @@ def build_orchestrator(
             trust_level="trusted",
         ),
         execute_local_task,
+    )
+    skill_registry.register_builtin(
+        SkillManifest(
+            name="external_agent",
+            description="Delegate a bounded task to an installed external coding agent CLI (Claude Code or Codex)",
+            required_capabilities=["fs:read", "os:process"],
+            risk_level=2,
+            trust_level="trusted",
+        ),
+        execute_external_agent,
+    )
+    skill_registry.register_builtin(
+        SkillManifest(
+            name="learning_loop",
+            description="Run the chat-driven learning loop: generate verified pairs, snapshot, LoRA-train while holdout improves",
+            required_capabilities=["memory:read", "fs:read", "fs:write"],
+            risk_level=3,
+            trust_level="trusted",
+        ),
+        execute_learning_loop,
     )
 
     # Supported local skills have deterministic fallback plans. An external

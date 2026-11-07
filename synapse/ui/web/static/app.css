@@ -120,7 +120,7 @@ h1 { font-size: 15px; font-weight: 550; line-height: 1.4; margin: 2px 0 0; overf
 .agent-avatar { width: 26px; height: 26px; border-radius: 8px; background: var(--accent-bg); display: flex; justify-content: center; align-items: center; color: var(--accent); border: 1px solid #40354f; }
 .agent-avatar svg { width: 14px; height: 14px; }
 .agent-name { font-size: 11px; font-weight: 600; margin: 3px 0 9px; }
-.agent-content { color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.75; max-height: 360px; overflow-y: auto; }
+.agent-content { color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.75; max-height: none; overflow: visible; }
 .agent-content.error { color: var(--danger); }
 .task-progress { border: 1px solid var(--border-soft); background: #18181b; border-radius: 10px; margin-top: 13px; overflow: hidden; }
 .task-progress-toggle { width: 100%; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; cursor: pointer; padding: 10px 12px; color: var(--secondary); text-align: left; font-size: 11px; }
