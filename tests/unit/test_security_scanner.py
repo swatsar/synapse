@@ -25,6 +25,20 @@ def test_detect_hardcoded_secret(auditor, tmp_path):
     assert report.total_findings >= 1
     assert any(f.severity == Severity.CRITICAL for f in report.findings)
     assert any("Anthropic API Key" in f.title for f in report.findings)
+    assert "sk-ant-" not in report.findings[0].snippet
+    assert "[REDACTED SECRET]" in report.findings[0].snippet
+
+
+def test_audit_rejects_workspace_escape(auditor, tmp_path):
+    outside = tmp_path.parent / "outside"
+    outside.mkdir(exist_ok=True)
+    with pytest.raises(ValueError, match="inside the workspace"):
+        auditor.run_audit(outside)
+
+
+def test_audit_rejects_missing_target(auditor):
+    with pytest.raises(ValueError, match="existing directory"):
+        auditor.run_audit("does-not-exist")
 
 
 def test_detect_dangerous_eval(auditor, tmp_path):

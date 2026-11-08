@@ -32,6 +32,10 @@ class ConnectionResult:
     detail: dict[str, Any] | None = None
     protocol_version: str = PROTOCOL_VERSION
 
+    @property
+    def ok(self) -> bool:
+        return self.success
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
@@ -198,30 +202,75 @@ class OllamaAdapter(OpenAICompatibleAdapter):
             return await super().discover_models(base_url, api_key, timeout)
 
 
+class OpenAIChatAdapter(OpenAICompatibleAdapter):
+    """OpenAI Chat Completions protocol.
+
+    It is kept as a named adapter so this mode cannot silently drift into a
+    different wire contract when the registry gains more protocols.
+    """
+
+    api_mode = ApiMode.OPENAI_CHAT
+
+
+class UnsupportedProtocolAdapter(ProtocolAdapter):
+    """Fail-closed adapter for protocols without an implemented transport.
+
+    A provider profile is configuration, not evidence that a protocol is
+    supported. Returning a structured failure is safer than probing a foreign
+    endpoint with an OpenAI-shaped request and reporting a false capability.
+    """
+
+    def __init__(self, api_mode: ApiMode):
+        self.api_mode = api_mode
+
+    async def test_connection(self, base_url: str | None, api_key: str | None,
+                              timeout: float = 15.0) -> ConnectionResult:
+        return ConnectionResult(
+            False,
+            error="unsupported_api_mode",
+            detail={"api_mode": self.api_mode.value},
+        )
+
+    async def discover_models(self, base_url: str | None, api_key: str | None,
+                              timeout: float = 30.0) -> list[DiscoveredModel]:
+        return []
+
+    async def generate(self, model: str, messages: list[dict[str, Any]],
+                       base_url: str | None, api_key: str | None,
+                       **kwargs: Any) -> dict[str, Any]:
+        raise NotImplementedError(
+            f"No transport adapter is implemented for api_mode={self.api_mode.value}"
+        )
+
+
 _ADAPTERS: dict[ApiMode, type[ProtocolAdapter]] = {
     ApiMode.OPENAI_COMPATIBLE: OpenAICompatibleAdapter,
-    ApiMode.OPENAI_CHAT: OpenAICompatibleAdapter,
+    ApiMode.OPENAI_CHAT: OpenAIChatAdapter,
     ApiMode.OLLAMA: OllamaAdapter,
 }
 
 
 def get_adapter(api_mode: ApiMode | str) -> ProtocolAdapter:
-    """Return the adapter for an ApiMode.
+    """Return the explicitly supported adapter for an API mode.
 
-    Modes without a dedicated adapter (anthropic_messages, gemini_native,
-    bedrock, vertex_ai, azure_openai) are handled by litellm's native transport
-    and share the OpenAI-compatible probe for connection testing.
+    Unsupported modes deliberately return a fail-closed adapter instead of
+    borrowing the OpenAI-compatible wire format. This keeps connection probes
+    and future generation paths truthful until a protocol implementation exists.
     """
     mode = ApiMode(api_mode) if isinstance(api_mode, str) else api_mode
-    adapter_cls = _ADAPTERS.get(mode, OpenAICompatibleAdapter)
-    return adapter_cls()
+    adapter_cls = _ADAPTERS.get(mode)
+    if adapter_cls is not None:
+        return adapter_cls()
+    return UnsupportedProtocolAdapter(mode)
 
 
 __all__ = [
     "ConnectionResult",
     "DiscoveredModel",
+    "OpenAIChatAdapter",
     "OpenAICompatibleAdapter",
     "OllamaAdapter",
     "ProtocolAdapter",
+    "UnsupportedProtocolAdapter",
     "get_adapter",
 ]

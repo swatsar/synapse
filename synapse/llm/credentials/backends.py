@@ -127,7 +127,7 @@ class EncryptedDatabaseSecretBackend(SecretBackend):
                  key_env_var: str = "SYNAPSE_SECRET_KEY"):
         try:
             import aiosqlite
-            from cryptography.fernet import Fernet
+            from cryptography.fernet import Fernet, MultiFernet
         except ImportError as e:
             raise SecretBackendUnavailable("db", f"missing dependency: {e}")
 
@@ -138,16 +138,30 @@ class EncryptedDatabaseSecretBackend(SecretBackend):
             raise SecretBackendUnavailable(
                 "db", f"no master key (set {key_env_var} or pass master_key)"
             )
-        self._fernet = Fernet(self._encode_key(key))
+        # Use MultiFernet with PBKDF2 primary key and legacy key for backward compatibility
+        primary_key = Fernet(self._derive_pbkdf2_key(key))
+        legacy_key = Fernet(self._derive_legacy_key(key))
+        self._fernet = MultiFernet([primary_key, legacy_key])
         self._db: Any = None
         self._lock = asyncio.Lock()
 
     @staticmethod
-    def _encode_key(key: str) -> bytes:
-        """Derive a URL-safe 32-byte Fernet key from an arbitrary passphrase."""
+    def _derive_pbkdf2_key(key: str, salt: bytes = b"synapse_durable_salt_v1") -> bytes:
+        """Derive a URL-safe 32-byte Fernet key from passphrase using PBKDF2-HMAC-SHA256."""
+        import hashlib
+        derived = hashlib.pbkdf2_hmac("sha256", key.encode("utf-8"), salt, 100_000)
+        return base64.urlsafe_b64encode(derived)
+
+    @staticmethod
+    def _derive_legacy_key(key: str) -> bytes:
+        """Derive legacy 32-byte Fernet key from raw SHA-256 digest."""
         import hashlib
         digest = hashlib.sha256(key.encode("utf-8")).digest()
         return base64.urlsafe_b64encode(digest)
+
+    @staticmethod
+    def _encode_key(key: str) -> bytes:
+        return EncryptedDatabaseSecretBackend._derive_pbkdf2_key(key)
 
     async def _get_db(self) -> Any:
         async with self._lock:

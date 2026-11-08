@@ -58,6 +58,29 @@ async def test_custom_skill_registration_and_execution(library):
 
 
 @pytest.mark.asyncio
+async def test_composable_skill_preserves_nested_failure(library):
+    def _blocked_action() -> dict:
+        return {"success": False, "status": "blocked", "error": "approval_required"}
+
+    skill = ComposableSkill(
+        id="blocked_action",
+        name="Blocked Action",
+        description="Fixture for truthful failure propagation",
+        parameters=[],
+        required_capabilities=[],
+        risk_level=3,
+        handler=_blocked_action,
+    )
+
+    result = await skill.execute({})
+    assert result["success"] is False
+    assert result["error"] == "approval_required"
+    assert result["result"]["status"] == "blocked"
+    with pytest.raises(ValueError, match="chatml"):
+        await library.get("sft_export").execute({"format": "unknown"})
+
+
+@pytest.mark.asyncio
 async def test_skill_pipeline_execution(library):
     pipeline = [
         {"skill_id": "code_review", "params": {"code": "def run():\n    print('debug')\n"}},

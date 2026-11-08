@@ -76,4 +76,27 @@
       else if (keyInput) { keyInput.focus(); keyInput.scrollIntoView({behavior: 'smooth', block: 'center'}); }
     },
   };
+
+  // Shared live runtime-status pill for the secondary pages (providers/agents/settings).
+  // Any element with [data-runtime-status] is updated in place on an interval.
+  (() => {
+    const statusNodes = [...document.querySelectorAll('[data-runtime-status]')];
+    if (!statusNodes.length) return;
+    const update = async () => {
+      let ok = false;
+      try {
+        const res = await fetch('/health', { cache: 'no-store' });
+        ok = res.ok;
+      } catch { ok = false; }
+      for (const node of statusNodes) {
+        const dot = node.querySelector('.status-dot');
+        const label = node.querySelector('[data-runtime-label]');
+        const version = node.querySelector('[data-runtime-version]');
+        if (dot) dot.classList.toggle('offline', !ok);
+        if (label) label.textContent = ok ? 'Онлайн' : 'Недоступен';
+      }
+    };
+    update();
+    window.setInterval(update, 15000);
+  })();
 })();

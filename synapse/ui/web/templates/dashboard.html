@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Локальное рабочее пространство автономного агента Synapse">
   <title>Synapse — рабочее пространство</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/app.css">
   <script src="/static/app.js" defer></script>
   <script src="/static/dashboard.js" defer></script>
 </head>
@@ -27,6 +27,7 @@
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 8a7 7 0 0 1 12-1l2 5M4 12l2 5a7 7 0 0 0 12-1"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
   </svg>
 
@@ -70,9 +71,11 @@
             <p>Опишите задачу. Synapse построит план, проверит разрешения<br class="desktop-break"> и покажет каждый этап выполнения.</p>
             <div class="suggestions">
               <button class="suggestion" type="button" data-prompt="Read a file"><svg><use href="#i-file"/></svg><span><strong>Прочитать файл</strong><small>Просмотреть содержимое из workspace</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
-              <button class="suggestion" type="button" data-prompt="Analyze the project structure"><svg><use href="#i-search"/></svg><span><strong>Анализировать данные</strong><small>Проверить доступный навык обработки</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
-              <button class="suggestion" type="button" data-prompt="Generate code"><svg><use href="#i-shield"/></svg><span><strong>Создать код</strong><small>Запрос с обязательным подтверждением</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
+              <button class="suggestion" type="button" data-prompt="Изучи приложение и рабочую среду в режиме read-only, проведи аудит и составь отчёт с фактами, найденными файлами и ограничениями проверки."><svg><use href="#i-search"/></svg><span><strong>Изучить приложение</strong><small>Read-only аудит workspace с фактическим отчётом</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
+              <button class="suggestion" type="button" data-prompt="Обучи себя русскому языку: запусти цикл обучения с проверкой качества."><svg><use href="#i-retry"/></svg><span><strong>Научить модель</strong><small>Цикл обучения LoRA до улучшения holdout-метрики</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
+              <button class="suggestion" type="button" data-prompt="Подключи Claude Code и передай ему задачу: изучи структуру проекта и предложи улучшения."><svg><use href="#i-panels"/></svg><span><strong>Внешний агент</strong><small>Делегировать задачу Claude Code / Codex</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
             </div>
+            <div class="capability-note"><svg><use href="#i-chevron"/></svg>Команды чата: <code>/goal</code> · <code>/agents</code> · <code>/agent</code> · <code>/train</code> · <code>/memory</code> · <code>/skills</code> · <code>/bench</code> · <code>/audit</code></div>
             <div class="capability-note"><svg><use href="#i-shield"/></svg>Файловый доступ ограничен рабочей папкой. Опасные действия требуют подтверждения.</div>
           </section>
           <div id="messages"></div>
@@ -96,6 +99,10 @@
                 <option value="o1">o1 (OpenAI Рассуждения)</option>
                 <option value="llama3.2">Llama 3.2 (Локально / Офлайн)</option>
                 <option value="codellama">CodeLlama (Локальный код)</option>
+                <optgroup label="Внешние агенты" id="agent-options-group">
+                  <option value="agent:codex">Codex CLI (агент)</option>
+                  <option value="agent:claude_code">Claude Code CLI (агент)</option>
+                </optgroup>
               </select>
               <button class="mode-button" id="mode-button" type="button" aria-expanded="false"><span class="mode-dot"></span><span id="mode-label">Автономный</span><svg><use href="#i-chevron"/></svg></button>
               <span class="workspace-label" id="workspace-label" title="">workspace</span>
@@ -278,6 +285,7 @@
       </div>
       <div class="inspector-content" id="inspector-skills" role="tabpanel" hidden>
         <p class="panel-description">Mattpocock Skills: Каталог декларативных компонуемых навыков платформы с валидацией схемы.</p>
+        <details class="advanced-payload"><summary>Параметры навыка JSON</summary><textarea id="skill-exec-params" aria-label="Параметры навыка JSON" placeholder='{"code":"print(1)"}'>{}</textarea></details>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <h4 style="margin:0;font-size:12px;">Зарегистрированные навыки</h4>
           <button class="secondary small-button" id="refresh-skills-btn" type="button">Обновить</button>

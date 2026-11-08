@@ -171,7 +171,18 @@ class ExecutionGuard:
         required_caps = getattr(manifest, "required_capabilities", [])
         
         # Check capabilities
-        if required_caps and self._capability_manager:
+        if required_caps:
+            if not self._capability_manager:
+                audit({
+                    "event": "execution_blocked",
+                    "reason": "missing_capability_manager",
+                    "skill": getattr(manifest, "name", "unknown")
+                })
+                return ExecutionCheckResult(
+                    allowed=False,
+                    reason="CapabilityManager not configured on execution guard",
+                    blocked_capabilities=list(required_caps)
+                )
             for cap in required_caps:
                 has_cap = await self._capability_manager.check_capability(context, cap)
                 if not has_cap:

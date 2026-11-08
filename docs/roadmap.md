@@ -6,7 +6,7 @@ Strategic development roadmap for Synapse Platform (12-18 months).
 
 **Current Version:** 3.4.1  
 **Protocol Version:** 1.0  
-**Status:** Production-Ready
+**Status:** Pre-Production — evidence-based readiness is tracked in [`docs/production-readiness.md`](production-readiness.md)
 
 ---
 

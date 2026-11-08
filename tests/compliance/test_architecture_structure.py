@@ -69,7 +69,7 @@ class TestArchitectureStructure:
         files_without_version = []
         
         for py_file in synapse_path.rglob("*.py"):
-            if py_file.name == "__init__.py":
+            if py_file.name == "__init__.py" or "node_modules" in py_file.parts:
                 continue
             
             try:

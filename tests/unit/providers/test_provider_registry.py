@@ -10,8 +10,13 @@ from synapse.llm.providers import (
     ApiMode, AuthType, InMemoryProfileStore, JsonProfileStore, ProviderProfile,
     ProviderRegistry,
 )
-from synapse.llm.providers.adapters import ConnectionResult, DiscoveredModel, OpenAICompatibleAdapter
-
+from synapse.llm.providers.adapters import (
+    ConnectionResult,
+    DiscoveredModel,
+    OpenAICompatibleAdapter,
+    UnsupportedProtocolAdapter,
+    get_adapter,
+)
 
 def profile(**kwargs):
     values = dict(id="acme", display_name="Acme", base_url="https://acme.test/v1",
@@ -108,6 +113,20 @@ async def test_openai_adapter_probe_and_discovery():
         models = await adapter.discover_models("https://x/v1", "key")
     assert models[0].id == "m1"
     assert models[0].context_window == 4096
+
+
+def test_unsupported_api_mode_fails_closed_without_openai_probe():
+    adapter = get_adapter(ApiMode.ANTHROPIC_MESSAGES)
+    assert isinstance(adapter, UnsupportedProtocolAdapter)
+
+
+async def test_unsupported_api_mode_returns_structured_failure_without_secret_lookup():
+    registry = ProviderRegistry(InMemoryProfileStore())
+    await registry.register(profile(api_mode=ApiMode.GEMINI_NATIVE))
+    result = await registry.test_connection("acme")
+    assert result.success is False
+    assert result.error == "unsupported_api_mode"
+    assert result.detail == {"api_mode": "gemini_native"}
 
 
 def test_model_descriptor_has_explicit_capabilities_and_no_name_inference():

@@ -11,6 +11,7 @@ Specification: 3.4.1
 
 from __future__ import annotations
 
+import json
 import logging
 import shlex
 from dataclasses import dataclass, field
@@ -186,7 +187,156 @@ class SlashCommandEngine:
             )
         )
 
-        # /skills [list | run <id>]
+        # /goal <goal text> — run the full cognitive cycle on a high-level goal.
+        async def _goal_handler(*args) -> dict[str, Any]:
+            if not args:
+                return {"error": "Usage: /goal <goal description>"}
+            goal_text = " ".join(args)
+            from synapse.core.orchestrator import build_orchestrator
+
+            orchestrator = build_orchestrator()
+            result = await orchestrator.handle({"task": goal_text})
+            return {
+                "goal": goal_text,
+                "status": result.get("status"),
+                "success": result.get("success"),
+                "task_id": result.get("task_id"),
+                "summary": (result.get("result") or {}).get("action_result", {}),
+                "error": result.get("error"),
+            }
+
+        self.register(
+            SlashCommandDef(
+                name="goal",
+                description="Run a high-level goal through the full 8-step cognitive cycle.",
+                usage="/goal <goal description>",
+                handler=_goal_handler,
+                category="orchestration",
+            )
+        )
+
+        # /agents — inventory of external coding-agent CLIs and their status.
+        async def _agents_handler(*args) -> dict[str, Any]:
+            from synapse.integrations.velly_bridge import detect_agents, velly_status
+
+            status = velly_status()
+            return {
+                "agents": status["agents"],
+                "workspaces": status["workspaces"],
+                "chat_config": status["chat_config"],
+                "note": "enable via /agent <id> enable, or the integrations page",
+            }
+
+        self.register(
+            SlashCommandDef(
+                name="agents",
+                description="List installed external agents (Claude Code, Codex) and Velly app status.",
+                usage="/agents",
+                handler=_agents_handler,
+                category="integrations",
+            )
+        )
+
+        # /agent <id> [enable | disable | test <prompt>]
+        async def _agent_handler(*args) -> dict[str, Any]:
+            from synapse.integrations.control_plane import get_control_plane
+            from synapse.harnesses import ClaudeCodeHarness, CodexHarness, HarnessRequest
+
+            if not args:
+                return {"error": "Usage: /agent <codex|claude_code> [enable | disable | test <prompt>]"}
+            agent_id = args[0].lower().replace("-", "_")
+            if agent_id not in {"codex", "claude_code"}:
+                return {"error": f"Unknown agent '{args[0]}'. Available: codex, claude_code"}
+            control_plane = get_control_plane()
+            action = args[1].lower() if len(args) > 1 else "status"
+            if action == "enable":
+                from synapse.integrations.velly_bridge import sync_agents_to_control_plane
+
+                sync_agents_to_control_plane()
+                config = control_plane.update_executor(agent_id, enabled=True)
+                return {"agent": agent_id, "action": "enable", "config": config}
+            if action == "disable":
+                config = control_plane.update_executor(agent_id, enabled=False)
+                return {"agent": agent_id, "action": "disable", "config": config}
+            if action == "test":
+                prompt = " ".join(args[2:]) or "List the files in the current directory and summarize the project in one sentence."
+                harness = CodexHarness() if agent_id == "codex" else ClaudeCodeHarness()
+                if not harness.enabled:
+                    return {"agent": agent_id, "error": "agent is disabled; run /agent " + agent_id + " enable first"}
+                import os as _os
+                from pathlib import Path as _Path
+
+                workspace = _Path(_os.getenv("SYNAPSE_WORKSPACE_ROOT", _os.getcwd())).expanduser().resolve()
+                result = await harness.execute(HarnessRequest(
+                    task_id="slash_agent_test", run_id="slash_agent_test", prompt=prompt,
+                    workspace_id=str(workspace),
+                    metadata={"workspace_root": str(workspace)},
+                ))
+                return {
+                    "agent": agent_id, "success": result.success,
+                    "output": result.output, "error": result.error,
+                    "receipt": result.receipt,
+                }
+            config = control_plane.executor_config().get(agent_id, {})
+            return {"agent": agent_id, "action": "status", "config": config}
+
+        self.register(
+            SlashCommandDef(
+                name="agent",
+                description="Enable, disable, status or test-run an external agent CLI.",
+                usage="/agent <codex|claude_code> [enable | disable | test <prompt>]",
+                handler=_agent_handler,
+                category="integrations",
+            )
+        )
+
+        # /train <topic> — chat-driven learning loop over the local model.
+        async def _train_handler(*args) -> dict[str, Any]:
+            if not args:
+                return {"error": "Usage: /train <topic> [cycles=N] [pairs=N]"}
+            topic_parts = []
+            cycles = 3
+            pairs = 8
+            for arg in args:
+                if arg.lower().startswith("cycles="):
+                    try:
+                        cycles = max(1, min(int(arg.split("=", 1)[1]), 10))
+                    except ValueError:
+                        return {"error": "cycles must be an integer"}
+                elif arg.lower().startswith("pairs="):
+                    try:
+                        pairs = max(2, min(int(arg.split("=", 1)[1]), 64))
+                    except ValueError:
+                        return {"error": "pairs must be an integer"}
+                else:
+                    topic_parts.append(arg)
+            topic = " ".join(topic_parts).strip()
+            if not topic:
+                return {"error": "Usage: /train <topic> [cycles=N] [pairs=N]"}
+            from synapse.core.models import ExecutionContext
+            from synapse.skills.builtins.learning_loop import execute_learning_loop
+
+            context = ExecutionContext(
+                session_id="slash_train",
+                agent_id="slash_engine",
+                trace_id="slash_train",
+                capabilities=["memory:read", "fs:read", "fs:write"],
+            )
+            return await execute_learning_loop(
+                context, topic=topic, max_cycles=cycles, pairs_per_cycle=pairs,
+            )
+
+        self.register(
+            SlashCommandDef(
+                name="train",
+                description="Run the chat-driven LoRA learning loop on a topic while holdout loss improves.",
+                usage="/train <topic> [cycles=N] [pairs=N]",
+                handler=_train_handler,
+                category="training",
+            )
+        )
+
+        # /skills [list | run <id> [params_json]]
         async def _skills_handler(*args) -> dict[str, Any]:
             from synapse.skills.library import get_skill_library
             lib = get_skill_library()
@@ -197,14 +347,29 @@ class SlashCommandEngine:
                 skill = lib.get(skill_id)
                 if not skill:
                     return {"error": f"Skill '{skill_id}' not found."}
-                return await skill.execute({})
-            return {"error": "Usage: /skills [list | run <skill_id>]"}
+                try:
+                    raw_params = " ".join(args[2:]).strip() if len(args) > 2 else ""
+                    if (raw_params.startswith("'") and raw_params.endswith("'")) or (
+                        raw_params.startswith('"') and raw_params.endswith('"')
+                    ):
+                        inner = raw_params[1:-1].strip()
+                        if (inner.startswith("{") and inner.endswith("}")) or (
+                            inner.startswith("[") and inner.endswith("]")
+                        ):
+                            raw_params = inner
+                    params = json.loads(raw_params) if raw_params else {}
+                except json.JSONDecodeError as exc:
+                    return {"error": f"Invalid skill parameters JSON: {exc.msg} at column {exc.colno}."}
+                if not isinstance(params, dict):
+                    return {"error": "Skill parameters must be a JSON object."}
+                return await skill.execute(params)
+            return {"error": "Usage: /skills [list | run <skill_id> [params_json]]"}
 
         self.register(
             SlashCommandDef(
                 name="skills",
                 description="Explore composable skills catalog or invoke a skill.",
-                usage="/skills [list | run <skill_id>]",
+                usage="/skills [list | run <skill_id> [params_json]]",
                 handler=_skills_handler,
                 category="skills",
             )
@@ -217,6 +382,8 @@ class SlashCommandEngine:
             if not args:
                 return {"status": "ready", "workspace_root": str(engine.workspace_root)}
             target = (engine.workspace_root / args[0]).resolve()
+            if not target.is_relative_to(engine.workspace_root):
+                return {"error": "File path escapes workspace root."}
             return {"file": args[0], "exists": target.exists(), "size_bytes": target.stat().st_size if target.exists() else 0}
 
         self.register(
@@ -236,6 +403,8 @@ class SlashCommandEngine:
                 return {"error": "Usage: /ast <python_file_path>"}
             engine = get_codex_engine()
             target = (engine.workspace_root / args[0]).resolve()
+            if not target.is_relative_to(engine.workspace_root):
+                return {"error": "File path escapes workspace root."}
             if not target.exists():
                 return {"error": f"File {args[0]} not found."}
             code = target.read_text(encoding="utf-8")
@@ -346,7 +515,21 @@ class SlashCommandEngine:
         if not clean.startswith("/"):
             raise ValueError(f"Not a valid slash command: {text}")
 
-        parts = shlex.split(clean)
+        try:
+            # Keep JSON string quoting intact for /skills run. Other commands
+            # retain the familiar shell-style parsing of quoted arguments.
+            if clean.lower().startswith("/skills "):
+                parts = shlex.split(clean, posix=False)
+                if len(parts) > 3:
+                    parts[3:] = [clean.split(None, 3)[3]]
+            else:
+                parts = shlex.split(clean)
+        except ValueError as exc:
+            return SlashCommandResult(command="", args=[], success=False,
+                                      output=f"Invalid command syntax: {exc}")
+        if not parts or not parts[0][1:]:
+            return SlashCommandResult(command="", args=[], success=False,
+                                      output="Command name is required. Type /help for available commands.")
         cmd_name = parts[0][1:].lower()
         args = parts[1:]
 
@@ -365,10 +548,13 @@ class SlashCommandEngine:
                 res = await cmd_def.handler(*args)
             else:
                 res = cmd_def.handler(*args)
+            success = True
+            if isinstance(res, dict):
+                success = res.get("success") is not False and res.get("status") not in {"failed", "blocked", "timeout"}
             return SlashCommandResult(
                 command=cmd_name,
                 args=args,
-                success=True,
+                success=success,
                 output=res,
             )
         except Exception as e:

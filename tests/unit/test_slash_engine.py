@@ -60,7 +60,61 @@ async def test_memory_command(engine):
 
 
 @pytest.mark.asyncio
-async def test_bench_command(engine):
+async def test_skills_command_forwards_parameters(engine):
+    res = await engine.execute('/skills run model_route \'{"task":"Write Python"}\'')
+    assert res.success is True
+    assert res.output["result"]["decision"]["detected_domain"] == "coding"
+
+
+@pytest.mark.asyncio
+async def test_skills_command_accepts_unquoted_json_with_spaces(engine):
+    res = await engine.execute('/skills run model_route {"task": "Write Python"}')
+    assert res.success is True
+    assert res.output["result"]["decision"]["detected_domain"] == "coding"
+
+
+@pytest.mark.asyncio
+async def test_skills_command_reports_invalid_json(engine):
+    res = await engine.execute('/skills run model_route {"task":}')
+    assert res.success is True
+    assert "Invalid skill parameters JSON" in res.output["error"]
+
+
+@pytest.mark.asyncio
+async def test_unclosed_quote_is_command_error(engine):
+    res = await engine.execute('/memory search "unclosed')
+    assert res.success is False
+    assert "Invalid command syntax" in res.output
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("command", ["/ast ../outside.py", "/patch ../outside.py"])
+async def test_file_commands_reject_workspace_escape(engine, monkeypatch, tmp_path, command):
+    from synapse.integrations.codex_engine import CodexEngine
+
+    monkeypatch.setattr(
+        "synapse.integrations.codex_engine.get_codex_engine",
+        lambda: CodexEngine(tmp_path / "workspace"),
+    )
+    res = await engine.execute(command)
+    assert res.success is True
+    assert res.output == {"error": "File path escapes workspace root."}
+
+
+@pytest.mark.asyncio
+async def test_handler_failure_is_not_wrapped_as_success(engine):
+    async def blocked_handler(*args):
+        return {"success": False, "status": "blocked", "error": "approval_required"}
+
+    engine.register(SlashCommandDef(
+        name="blocked_fixture",
+        description="fixture",
+        usage="/blocked_fixture",
+        handler=blocked_handler,
+    ))
+    result = await engine.execute("/blocked_fixture")
+    assert result.success is False
+    assert result.output["error"] == "approval_required"
     res = await engine.execute("/bench custom_run")
     assert res.success is True
     assert "suite_id" in res.output

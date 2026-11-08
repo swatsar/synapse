@@ -20,13 +20,17 @@ ARCHIVED → (terminal, no transitions)
 PROTOCOL_VERSION: str = "1.0"
 SPEC_VERSION: str = "3.1"
 
+import ast
 import importlib.util
 import inspect
+import os
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Optional
 
+from synapse.core.isolation_policy import RuntimeIsolationType
 from synapse.core.models import ExecutionContext, ResourceLimits, SkillManifest
 from synapse.observability.logger import audit
 from synapse.security.capability_manager import CapabilityManager
@@ -55,18 +59,22 @@ class SkillLifecycleTransitionError(Exception):
 
 class SkillRecord:
     """Record for a skill with lifecycle tracking."""
-    
+
     def __init__(
         self,
         skill_id: str,
         manifest: SkillManifest,
-        handler: Callable,
-        status: SkillLifecycleStatus = SkillLifecycleStatus.GENERATED
+        handler: Optional[Callable] = None,
+        status: SkillLifecycleStatus = SkillLifecycleStatus.GENERATED,
+        file_path: Optional[str] = None,
+        is_builtin: bool = False,
     ):
         self.skill_id = skill_id
         self.manifest = manifest
         self.handler = handler
         self.status = status
+        self.file_path = file_path
+        self.is_builtin = is_builtin
         self.created_at = datetime.now(UTC).isoformat()
         self.updated_at = datetime.now(UTC).isoformat()
         self.status_history: list[dict] = [{
@@ -75,7 +83,7 @@ class SkillRecord:
             "reason": "initial"
         }]
         self.protocol_version = PROTOCOL_VERSION
-    
+
     def to_dict(self) -> dict:
         return {
             "skill_id": self.skill_id,
@@ -91,7 +99,7 @@ class SkillRecord:
 
 class SkillRegistry:
     """Registry for dynamically loaded skills with lifecycle management.
-    
+
     Handles:
     - Manifest validation
     - Versioning
@@ -99,7 +107,7 @@ class SkillRegistry:
     - 6-status lifecycle transitions
     - Audit logging for all operations
     """
-    
+
     protocol_version: str = "1.0"
 
     # Valid lifecycle transitions
@@ -138,7 +146,7 @@ class SkillRegistry:
             disk_mb=100,
             network_kb=1024
         )
-        self.guard = ExecutionGuard(limits=default_limits)
+        self.guard = ExecutionGuard(capability_manager=capability_manager, limits=default_limits)
 
         audit(
             event="skill_registry_initialized",
@@ -306,15 +314,17 @@ class SkillRegistry:
         return skill_id
 
     def get(self, name: str) -> Callable:
-        """Get a skill handler by name.
-        
-        Args:
-            name: Skill name
-            
-        Returns:
-            Skill handler
-        """
-        return self._registry[name].handler
+        """Get a skill handler by name."""
+        record = self._registry.get(name)
+        if record is None:
+            record = next((r for r in self._registry.values() if r.manifest.name == name), None)
+        if record is None:
+            raise KeyError(f"Skill {name} not found")
+        if record.handler is not None:
+            return record.handler
+        async def _isolated_proxy(context, **params):
+            return await self.execute(record.manifest.name, context, **params)
+        return _isolated_proxy
 
     def register_builtin(self, manifest: SkillManifest, handler: Callable) -> str:
         """Register a trusted built-in skill directly in the active state.
@@ -322,6 +332,7 @@ class SkillRegistry:
         Dynamically generated skills must still use ``register`` and the full
         lifecycle. Built-ins are shipped and reviewed with the application.
         """
+        manifest.trust_level = "trusted"
         self._validate_manifest(manifest)
         skill_id = str(uuid.uuid4())
         self._registry[skill_id] = SkillRecord(
@@ -329,6 +340,7 @@ class SkillRegistry:
             manifest=manifest,
             handler=handler,
             status=SkillLifecycleStatus.ACTIVE,
+            is_builtin=True,
         )
         self._manifests[manifest.name] = manifest
         return skill_id
@@ -357,6 +369,51 @@ class SkillRegistry:
         check = await self.guard.check_execution_allowed(record, context)
         if not check.allowed:
             raise PermissionError(check.reason or f"Execution denied: {name}")
+
+        required_iso = check.required_isolation
+        if required_iso in (
+            RuntimeIsolationType.SUBPROCESS,
+            RuntimeIsolationType.SANDBOX,
+            RuntimeIsolationType.CONTAINER,
+        ):
+            from synapse.runtime.worker_backend import IsolatedWorkerBackend
+            if record.file_path:
+                result = await IsolatedWorkerBackend.run_skill(
+                    target_type="file",
+                    file_path=record.file_path,
+                    context=context,
+                    params=params,
+                    limits=self.guard.limits,
+                    isolation_type=required_iso,
+                )
+            else:
+                result = await IsolatedWorkerBackend.run_skill(
+                    target_type="callable",
+                    handler_callable=record.handler,
+                    context=context,
+                    params=params,
+                    limits=self.guard.limits,
+                    isolation_type=required_iso,
+                )
+            if not isinstance(result, dict):
+                raise TypeError(f"Skill {name} must return a dictionary")
+            return result
+
+        # Main-process execution only for trusted built-in skills with low risk
+        if not record.is_builtin:
+            from synapse.runtime.worker_backend import IsolatedWorkerBackend
+            result = await IsolatedWorkerBackend.run_skill(
+                target_type="file" if record.file_path else "callable",
+                file_path=record.file_path,
+                handler_callable=record.handler,
+                context=context,
+                params=params,
+                limits=self.guard.limits,
+                isolation_type=RuntimeIsolationType.SUBPROCESS,
+            )
+            if not isinstance(result, dict):
+                raise TypeError(f"Skill {name} must return a dictionary")
+            return result
 
         handler = record.handler
         execute = handler.execute if hasattr(handler, "execute") else handler
@@ -412,25 +469,102 @@ class SkillRegistry:
         """
         return [r for r in self._registry.values() if r.status == status]
 
+    def _parse_manifest_from_ast(self, path: str) -> SkillManifest:
+        """Parse skill file AST to extract manifest and ensure handler exists without executing code."""
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Skill file not found: {path}")
+
+        with open(path, "r", encoding="utf-8") as f:
+            source = f.read()
+
+        try:
+            tree = ast.parse(source, filename=path)
+        except Exception as exc:
+            raise ValueError(f"Syntax error in skill file: {exc}")
+
+        manifest_node = None
+        func_names = set()
+
+        for node in tree.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        if target.id == "manifest":
+                            manifest_node = node.value
+                        else:
+                            func_names.add(target.id)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                func_names.add(node.name)
+
+        if manifest_node is None:
+            raise AttributeError(f"No manifest defined in {path}")
+
+        manifest_kwargs: dict[str, Any] = {}
+        if isinstance(manifest_node, ast.Call):
+            for kw in manifest_node.keywords:
+                try:
+                    manifest_kwargs[kw.arg] = ast.literal_eval(kw.value)
+                except Exception:
+                    pass
+        elif isinstance(manifest_node, ast.Dict):
+            try:
+                manifest_kwargs = ast.literal_eval(manifest_node)
+            except Exception as e:
+                raise ValueError(f"Cannot parse manifest dict in {path}: {e}")
+        else:
+            raise ValueError("manifest must be a SkillManifest(...) call or dict")
+
+        expected_handler = manifest_kwargs.get("handler", "handler")
+        if "handler" not in func_names and expected_handler not in func_names:
+            raise AttributeError(f"No handler defined in {path}")
+
+        if not manifest_kwargs.get("name") or not manifest_kwargs.get("version"):
+            raise ValueError("Invalid SkillManifest – missing name or version")
+
+        return SkillManifest(**manifest_kwargs)
+
     async def load_from_path(self, path: str) -> str:
         """Load a Python file that defines a `manifest` and a `handler`.
-        
-        The file is executed in a sandboxed environment via ExecutionGuard.
-        
+
+        The manifest is parsed as DATA without executing untrusted code in the control plane.
+        Capabilities are verified BEFORE registration and side effects.
+        Execution is deferred to an isolated worker backend.
+
         Args:
             path: Path to skill file
-            
+
         Returns:
             Skill ID
         """
-        spec = importlib.util.spec_from_file_location("dynamic_skill", path)
-        module = importlib.util.module_from_spec(spec)
-        if spec.loader is None:
-            raise ImportError(f"Cannot load skill from {path}")
-        spec.loader.exec_module(module)  # type: ignore[arg-type]
-        manifest: SkillManifest = module.manifest
-        handler: Callable = module.handler
-        return await self.register(manifest, handler)
+        manifest = self._parse_manifest_from_ast(path)
+        self._validate_manifest(manifest)
+
+        # Capability check before any side effects or import!
+        await self.capability_manager.check_capability(manifest.required_capabilities)
+
+        skill_id = str(uuid.uuid4())
+        record = SkillRecord(
+            skill_id=skill_id,
+            manifest=manifest,
+            handler=None,  # Not imported into control plane
+            status=SkillLifecycleStatus.GENERATED,
+            file_path=path,
+            is_builtin=False,
+        )
+
+        self._registry[skill_id] = record
+        self._manifests[manifest.name] = manifest
+
+        audit(
+            event="skill_loaded_from_path",
+            skill_id=skill_id,
+            name=manifest.name,
+            version=manifest.version,
+            status=SkillLifecycleStatus.GENERATED.value,
+            protocol_version=self.protocol_version,
+        )
+
+        return skill_id
 
     def list_skills(self) -> dict[str, SkillManifest]:
         """List all registered skills.

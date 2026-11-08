@@ -74,6 +74,15 @@ dev = [
 full = [
     "synapse-agent[gui,dev]",
 ]
+training = [
+    "torch==2.8.0",
+    "transformers==4.57.3",
+    "peft==0.17.1",
+    "trl==0.24.0",
+    "datasets==3.3.2",
+    "safetensors>=0.8.0",
+    "huggingface-hub>=0.36.2,<1.0",
+]
 
 [project.scripts]
 synapse = "synapse.main:main"
@@ -130,7 +139,7 @@ markers = [
     "workload: Workload tests",
     "system: System tests",
 ]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --basetemp=.pytest_temp"
 testpaths = [
     "tests",
 ]

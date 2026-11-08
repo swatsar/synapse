@@ -38,6 +38,7 @@ class ImprovementResult:
     restored_checkpoint_id: str | None = None
     cluster_rollback: bool = False
     error: str = ""
+    is_simulated: bool = False
     protocol_version: str = "1.0"
 
 

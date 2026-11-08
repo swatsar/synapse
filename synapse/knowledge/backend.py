@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import re, uuid
 from typing import Any
+
+PROTOCOL_VERSION: str = "1.0"
 @dataclass(frozen=True)
 class Citation:
  source_id:str; document_id:str; revision:str; chunk_id:str; citation:str

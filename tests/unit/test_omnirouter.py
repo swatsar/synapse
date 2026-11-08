@@ -122,7 +122,30 @@ def test_route_explicit_local_requirement(router):
     assert decision.tier == ModelTier.LOCAL
 
 
-def test_health_check(router):
+@pytest.mark.asyncio
+async def test_route_async_uses_downloaded_local_manifest(monkeypatch, tmp_path):
+    from synapse.models import ModelManifest, ModelRegistry
+
+    model_dir = tmp_path / "local-model"
+    model_dir.mkdir()
+    registry = ModelRegistry(tmp_path / "models")
+    registry.declare(ModelManifest(
+        model_id="local/test-model",
+        source="local/test-model",
+        local_path=str(model_dir),
+        status="downloaded",
+    ))
+    monkeypatch.setattr("synapse.models.get_model_registry", lambda: registry)
+    router = OmniRouter()
+    decision = await router.route_async(
+        "Answer privately offline",
+        requirements={"local_only": True, "model": "local/test-model"},
+    )
+    assert decision.provider == "local_transformers"
+    assert decision.model == "local/test-model"
+    assert decision.provider_available is True
+    assert decision.fallback_chain == []
+
     health = router.health_check()
     assert "providers" in health
     assert "anthropic" in health["providers"]

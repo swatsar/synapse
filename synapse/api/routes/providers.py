@@ -44,8 +44,8 @@ class ProviderCreate(BaseModel):
 
     @model_validator(mode="after")
     def require_credential_input(self):
-        if not self.api_key and not self.credential_ref:
-            raise ValueError("api_key or credential_ref is required")
+        if self.auth_type != AuthType.NONE and not self.api_key and not self.credential_ref:
+            raise ValueError("api_key or credential_ref is required for authenticated providers")
         return self
 
 
@@ -80,6 +80,11 @@ class ProviderService:
         if registry is None:
             config_path = Path(__file__).resolve().parents[3] / "config" / "providers.json"
             credentials = create_default_credential_store()
+            if "db" in credentials.list_backends():
+                from synapse.llm.credentials.backends import EncryptedDatabaseSecretBackend
+                secret_path = Path(os.getenv("SYNAPSE_CREDENTIALS_DB_PATH", str(config_path.with_name("credentials.sqlite3"))))
+                secret_path.parent.mkdir(parents=True, exist_ok=True)
+                credentials.register_backend(EncryptedDatabaseSecretBackend(str(secret_path)))
             registry = ProviderRegistry(JsonProfileStore(config_path), credentials)
         self.registry = registry
         self.catalog = ModelCatalog()
@@ -93,13 +98,24 @@ class ProviderService:
         profile = await self.registry.get(provider_id)
         return self._public(profile) if profile else None
 
+    async def _store_api_key(self, provider_id: str, api_key: str) -> str:
+        credentials = self.registry._credentials
+        if credentials is None or "db" not in credentials.list_backends():
+            raise HTTPException(status_code=503, detail=(
+                "Secure credential storage is not configured. Set SYNAPSE_SECRET_KEY "
+                "and restart, or provide an existing secret:// credential_ref."
+            ))
+        ref = f"secret://db/providers/{provider_id}/api_key"
+        await credentials.store(ref, api_key, {"provider_id": provider_id})
+        return ref
+
     async def create_provider(self, data: ProviderCreate) -> dict[str, Any]:
         provider_id = _provider_id(data.name)
         credential_ref = data.credential_ref
-        # Legacy api_key input is accepted for compatibility but never written
-        # to the provider record. Operators should use secret:// explicitly.
-        if data.api_key and not credential_ref:
-            credential_ref = f"secret://env/SYNAPSE_PROVIDER_{provider_id.upper()}_API_KEY"
+        if data.api_key:
+            credential_ref = await self._store_api_key(provider_id, data.api_key)
+        elif data.auth_type == AuthType.NONE:
+            credential_ref = None
         profile = ProviderProfile(
             id=provider_id,
             display_name=data.name,
@@ -125,8 +141,14 @@ class ProviderService:
         patch = data.model_dump(exclude_unset=True)
         if "name" in patch:
             values["display_name"] = patch.pop("name")
+        if patch.get("api_key"):
+            patch["credential_ref"] = await self._store_api_key(provider_id, patch["api_key"])
         patch.pop("api_key", None)
         values.update({k: v for k, v in patch.items() if v is not None})
+        if values["auth_type"] == AuthType.NONE:
+            values["credential_ref"] = None
+        elif not values.get("credential_ref"):
+            raise HTTPException(status_code=422, detail="An authenticated provider requires a credential")
         values["id"] = provider_id
         values["api_mode"] = values["api_mode"].value if isinstance(values["api_mode"], ApiMode) else values["api_mode"]
         values["auth_type"] = values["auth_type"].value if isinstance(values["auth_type"], AuthType) else values["auth_type"]

@@ -14,6 +14,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from synapse.api.routes.runtime_config import load_runtime_config_values
 from synapse.llm.omnirouter import OmniRouter, RouteDecision, get_omnirouter
 
 PROTOCOL_VERSION: str = "1.0"
@@ -37,7 +38,9 @@ class ExecuteRequest(BaseModel):
 def _get_router(request: Request) -> OmniRouter:
     """Retrieve application OmniRouter instance or default singleton."""
     app_router = getattr(request.app.state, "omnirouter", None)
-    return app_router or get_omnirouter()
+    router = app_router or get_omnirouter()
+    router.apply_preferences(load_runtime_config_values())
+    return router
 
 
 @router.get("/catalog")
@@ -56,7 +59,7 @@ async def get_model_catalog(request: Request) -> dict[str, Any]:
 async def get_router_health(request: Request) -> dict[str, Any]:
     """Return provider readiness and availability status."""
     r = _get_router(request)
-    return r.health_check()
+    return await r.health_check_async()
 
 
 @router.get("/stats")
@@ -70,7 +73,7 @@ async def get_router_stats(request: Request) -> dict[str, Any]:
 async def route_task(request: Request, body: RouteRequest) -> dict[str, Any]:
     """Analyze task requirements and compute the optimal model routing decision."""
     r = _get_router(request)
-    decision = r.route(body.task, body.requirements)
+    decision = await r.route_async(body.task, body.requirements)
     return {
         "decision": decision.to_dict(),
         "protocol_version": PROTOCOL_VERSION,

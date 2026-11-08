@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ast
 import difflib
+import hashlib
 import logging
 import os
 from dataclasses import dataclass, field
@@ -29,11 +30,13 @@ class FilePatch:
     original_content: str
     updated_content: str
     diff_text: str
+    preimage_sha256: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "file_path": self.file_path,
             "diff_text": self.diff_text,
+            "preimage_sha256": self.preimage_sha256,
         }
 
 
@@ -81,26 +84,54 @@ class CodexEngine:
 
         orig_text = target.read_text(encoding="utf-8") if target.exists() else ""
         diff = self.generate_diff(file_path, orig_text, updated_content)
+        preimage_hash = hashlib.sha256(orig_text.encode("utf-8")).hexdigest() if target.exists() else None
         return FilePatch(
             file_path=file_path,
             original_content=orig_text,
             updated_content=updated_content,
             diff_text=diff,
+            preimage_sha256=preimage_hash,
         )
 
     def apply_patches_atomically(self, patches: list[FilePatch]) -> dict[str, Any]:
         """Apply a batch of file patches transactionally, rolling back on error."""
-        applied: list[Tuple[Path, Optional[str]]] = []  # (path, backup_original_content)
+        # 1. Prohibit duplicate paths in a single batch
+        seen_paths = set()
+        for patch in patches:
+            norm = os.path.normcase(os.path.normpath(patch.file_path))
+            if norm in seen_paths:
+                raise ValueError(f"Duplicate file path in patch batch: {patch.file_path}")
+            seen_paths.add(norm)
 
+        # 2. Pre-validate all target paths and preimages before any writes
+        targets_to_apply = []
+        for patch in patches:
+            target = (self.workspace_root / patch.file_path).resolve()
+            if not target.is_relative_to(self.workspace_root):
+                raise PermissionError(f"Path escape violation: {patch.file_path}")
+
+            disk_text = target.read_text(encoding="utf-8") if target.exists() else ""
+            disk_hash = hashlib.sha256(disk_text.encode("utf-8")).hexdigest() if target.exists() else None
+
+            # Verify preimage hash if provided
+            if patch.preimage_sha256 is not None:
+                if disk_hash != patch.preimage_sha256:
+                    raise ValueError(
+                        f"Preimage hash mismatch for {patch.file_path}: "
+                        f"expected {patch.preimage_sha256}, got {disk_hash}"
+                    )
+            elif patch.original_content != "" and disk_text != patch.original_content:
+                raise ValueError(
+                    f"Preimage content mismatch for {patch.file_path}"
+                )
+
+            targets_to_apply.append((target, patch, disk_text if target.exists() else None))
+
+        # 3. Apply changes with LIFO rollback on failure
+        applied: list[Tuple[Path, Optional[str]]] = []
         try:
-            for patch in patches:
-                target = (self.workspace_root / patch.file_path).resolve()
-                if not target.is_relative_to(self.workspace_root):
-                    raise PermissionError(f"Path escape violation: {patch.file_path}")
-
-                orig_text = target.read_text(encoding="utf-8") if target.exists() else None
-                applied.append((target, orig_text))
-
+            for target, patch, original_disk_content in targets_to_apply:
+                applied.append((target, original_disk_content))
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(patch.updated_content, encoding="utf-8")
 
@@ -111,8 +142,8 @@ class CodexEngine:
                 "protocol_version": PROTOCOL_VERSION,
             }
         except Exception as e:
-            logger.error("Transactional patch failed, rolling back %d files: %s", len(applied), e)
-            for path, orig in applied:
+            logger.error("Transactional patch failed, rolling back %d files (LIFO): %s", len(applied), e)
+            for path, orig in reversed(applied):
                 try:
                     if orig is not None:
                         path.write_text(orig, encoding="utf-8")

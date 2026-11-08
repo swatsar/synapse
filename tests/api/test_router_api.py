@@ -143,11 +143,15 @@ def test_session_task_records_router_event(client):
     )
     assert task_res.status_code == 202
 
-    # Give the background executor a moment or read events
     import time
-    time.sleep(0.3)
-
-    events_res = client.get(f"/api/v1/sessions/{session_id}/events")
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        events_res = client.get(f"/api/v1/sessions/{session_id}/events")
+        assert events_res.status_code == 200
+        events = events_res.json()["events"]
+        if any(e["event"] == "router" for e in events):
+            break
+        time.sleep(0.2)
     assert events_res.status_code == 200
     events = events_res.json()["events"]
     router_events = [e for e in events if e["event"] == "router"]

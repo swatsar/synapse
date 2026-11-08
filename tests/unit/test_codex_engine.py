@@ -85,3 +85,31 @@ class DataPipeline:
     assert "def test_calculate_metrics():" in scaffold
     assert "@pytest.mark.asyncio" in scaffold
     assert "async def test_fetch_remote_state():" in scaffold
+
+
+def test_reject_duplicate_paths_in_batch(codex, tmp_path):
+    f1 = tmp_path / "dup.py"
+    f1.write_text("x = 1", encoding="utf-8")
+
+    patch1 = codex.create_patch("dup.py", "x = 2")
+    patch2 = codex.create_patch("dup.py", "x = 3")
+
+    with pytest.raises(ValueError, match="Duplicate file path in patch batch"):
+        codex.apply_patches_atomically([patch1, patch2])
+    # Ensure working tree unchanged
+    assert f1.read_text(encoding="utf-8") == "x = 1"
+
+
+def test_reject_preimage_hash_mismatch(codex, tmp_path):
+    f1 = tmp_path / "stale.py"
+    f1.write_text("v1", encoding="utf-8")
+
+    patch = codex.create_patch("stale.py", "v2")
+    # Simulate concurrent modification to disk file
+    f1.write_text("v1_modified_by_another_process", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Preimage hash mismatch"):
+        codex.apply_patches_atomically([patch])
+    # Disk remains modified by concurrent process, not overwritten with v2
+    assert f1.read_text(encoding="utf-8") == "v1_modified_by_another_process"
+

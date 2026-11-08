@@ -19,10 +19,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 from pathlib import Path
+import uuid
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from synapse.api.invocation_service import get_invocation_service, InvocationContext
 from synapse.security.audit_scanner import get_security_auditor
 from synapse.memory.vault import get_memory_vault, MemoryType
 from synapse.skills.library import get_skill_library
@@ -37,23 +39,50 @@ logger = logging.getLogger("synapse.api.routes.tools_platform")
 router = APIRouter()
 
 
+def _with_receipt(inv_res) -> dict[str, Any]:
+    """Return invocation output together with the authoritative execution receipt."""
+    payload = dict(inv_res.result or {})
+    payload["invocation_receipt"] = dict(inv_res.receipt)
+    return payload
+
+
 # -------------------------------------------------------------
 # 1. Cloudflare Security Audit Scanner Endpoints
 # -------------------------------------------------------------
 class AuditScanRequest(BaseModel):
     target_dir: str = Field(default=".", description="Target directory relative to workspace root")
+    run_id: Optional[str] = None
+    approval_granted: bool = False
 
 
 @router.post("/security/audit")
 async def run_security_audit(request: AuditScanRequest) -> dict[str, Any]:
     """Run security audit scan over the workspace."""
-    try:
+    service = get_invocation_service()
+    context = InvocationContext(
+        identity="api_user",
+        run_id=request.run_id or str(uuid.uuid4()),
+        approval_granted=request.approval_granted,
+        capabilities=["fs:read"],
+    )
+
+    def _do_audit(target_dir: str):
         auditor = get_security_auditor()
-        report = auditor.run_audit(request.target_dir)
-        return report.to_dict()
-    except Exception as e:
-        logger.error("Security audit failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        return auditor.run_audit(target_dir).to_dict()
+
+    inv_res = await service.invoke(
+        action_type="security",
+        action_name="audit_scan",
+        handler=_do_audit,
+        context=context,
+        required_capabilities=["fs:read"],
+        risk_level=1,
+        params={"target_dir": request.target_dir},
+    )
+    if not inv_res.success:
+        status_code = 403 if inv_res.requires_approval else 400
+        raise HTTPException(status_code=status_code, detail=inv_res.error)
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------
@@ -119,6 +148,9 @@ async def delete_memory(entry_id: str) -> dict[str, Any]:
 class SkillExecuteRequest(BaseModel):
     skill_id: str
     params: dict[str, Any] = Field(default_factory=dict)
+    run_id: Optional[str] = None
+    approval_granted: bool = False
+    capabilities: Optional[list[str]] = None
 
 
 @router.get("/skills")
@@ -141,25 +173,41 @@ async def execute_skill(request: SkillExecuteRequest) -> dict[str, Any]:
     skill = lib.get(request.skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail=f"Skill '{request.skill_id}' not found")
-    try:
-        return await skill.execute(request.params)
-    except Exception as e:
-        logger.error("Skill execution error: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+
+    service = get_invocation_service()
+    context = InvocationContext(
+        identity="api_user",
+        run_id=request.run_id or str(uuid.uuid4()),
+        approval_granted=request.approval_granted,
+        capabilities=request.capabilities if request.capabilities is not None else skill.required_capabilities,
+    )
+    inv_res = await service.invoke(
+        action_type="skill",
+        action_name=skill.id,
+        handler=skill.execute,
+        context=context,
+        required_capabilities=skill.required_capabilities,
+        risk_level=skill.risk_level,
+        params={"params": request.params},
+    )
+    if not inv_res.success:
+        status_code = 403 if inv_res.requires_approval else 400
+        raise HTTPException(status_code=status_code, detail=inv_res.error)
+    return _with_receipt(inv_res)
 
 
 @router.post("/skills/{skill_id}/execute")
 async def execute_skill_by_id(skill_id: str, payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Execute a specific skill by skill_id path parameter."""
-    lib = get_skill_library()
-    skill = lib.get(skill_id)
-    if not skill:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found")
-    try:
-        return await skill.execute(payload or {})
-    except Exception as e:
-        logger.error("Skill execution error: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+    payload = payload or {}
+    req = SkillExecuteRequest(
+        skill_id=skill_id,
+        params=payload.get("params", payload),
+        run_id=payload.get("run_id"),
+        approval_granted=payload.get("approval_granted", False),
+        capabilities=payload.get("capabilities"),
+    )
+    return await execute_skill(req)
 
 
 # -------------------------------------------------------------
@@ -205,6 +253,8 @@ async def list_trajectories(limit: int = 50) -> dict[str, Any]:
 # -------------------------------------------------------------
 class SlashCommandRequest(BaseModel):
     command: str = Field(description="Command string, e.g. /audit or /model 'test'")
+    run_id: Optional[str] = None
+    approval_granted: bool = False
 
 
 @router.get("/slash/commands")
@@ -225,8 +275,31 @@ async def execute_slash_command(request: SlashCommandRequest) -> dict[str, Any]:
     engine = get_slash_engine()
     if not engine.is_slash_command(request.command):
         raise HTTPException(status_code=400, detail="Command must start with '/'")
-    res = await engine.execute(request.command)
-    return res.to_dict()
+
+    service = get_invocation_service()
+    context = InvocationContext(
+        identity="api_user",
+        run_id=request.run_id or str(uuid.uuid4()),
+        approval_granted=request.approval_granted,
+        capabilities=["slash:execute", "fs:read", "code:analyze", "llm:route"],
+    )
+    async def _execute_slash(command_line: str):
+        result = await engine.execute(command_line)
+        return result.to_dict()
+
+    inv_res = await service.invoke(
+        action_type="slash",
+        action_name=request.command.split()[0],
+        handler=_execute_slash,
+        context=context,
+        required_capabilities=["slash:execute"],
+        risk_level=1,
+        params={"command_line": request.command},
+    )
+    if not inv_res.success:
+        status_code = 403 if inv_res.requires_approval else 400
+        raise HTTPException(status_code=status_code, detail=inv_res.error)
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------
@@ -239,18 +312,39 @@ class PatchItem(BaseModel):
 
 class ApplyPatchesRequest(BaseModel):
     patches: list[PatchItem]
+    run_id: Optional[str] = None
+    approval_granted: bool = False
 
 
 @router.post("/patches/apply")
 async def apply_patches(request: ApplyPatchesRequest) -> dict[str, Any]:
     """Atomically apply a batch of patches with rollback on error."""
     codex = get_codex_engine()
-    try:
-        patch_objs = [codex.create_patch(p.file_path, p.updated_content) for p in request.patches]
+    service = get_invocation_service()
+    context = InvocationContext(
+        identity="api_user",
+        run_id=request.run_id or str(uuid.uuid4()),
+        approval_granted=request.approval_granted,
+        capabilities=["patch:apply", "fs:write"],
+    )
+
+    def _do_apply(patches_data: list[PatchItem]):
+        patch_objs = [codex.create_patch(p.file_path, p.updated_content) for p in patches_data]
         return codex.apply_patches_atomically(patch_objs)
-    except Exception as e:
-        logger.error("Failed to apply patches: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+
+    inv_res = await service.invoke(
+        action_type="patch",
+        action_name="apply_batch",
+        handler=_do_apply,
+        context=context,
+        required_capabilities=["patch:apply", "fs:write"],
+        risk_level=3,
+        params={"patches_data": request.patches},
+    )
+    if not inv_res.success:
+        status_code = 403 if inv_res.requires_approval else 400
+        raise HTTPException(status_code=status_code, detail=inv_res.error)
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------
@@ -292,14 +386,18 @@ class BrowserActionRequest(BaseModel):
     selector: Optional[str] = Field(default=None, description="CSS selector for element interaction")
     value: Optional[str] = Field(default=None, description="Value for fill operation")
     timeout: Optional[int] = Field(default=30000, description="Timeout in milliseconds")
+    run_id: Optional[str] = None
+    approval_granted: bool = False
 
 
 @router.get("/browser/status")
 async def get_browser_status() -> dict[str, Any]:
     """Get status, allowed domains, and statistics of browser controller."""
+    from synapse.api.routes.runtime_config import load_runtime_config_values
     from synapse.integrations.browser_controller import get_browser_controller
 
     controller = get_browser_controller()
+    _apply_browser_preferences(controller)
     stats = controller.get_statistics()
     return {
         "status": "ready",
@@ -312,20 +410,66 @@ async def get_browser_status() -> dict[str, Any]:
     }
 
 
+def _apply_browser_preferences(controller: Any) -> None:
+    """Override browser security config with persisted Computer-Use preferences."""
+    from synapse.api.routes.runtime_config import load_runtime_config_values
+
+    values = load_runtime_config_values()
+    allowed = values.get("allowed_domains")
+    if isinstance(allowed, str) and allowed.strip():
+        domains = [d.strip().lower().rstrip(".") for d in allowed.split(",") if d.strip()]
+        if domains:
+            controller.config.allowed_domains = domains
+
+
 @router.post("/browser/execute")
 async def execute_browser_action(request: BrowserActionRequest) -> dict[str, Any]:
     """Execute a capability-gated browser action (Computer-Use protocol)."""
+    from synapse.api.routes.runtime_config import load_runtime_config_values
     from synapse.integrations.browser_controller import get_browser_controller
 
     controller = get_browser_controller()
-    res = await controller.execute(
-        action=request.action,
-        url=request.url,
-        selector=request.selector,
-        value=request.value,
-        timeout=request.timeout,
+    _apply_browser_preferences(controller)
+
+    service = get_invocation_service()
+    context = InvocationContext(
+        identity="api_user",
+        run_id=request.run_id or str(uuid.uuid4()),
+        approval_granted=request.approval_granted,
+        capabilities=["browser:navigate"],
     )
-    return res.to_dict()
+
+    async def _do_browser_action(action, url, selector, value, timeout):
+        res = await controller.execute(
+            action=action,
+            url=url,
+            selector=selector,
+            value=value,
+            timeout=timeout,
+        )
+        return res.to_dict()
+
+    read_only_actions = {"navigate", "screenshot", "scrape", "wait", "scroll"}
+    action_risk = 1 if request.action.lower() in read_only_actions else 3
+    inv_res = await service.invoke(
+        action_type="browser",
+        action_name=request.action,
+        handler=_do_browser_action,
+        context=context,
+        required_capabilities=["browser:navigate"],
+        risk_level=action_risk,
+        params={
+            "action": request.action,
+            "url": request.url,
+            "selector": request.selector,
+            "value": request.value,
+            "timeout": request.timeout,
+        },
+    )
+    if not inv_res.success:
+        status_code = 403 if inv_res.requires_approval else 400
+        raise HTTPException(status_code=status_code, detail=inv_res.error)
+    return _with_receipt(inv_res)
 
 
 # -------------------------------------------------------------

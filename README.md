@@ -4,12 +4,12 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-166%20files-brightgreen.svg)](tests/)
-[![Pre-Production](https://img.shields.io/badge/Status-Production--Ready-blue.svg)](docs/)
+[![Pre-Production](https://img.shields.io/badge/Status-Pre--Production-orange)](docs/production-readiness.md)
 [![Protocol](https://img.shields.io/badge/Protocol-v1.0-orange.svg)](SPECIFICATION.md)
 
-**Production-Ready Distributed Cognitive Agent Platform с Capability-Based Security, Self-Evolution и Zero-Trust Execution.**
+**Synapse** — платформа автономных агентов в стадии pre-production. Подтверждённые возможности и ограничения перечислены в [production-readiness.md](docs/production-readiness.md); неподтверждённые executor, training и promotion сценарии не выдаются за готовые.
 
-> **v3.4.1** — Полная синхронизация с архитектурной концепцией: 4-уровневая модель доверия, 8-шаговый когнитивный цикл, исправлены все структурные проблемы, импорты и безопасность. Реализованы все интеграционные спецификации (LangChain, LangGraph, LangSmith, AutoGPT, Agent Zero, OpenClaw, Anthropic, Claude Code, Codex, Browser-Use).
+> **v3.4.1** — в репозитории есть рабочие контуры security boundaries, isolated worker, provider registry, runtime container и web UI. Статус отдельных acceptance-критериев и блокеры (credentials/GPU/CLI/full-suite) ведутся в [production-readiness.md](docs/production-readiness.md).
 
 ---
 
