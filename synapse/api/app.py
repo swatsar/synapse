@@ -399,7 +399,18 @@ async def _run_task(
     return await _execute_task(application, record["id"])
 
 
+@app.get("/favicon.ico")
+@app.get("/favicon.svg")
+async def favicon() -> Any:
+    """Serve a small inline SVG favicon so browsers don't request a missing file."""
+    path = WEB_ROOT / "static" / "favicon.svg"
+    if path.exists():
+        return HTMLResponse(path.read_text(encoding="utf-8"), media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="favicon not found")
+
+
 @app.get("/runtime-info")
+@app.get("/api/v1/runtime-info")
 async def runtime_info():
     """Expose non-secret UI capability information for clear onboarding."""
     configured = bool(os.getenv("SYNAPSE_API_KEY"))
