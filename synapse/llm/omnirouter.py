@@ -360,6 +360,31 @@ class OmniRouter:
             "execution_calls": 0,
             "execution_failures": 0,
         }
+        self._preferences: dict[str, Any] = {
+            "model_tier": None,
+            "fallback_order": [],
+            "domain_autoselect": True,
+        }
+
+    def apply_preferences(self, values: Optional[dict[str, Any]]) -> None:
+        """Apply persisted runtime-config preferences (fallback chain, model tier, domain autodetect)."""
+        if not values:
+            return
+        if values.get("model_tier") in ("balanced", "frontier", "local", "fast", "standard"):
+            self._preferences["model_tier"] = values["model_tier"]
+        raw = values.get("fallback_order")
+        if isinstance(raw, str) and raw.strip():
+            # Normalize "a -> b | c, d" into ["a","b","c","d"]
+            normalized = raw.replace("->", ",").replace("|", ",")
+            parts = [part.strip().lstrip("- 	") for part in normalized.split(",") if part.strip()]
+            chain: list[dict[str, str]] = []
+            for part in parts:
+                if part in self.catalog:
+                    chain.append({"provider": self.catalog[part].provider, "model": part})
+            if chain:
+                self._preferences["fallback_order"] = chain
+        if "domain_autoselect" in values:
+            self._preferences["domain_autoselect"] = bool(values["domain_autoselect"])
 
     # ------------------------------------------------------------------
     # Environment & Availability Verification
@@ -516,6 +541,10 @@ class OmniRouter:
             except ValueError:
                 pass
 
+        # Domain autodetection preference (persisted via /runtime-config)
+        if not self._preferences.get("domain_autoselect", True):
+            return TaskDomain.GENERAL
+
         text = task_description or ""
 
         # 2. Pattern Matching in priority order (specialized domains first, then coding)
@@ -588,6 +617,42 @@ class OmniRouter:
                 confidence=0.98,
                 fallback_chain=[{"provider": "ollama", "model": "mistral"}, {"provider": "ollama", "model": "phi3"}],
                 provider_available=self.is_provider_available("ollama"),
+                context_window=desc.context_window,
+                capabilities=desc.capabilities,
+            )
+            self._record_decision(decision)
+            return decision
+
+        # Preference-driven model tier (persisted via /runtime-config "model_tier").
+        # Honors the user's tier choice for general/coding/triage domains, while
+        # LOCAL_PRIVACY and COMPUTER_USE keep their hard domain requirements.
+        pref_tier = self._preferences.get("model_tier")
+        if (
+            pref_tier
+            and pref_tier != "balanced"
+            and domain not in (TaskDomain.LOCAL_PRIVACY, TaskDomain.COMPUTER_USE)
+        ):
+            desc = None
+            for candidate in self.catalog.values():
+                if candidate.tier.value == pref_tier and candidate.provider != "ollama":
+                    desc = candidate
+                    break
+            if desc is None:
+                desc = self.catalog[self.default_model]
+            pref_fallback = self._preferences.get("fallback_order") or [
+                {"provider": "openai", "model": "gpt-4o"},
+                {"provider": "ollama", "model": "llama3.2"},
+            ]
+            decision = RouteDecision(
+                provider=desc.provider,
+                model=desc.id,
+                tier=desc.tier,
+                cost_tier=desc.cost_tier,
+                detected_domain=domain,
+                reason=f"Preference '{pref_tier}' tier: routed to '{desc.display_name}'.",
+                confidence=0.86,
+                fallback_chain=pref_fallback,
+                provider_available=self.is_provider_available(desc.provider),
                 context_window=desc.context_window,
                 capabilities=desc.capabilities,
             )
@@ -709,6 +774,10 @@ class OmniRouter:
 
         # Default standard routing
         desc = self.catalog[self.default_model]
+        pref_fallback = self._preferences.get("fallback_order") or [
+            {"provider": "openai", "model": "gpt-4o"},
+            {"provider": "ollama", "model": "llama3.2"},
+        ]
         decision = RouteDecision(
             provider=desc.provider,
             model=desc.id,
@@ -717,10 +786,7 @@ class OmniRouter:
             detected_domain=domain,
             reason=f"Standard task routing to primary balanced model '{desc.display_name}'.",
             confidence=0.85,
-            fallback_chain=[
-                {"provider": "openai", "model": "gpt-4o"},
-                {"provider": "ollama", "model": "llama3.2"},
-            ],
+            fallback_chain=pref_fallback,
             provider_available=self.is_provider_available(desc.provider),
             context_window=desc.context_window,
             capabilities=desc.capabilities,

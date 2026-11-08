@@ -198,6 +198,15 @@
       if (saved.failure_trigger) document.getElementById('cfg-failure-trigger').value = saved.failure_trigger;
       if (saved.export_format) document.getElementById('cfg-export-format').value = saved.export_format;
       if (saved.sliding_window_days) document.getElementById('cfg-sliding-window').value = saved.sliding_window_days;
+      if (saved.fallback_order) document.getElementById('cfg-fallback-order').value = saved.fallback_order;
+      const auto = document.getElementById('cfg-domain-autoselect');
+      if (auto && saved.domain_autoselect !== undefined) auto.value = String(saved.domain_autoselect);
+      const risk = document.getElementById('cfg-approval-risk');
+      if (risk && saved.approval_risk_level) risk.value = String(saved.approval_risk_level);
+      const iso = document.getElementById('cfg-sandbox-isolation');
+      if (iso && saved.sandbox_isolation) iso.value = saved.sandbox_isolation;
+      const domains = document.getElementById('cfg-allowed-domains');
+      if (domains && saved.allowed_domains) domains.value = saved.allowed_domains;
     } catch (error) { notify(`Не удалось загрузить server config: ${error.message}`, true); }
   }
 
@@ -210,6 +219,11 @@
       failure_trigger: Number(document.getElementById('cfg-failure-trigger')?.value),
       export_format: document.getElementById('cfg-export-format')?.value,
       sliding_window_days: Number(document.getElementById('cfg-sliding-window')?.value),
+      fallback_order: document.getElementById('cfg-fallback-order')?.value,
+      domain_autoselect: document.getElementById('cfg-domain-autoselect')?.value === 'true',
+      allowed_domains: document.getElementById('cfg-allowed-domains')?.value,
+      approval_risk_level: Number(document.getElementById('cfg-approval-risk')?.value),
+      sandbox_isolation: document.getElementById('cfg-sandbox-isolation')?.value,
     };
     try {
       const saved = await api('/runtime-config', {method: 'PUT', body: JSON.stringify(config)});

@@ -393,9 +393,11 @@ class BrowserActionRequest(BaseModel):
 @router.get("/browser/status")
 async def get_browser_status() -> dict[str, Any]:
     """Get status, allowed domains, and statistics of browser controller."""
+    from synapse.api.routes.runtime_config import load_runtime_config_values
     from synapse.integrations.browser_controller import get_browser_controller
 
     controller = get_browser_controller()
+    _apply_browser_preferences(controller)
     stats = controller.get_statistics()
     return {
         "status": "ready",
@@ -408,12 +410,27 @@ async def get_browser_status() -> dict[str, Any]:
     }
 
 
+def _apply_browser_preferences(controller: Any) -> None:
+    """Override browser security config with persisted Computer-Use preferences."""
+    from synapse.api.routes.runtime_config import load_runtime_config_values
+
+    values = load_runtime_config_values()
+    allowed = values.get("allowed_domains")
+    if isinstance(allowed, str) and allowed.strip():
+        domains = [d.strip().lower().rstrip(".") for d in allowed.split(",") if d.strip()]
+        if domains:
+            controller.config.allowed_domains = domains
+
+
 @router.post("/browser/execute")
 async def execute_browser_action(request: BrowserActionRequest) -> dict[str, Any]:
     """Execute a capability-gated browser action (Computer-Use protocol)."""
+    from synapse.api.routes.runtime_config import load_runtime_config_values
     from synapse.integrations.browser_controller import get_browser_controller
 
     controller = get_browser_controller()
+    _apply_browser_preferences(controller)
+
     service = get_invocation_service()
     context = InvocationContext(
         identity="api_user",

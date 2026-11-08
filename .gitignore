@@ -44,3 +44,7 @@ uv.lock
 # Playwright agent artifacts
 .playwright-mcp/
 preview-8001.pid
+
+# Browser test scratch
+.shots/
+.shots_tmp/

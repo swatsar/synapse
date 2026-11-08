@@ -14,6 +14,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from synapse.api.routes.runtime_config import load_runtime_config_values
 from synapse.llm.omnirouter import OmniRouter, RouteDecision, get_omnirouter
 
 PROTOCOL_VERSION: str = "1.0"
@@ -37,7 +38,9 @@ class ExecuteRequest(BaseModel):
 def _get_router(request: Request) -> OmniRouter:
     """Retrieve application OmniRouter instance or default singleton."""
     app_router = getattr(request.app.state, "omnirouter", None)
-    return app_router or get_omnirouter()
+    router = app_router or get_omnirouter()
+    router.apply_preferences(load_runtime_config_values())
+    return router
 
 
 @router.get("/catalog")

@@ -129,7 +129,7 @@ async def list_agents() -> dict[str, Any]:
     control_plane = get_control_plane()
     config = control_plane.executor_config()
     agents = []
-    for executor_id, harness, supports in (
+    for executor_id, harness, safe_mode, supports in (
         ("codex", CodexHarness(), "read-only", ["jsonl", "timeout", "process_cleanup"]),
         ("claude_code", ClaudeCodeHarness(), "read-only", ["stream-json", "timeout", "process_cleanup"]),
     ):

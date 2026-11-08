@@ -21,11 +21,14 @@
     </div>
     <div>
       <label for="cfg-fallback-order">Порядок цепочки Fallback</label>
-      <input type="text" id="cfg-fallback-order" value="claude-sonnet-5-5 -> gpt-4o -> llama3.2" style="width:100%;" readonly>
+      <input type="text" id="cfg-fallback-order" value="claude-sonnet-5-5 -> gpt-4o -> llama3.2" style="width:100%;" title="Модели через -> ; первая — основная, остальные — запасные">
     </div>
     <div>
       <label for="cfg-domain-autoselect">Автодетекция домена задачи</label>
-      <input type="text" id="cfg-domain-autoselect" value="Включено (Coding, Security, Reasoning, Architecture)" style="width:100%;" readonly>
+      <select id="cfg-domain-autoselect" style="width:100%;">
+        <option value="true">Включено</option>
+        <option value="false">Выключено</option>
+      </select>
     </div>
   </div>
 </section>
@@ -62,16 +65,26 @@
   <p class="panel-description">Уровни риска HITL, белые списки веб-доменов и политика песочницы.</p>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
     <div>
-      <label>Требовать подтверждения при риске</label>
-      <input type="text" value="Уровень >= 3 (Файловая запись, Shell, Сеть)" readonly style="width:100%;">
+      <label for="cfg-approval-risk">Подтверждение при риске (уровень HITL)</label>
+      <select id="cfg-approval-risk" style="width:100%;">
+        <option value="1">Уровень 1 — только чтение и простые команды</option>
+        <option value="2">Уровень 2 — + файлы проекта</option>
+        <option value="3" selected>Уровень 3 — + запись, Shell, Сеть</option>
+        <option value="4">Уровень 4 — + браузер/automation</option>
+        <option value="5">Уровень 5 — все действия</option>
+      </select>
     </div>
     <div>
-      <label>Изоляция исполнения</label>
-      <input type="text" value="Pluggable Subprocess Sandbox / Container" readonly style="width:100%;">
+      <label for="cfg-sandbox-isolation">Изоляция исполнения</label>
+      <select id="cfg-sandbox-isolation" style="width:100%;">
+        <option value="pluggable">Pluggable Subprocess Sandbox / Container</option>
+        <option value="process">Изолированный процесс (без контейнера)</option>
+        <option value="strict">Строгий режим (все записи — в workspace)</option>
+      </select>
     </div>
     <div style="grid-column: span 2;">
-      <label>Разрешенные домены Computer-Use</label>
-      <input type="text" value="localhost, 127.0.0.1, example.com, github.com, pypi.org, docs.python.org" readonly style="width:100%;">
+      <label for="cfg-allowed-domains">Разрешенные домены Computer-Use (через запятую)</label>
+      <input type="text" id="cfg-allowed-domains" value="localhost, 127.0.0.1, example.com, github.com, pypi.org, docs.python.org" style="width:100%;">
     </div>
   </div>
 </section>

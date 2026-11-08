@@ -23,6 +23,12 @@ class RuntimeConfigUpdate(BaseModel):
     failure_trigger: int | None = Field(default=None, ge=1, le=10)
     export_format: str | None = Field(default=None, pattern="^(chatml|alpaca)$")
     sliding_window_days: int | None = Field(default=None, ge=1, le=30)
+    # OmniRouter & Computer-Use preferences (persisted, consumed by the router/browser)
+    fallback_order: str | None = Field(default=None, max_length=500)
+    domain_autoselect: bool | None = None
+    allowed_domains: str | None = Field(default=None, max_length=2000)
+    approval_risk_level: int | None = Field(default=None, ge=1, le=5)
+    sandbox_isolation: str | None = Field(default=None, max_length=200)
 
 
 def _path() -> Path:
@@ -42,6 +48,19 @@ def _connect() -> sqlite3.Connection:
         db.execute("INSERT INTO runtime_config VALUES (1, 0, ?)", (json.dumps({}),))
         db.commit()
     return db
+
+
+def load_runtime_config_values() -> dict[str, Any]:
+    """Read persisted runtime-config values for consumers (router, browser, approvals)."""
+    try:
+        db = _connect()
+        try:
+            row = db.execute("SELECT values_json FROM runtime_config WHERE id=1").fetchone()
+            return json.loads(row["values_json"]) if row else {}
+        finally:
+            db.close()
+    except Exception:  # pragma: no cover - best effort for read paths
+        return {}
 
 
 @router.get("")
