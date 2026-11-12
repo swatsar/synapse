@@ -144,6 +144,10 @@ async def test_learning_loop_does_not_train_while_another_run_holds_the_lock(
 
     assert result["success"] is False
     assert result["cycles"][0]["blocker"] == "training_running_in_another_process"
+    # The blocker must survive into the task error. Otherwise the orchestrator
+    # reports a generic "Skill failed: learning_loop" and the user cannot tell
+    # a concurrent training run from a real crash.
+    assert "training_running_in_another_process" in result["error"]
     assert result["weights_modified"] is False
 
 

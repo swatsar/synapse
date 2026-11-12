@@ -401,6 +401,19 @@ async def execute_learning_loop(ctx: ExecutionContext, topic: str = "", **params
             "weights_modified": bool(promoted),
             "note": "LoRA adapter trained over verified snapshots; base weights are never altered.",
         }
+        if not completed:
+            # A blocked cycle (concurrent training, no valid teacher pairs, or
+            # a snapshot that is too small) is not a crash. Preserve the real
+            # blocker in the error field: the orchestrator otherwise replaces
+            # it with a generic "Skill failed: learning_loop" and the evidence
+            # in ``cycles`` is lost.
+            blocked = next(
+                (item for item in cycles if item.get("blocker") or item.get("error")),
+                None,
+            )
+            blocker = (blocked or {}).get("blocker") or (blocked or {}).get("error")
+            if blocker:
+                payload["error"] = str(blocker)
         try:
             from synapse.growth import get_growth_network
 
