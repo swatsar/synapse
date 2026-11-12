@@ -1,111 +1,330 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synapse — настройки</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script><script src="/static/settings.js" defer></script></head>
-<body><main class="container page"><header><div class="page-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span><span class="page-brand-name">Synapse<span class="brand-caption">AGENT WORKSPACE</span></span></div><div class="page-heading"><div class="eyebrow">КОНФИГУРАЦИЯ</div><h1>Настройки</h1></div><div class="runtime-status page-status" data-runtime-status><span class="status-dot"></span><span data-runtime-label>Проверка подключения</span><span class="runtime-version" data-runtime-version>3.4.1</span></div><nav><a href="/">Задачи</a><a href="/providers.html">Провайдеры</a><a href="/agents.html">Компоненты</a><a class="active" href="/settings.html">Настройки</a></nav></header>
-<section class="card" id="api-auth-card" hidden><h2>Защита HTTP API</h2><p id="api-auth-help" class="panel-description"></p><form id="api-key-form"><label for="api-key">SYNAPSE_API_KEY</label><div class="actions"><input id="api-key" type="password" autocomplete="off"><button type="submit">Сохранить в этой вкладке</button></div></form></section>
-<section class="card">
-  <h2>Тонкие настройки OmniRouter & Провайдеров</h2>
-  <p class="panel-description">Маршрутизация запросов между моделями (Claude 5, OpenAI, Ollama), бюджет задержки и стоимости.</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
-    <div>
-      <label for="cfg-pref-tier">Приоритет моделей</label>
-      <select id="cfg-pref-tier" style="width:100%;">
-        <option value="balanced">Balanced (Sonnet 5.5 / GPT-4o)</option>
-        <option value="frontier">Frontier (Opus 5.5 / o1)</option>
-        <option value="local">Local Privacy (Ollama Llama 3.2)</option>
-        <option value="fast">Fast / Cost-Effective (Haiku 5.5)</option>
-      </select>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synapse — настройки</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+<script src="/static/settings.js" defer></script>
+</head>
+<body class="settings-page">
+<main class="container page">
+  <header>
+    <div class="page-brand">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      <span class="page-brand-name">Synapse<span class="brand-caption">AGENT WORKSPACE</span></span>
     </div>
-    <div>
-      <label for="cfg-latency-budget">Бюджет задержки (мс)</label>
-      <input type="number" id="cfg-latency-budget" value="15000" min="1000" max="120000" style="width:100%;">
+    <div class="page-heading">
+      <div class="eyebrow">КОНФИГУРАЦИЯ</div>
+      <h1>Настройки</h1>
     </div>
-    <div>
-      <label for="cfg-fallback-order">Порядок цепочки Fallback</label>
-      <input type="text" id="cfg-fallback-order" value="claude-sonnet-5-5 -> gpt-4o -> llama3.2" style="width:100%;" title="Модели через -> ; первая — основная, остальные — запасные">
+    <div class="runtime-status page-status" data-runtime-status>
+      <span class="status-dot"></span><span data-runtime-label>Проверка подключения</span><span class="runtime-version" data-runtime-version>3.4.1</span>
     </div>
-    <div>
-      <label for="cfg-domain-autoselect">Автодетекция домена задачи</label>
-      <select id="cfg-domain-autoselect" style="width:100%;">
-        <option value="true">Включено</option>
-        <option value="false">Выключено</option>
-      </select>
+    <nav>
+      <a href="/">Задачи</a>
+      <a href="/providers.html">Провайдеры</a>
+      <a href="/agents.html">Компоненты</a>
+      <a class="active" href="/settings.html" aria-current="page">Настройки</a>
+    </nav>
+  </header>
+
+  <p id="notice" role="status"></p>
+
+  <section class="page-hero" aria-labelledby="settings-intro">
+    <div class="hero-copy">
+      <div class="eyebrow accent">БЕЗОПАСНЫЕ ЗНАЧЕНИЯ ПО УМОЛЧАНИЮ</div>
+      <h2 id="settings-intro">Настройте Synapse под себя</h2>
+      <p>Здесь собрано всё, что влияет на выбор модели, безопасность, обучение и внешних агентов. Значения по умолчанию безопасны — меняйте только то, в чём уверены. Под каждым полем есть короткое объяснение.</p>
+      <p>Параметры маршрутизации, обучения и безопасности сохраняются на сервере и применяются к новым задачам. Изменения в этом блоке нужно подтвердить кнопкой <strong>«Сохранить настройки»</strong>.</p>
+      <div class="hero-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 4v5c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V7l7-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+        Ключи и токены через веб-интерфейс не сохраняются — только ссылки на переменные окружения.
+      </div>
+    </div>
+    <div class="metrics" id="settings-metrics" aria-label="Сводка конфигурации">
+      <div class="metric"><div class="metric-value" data-metric="revision">—</div><span class="metric-label">Ревизия конфигурации</span><span class="metric-note" data-metric="revision-note">растёт после каждого сохранения</span></div>
+      <div class="metric"><div class="metric-value" data-metric="backups">—</div><span class="metric-label">Резервные копии</span><span class="metric-note" data-metric="backups-note">состояние памяти и задач</span></div>
+      <div class="metric"><div class="metric-value" data-metric="models">—</div><span class="metric-label">Open-weight модели</span><span class="metric-note" data-metric="models-note">manifest’ы локальных весов</span></div>
+      <div class="metric"><div class="metric-value" data-metric="agents">—</div><span class="metric-label">Внешние агенты</span><span class="metric-note" data-metric="agents-note">Codex · Claude Code</span></div>
+    </div>
+  </section>
+
+  <div class="settings-nav" aria-label="Разделы настроек">
+    <a class="chip" href="#routing">Маршрутизация</a>
+    <a class="chip" href="#security">Безопасность</a>
+    <a class="chip" href="#learning">Обучение</a>
+    <a class="chip" href="#external-agents">Внешние агенты</a>
+    <a class="chip" href="#opencode">OpenCode</a>
+    <a class="chip" href="#models">Модели</a>
+    <a class="chip" href="#backups">Резервные копии</a>
+    <a class="chip" href="#replication">Репликация</a>
+    <a class="chip" href="#training">LoRA</a>
+    <a class="chip" href="#system">Технические данные</a>
+  </div>
+
+  <section class="card" id="api-auth-card" hidden aria-labelledby="api-auth-title">
+    <div class="section-head">
+      <div>
+        <h2 id="api-auth-title">Защита HTTP API</h2>
+        <p class="hint" id="api-auth-help"></p>
+      </div>
+      <span class="badge badge-warn">Только для этой вкладки</span>
+    </div>
+    <form id="api-key-form" class="stack">
+      <div class="field">
+        <label for="api-key">SYNAPSE_API_KEY</label>
+        <input id="api-key" type="password" autocomplete="off" placeholder="Вставьте API-ключ">
+        <p class="hint">Ключ хранится в <code>sessionStorage</code> и исчезнет после закрытия вкладки. Он не записывается на диск.</p>
+      </div>
+      <div><button type="submit">Применить в этой вкладке</button></div>
+    </form>
+  </section>
+
+  <div class="settings-group">
+    <section class="card settings-section" id="routing" aria-labelledby="routing-title">
+      <div class="section-head">
+        <div>
+          <h2 id="routing-title">Маршрутизация моделей</h2>
+          <p class="hint">Определяет, как OmniRouter выбирает модель: приоритетный класс, допустимую задержку, автоматическое определение домена и порядок резервных моделей.</p>
+        </div>
+        <span class="badge badge-accent">Влияет на все новые задачи</span>
+      </div>
+      <div class="field-grid ui-88b9d5c6">
+        <div class="field">
+          <label for="cfg-pref-tier">Приоритет моделей</label>
+          <select id="cfg-pref-tier">
+            <option value="balanced">Balanced — универсальный выбор (Sonnet 5.5 / GPT-4o)</option>
+            <option value="frontier">Frontier — максимум качества (Opus 5.5 / o1)</option>
+            <option value="fast">Fast — скорость и экономия (Haiku 5.5 / GPT-4o-mini)</option>
+            <option value="local">Local Privacy — только локальные модели (Ollama)</option>
+          </select>
+          <p class="hint">Класс, который роутер считает предпочтительным. Если модель класса недоступна, он перейдёт к резервной цепочке.</p>
+        </div>
+        <div class="field">
+          <label for="cfg-latency-budget">Бюджет задержки, мс</label>
+          <input type="number" id="cfg-latency-budget" value="15000" min="1000" max="120000">
+          <p class="hint">Ориентир по времени ответа: от 1000 до 120000 мс. Небольшой бюджет подталкивает роутер к более быстрым моделям.</p>
+        </div>
+        <div class="field full">
+          <label for="cfg-fallback-order">Порядок резервных моделей</label>
+          <input type="text" id="cfg-fallback-order" value="claude-sonnet-5-5 -> gpt-4o -> llama3.2" spellcheck="false" title="Модели через -> или запятую; первая — основная, остальные — запасные">
+          <p class="hint">Первая модель — основная, остальные — запасные. Разделяйте стрелками <code>-&gt;</code> или запятыми. Модели, которых нет в каталоге, будут пропущены.</p>
+        </div>
+        <div class="field full">
+          <label class="switch" for="cfg-domain-autoselect">
+            <input type="checkbox" id="cfg-domain-autoselect" checked>
+            <span><strong>Автоматически определять домен задачи</strong><small>Роутер сам поймёт, что перед ним: код, рассуждения, работа в браузере или приватные данные. Если выключить — будет использоваться общий профиль.</small></span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="card settings-section" id="security" aria-labelledby="security-title">
+      <div class="section-head">
+        <div>
+          <h2 id="security-title">Безопасность и Computer Use</h2>
+          <p class="hint">Уровень подтверждений, изоляция исполнения и список доменов, которые разрешено открывать браузеру. Это главные ограничители автономности.</p>
+        </div>
+        <span class="badge badge-warn">Проверяется перед действием</span>
+      </div>
+      <div class="field-grid ui-88b9d5c6">
+        <div class="field">
+          <label for="cfg-approval-risk">Подтверждение при риске (HITL)</label>
+          <select id="cfg-approval-risk">
+            <option value="1">Уровень 1 — только чтение</option>
+            <option value="2">Уровень 2 — чтение и файлы проекта</option>
+            <option value="3" selected>Уровень 3 — запись, Shell, сеть</option>
+            <option value="4">Уровень 4 — браузер и автоматизация</option>
+            <option value="5">Уровень 5 — все действия</option>
+          </select>
+          <p class="hint" id="cfg-approval-help">Действия с записью, Shell и сетью требуют подтверждения человеком.</p>
+        </div>
+        <div class="field">
+          <label for="cfg-sandbox-isolation">Изоляция исполнения</label>
+          <select id="cfg-sandbox-isolation">
+            <option value="pluggable">Pluggable sandbox / контейнер (если доступен)</option>
+            <option value="process">Изолированный процесс без контейнера</option>
+            <option value="strict">Строгий режим — запись только в workspace</option>
+          </select>
+          <p class="hint">Где выполняются команды и патчи. Строгий режим ограничивает запись рабочим пространством проекта.</p>
+        </div>
+        <div class="field full">
+          <label for="cfg-allowed-domains">Разрешённые домены для Computer Use</label>
+          <input type="text" id="cfg-allowed-domains" value="localhost, 127.0.0.1, example.com, github.com, pypi.org, docs.python.org" spellcheck="false">
+          <p class="hint">Через запятую. Браузер не откроет домен, которого нет в списке, — это защита от случайных переходов.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card settings-section" id="learning" aria-labelledby="learning-title">
+      <div class="section-head">
+        <div>
+          <h2 id="learning-title">Самообучение и метапознание</h2>
+          <p class="hint">Параметры накопления опыта: когда навык считается деградировавшим, после скольких ошибок создаётся новый навык и в каком формате экспортируется датасет для локальной модели.</p>
+        </div>
+        <span class="badge badge-info">Advanced</span>
+      </div>
+      <div class="field-grid ui-88b9d5c6">
+        <div class="field">
+          <label for="cfg-success-threshold">Порог деградации навыка, %</label>
+          <input type="number" id="cfg-success-threshold" value="80" min="50" max="99">
+          <p class="hint">Если успешность навыка падает ниже этого значения, он помечается как деградировавший.</p>
+        </div>
+        <div class="field">
+          <label for="cfg-failure-trigger">Ошибок до создания навыка</label>
+          <input type="number" id="cfg-failure-trigger" value="3" min="1" max="10">
+          <p class="hint">Сколько похожих неудач подряд нужно, чтобы система предложила новый навык вместо повторения ошибки.</p>
+        </div>
+        <div class="field">
+          <label for="cfg-export-format">Формат датасета</label>
+          <select id="cfg-export-format">
+            <option value="chatml">ChatML / OpenAI — HuggingFace, Axolotl, Unsloth</option>
+            <option value="alpaca">Alpaca — Llama-Factory, Ollama modelfile</option>
+          </select>
+          <p class="hint">В каком виде экспортировать подтверждённый опыт для дообучения.</p>
+        </div>
+        <div class="field">
+          <label for="cfg-sliding-window">Окно анализа опыта, дней</label>
+          <input type="number" id="cfg-sliding-window" value="7" min="1" max="30">
+          <p class="hint">За какой период учитывать успехи и ошибки при оценке навыков.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="settings-toolbar" role="group" aria-label="Сохранение настроек">
+      <div class="save-state" id="save-state"><span class="dot"></span><span id="save-state-text">Загрузка настроек…</span></div>
+      <div class="toolbar-actions">
+        <button type="button" class="secondary" id="reset-local-cfg-btn">Сбросить изменения</button>
+        <button type="button" id="save-local-cfg-btn">Сохранить настройки</button>
+      </div>
     </div>
   </div>
-</section>
-<section class="card">
-  <h2>Параметры самообучения (Self-Evolution & Metacognition)</h2>
-  <p class="panel-description">Настройки сбора траекторий, генерации навыков при ошибках и экспорта fine-tuning датасетов.</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
-    <div>
-      <label for="cfg-success-threshold">Порог депрекации навыков (%)</label>
-      <input type="number" id="cfg-success-threshold" value="80" min="50" max="99" style="width:100%;">
+
+  <section class="card settings-section" id="external-agents" aria-labelledby="external-agents-title">
+    <div class="section-head">
+      <div>
+        <h2 id="external-agents-title">Внешние агенты (Claude Code / Codex)</h2>
+        <p class="hint">Synapse может делегировать задачу установленному CLI-агенту. Подключение читает несекретную конфигурацию OpenCode; запуск всё равно проходит approval и ограничение времени.</p>
+      </div>
+      <span class="badge" id="agents-count">—</span>
     </div>
-    <div>
-      <label for="cfg-failure-trigger">Лимит ошибок до CreateSkill</label>
-      <input type="number" id="cfg-failure-trigger" value="3" min="1" max="10" style="width:100%;">
+    <div id="integrations-agents" class="stack"><p class="muted">Загрузка агентов…</p></div>
+    <div class="chip-row ui-88b9d5c6">
+      <button type="button" class="secondary" id="sync-opencode-btn">Синхронизировать из OpenCode</button>
+      <button type="button" class="secondary" id="refresh-agents-btn">Обновить список</button>
+      <span class="hint ui-1da9facb">Если CLI не найден, установите его или укажите путь в конфигурации OpenCode.</span>
     </div>
-    <div>
-      <label for="cfg-export-format">Формат датасета локальной модели</label>
-      <select id="cfg-export-format" style="width:100%;">
-        <option value="chatml">ChatML / OpenAI (HuggingFace, Axolotl, Unsloth)</option>
-        <option value="alpaca">Alpaca format (Llama-Factory, Ollama modelfile)</option>
-      </select>
+  </section>
+
+  <section class="card settings-section" id="opencode" aria-labelledby="opencode-title">
+    <div class="section-head">
+      <div>
+        <h2 id="opencode-title">OpenCode</h2>
+        <p class="hint">Статус runtime OpenCode, его моделей и агентских CLI. Synapse читает только несекретную конфигурацию — ключи и чаты не экспортируются. Каталог моделей и пути к CLI берутся напрямую из OpenCode и PATH.</p>
+      </div>
+      <span class="badge" id="opencode-badge">—</span>
     </div>
-    <div>
-      <label for="cfg-sliding-window">Окно анализа опыта (дней)</label>
-      <input type="number" id="cfg-sliding-window" value="7" min="1" max="30" style="width:100%;">
+    <div id="opencode-status" class="stack"><p class="muted">Загрузка статуса…</p></div>
+    <div class="chip-row ui-88b9d5c6">
+      <button type="button" class="secondary" id="reset-opencode-quota-btn">Сбросить кэш лимита</button>
+      <span class="hint ui-1da9facb">Если бесплатный лимит OpenCode исчерпан, Synapse отвечает локальной моделью и не тратит время на повторные вызовы. Сброс нужен после подписки OpenCode Go или смены ключа.</span>
     </div>
-  </div>
-  <div style="margin-top:12px;">
-    <button class="secondary small-button" id="save-local-cfg-btn" type="button">Сохранить локальный профиль</button>
-  </div>
-</section>
-<section class="card">
-  <h2>Безопасность & Computer Use</h2>
-  <p class="panel-description">Уровни риска HITL, белые списки веб-доменов и политика песочницы.</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
-    <div>
-      <label for="cfg-approval-risk">Подтверждение при риске (уровень HITL)</label>
-      <select id="cfg-approval-risk" style="width:100%;">
-        <option value="1">Уровень 1 — только чтение и простые команды</option>
-        <option value="2">Уровень 2 — + файлы проекта</option>
-        <option value="3" selected>Уровень 3 — + запись, Shell, Сеть</option>
-        <option value="4">Уровень 4 — + браузер/automation</option>
-        <option value="5">Уровень 5 — все действия</option>
-      </select>
+  </section>
+
+  <section class="card settings-section" id="models" aria-labelledby="models-title">
+    <div class="section-head">
+      <div>
+        <h2 id="models-title">Open-weight модели</h2>
+        <p class="hint">Модель появляется здесь после объявления manifest’а. Скачивание весов запускается только вручную; наличие записи не значит, что веса уже скачаны и проверены.</p>
+      </div>
+      <span class="badge" id="models-count">—</span>
     </div>
-    <div>
-      <label for="cfg-sandbox-isolation">Изоляция исполнения</label>
-      <select id="cfg-sandbox-isolation" style="width:100%;">
-        <option value="pluggable">Pluggable Subprocess Sandbox / Container</option>
-        <option value="process">Изолированный процесс (без контейнера)</option>
-        <option value="strict">Строгий режим (все записи — в workspace)</option>
-      </select>
+    <form id="model-declare-form" class="field-grid ui-88b9d5c6">
+      <div class="field">
+        <label for="model-id">Model ID</label>
+        <input id="model-id" required value="Qwen/Qwen2.5-0.5B-Instruct" spellcheck="false">
+        <p class="hint">Идентификатор на Hugging Face, например <code>Qwen/Qwen2.5-0.5B-Instruct</code>.</p>
+      </div>
+      <div class="field">
+        <label for="model-revision">Revision</label>
+        <input id="model-revision" value="main" spellcheck="false">
+        <p class="hint">Ветка или коммит. Обычно достаточно <code>main</code>.</p>
+      </div>
+      <div class="field full field-row">
+        <button type="submit">Добавить manifest</button>
+        <span class="form-status" id="model-form-status" role="status"></span>
+      </div>
+    </form>
+    <div id="models" class="provider-grid ui-8a359a76"><p class="muted">Загрузка моделей…</p></div>
+  </section>
+
+  <section class="card settings-section" id="backups" aria-labelledby="backups-title">
+    <div class="section-head">
+      <div>
+        <h2 id="backups-title">Резервные копии</h2>
+        <p class="hint">Снимок памяти, опыта, навыков и задач в SQLite. Копия создаётся мгновенно. Автоматическое восстановление из интерфейса не поддерживается: сервис нужно остановить и заменить файл вручную.</p>
+      </div>
+      <span class="badge" id="backups-count">—</span>
     </div>
-    <div style="grid-column: span 2;">
-      <label for="cfg-allowed-domains">Разрешенные домены Computer-Use (через запятую)</label>
-      <input type="text" id="cfg-allowed-domains" value="localhost, 127.0.0.1, example.com, github.com, pypi.org, docs.python.org" style="width:100%;">
+    <div class="chip-row ui-9374e842">
+      <button type="button" id="create-backup">Создать копию</button>
+      <button type="button" class="secondary" id="refresh-backups">Обновить список</button>
     </div>
-  </div>
-</section>
-<p class="muted">Базовые настройки runtime инициализируются из конфигурации сервиса и профилей развертывания.</p><p id="notice" role="status"></p>
-<section class="card"><h2>Резервные копии</h2><p class="panel-description">Снимок состояния runtime (memory vault, опыт, skills, задачи) в бэкенде. Копия создаётся мгновенно и хранится как backup-bundle.</p><div class="actions"><button id="create-backup" type="button">Создать копию</button></div><div id="backups" class="muted">Загрузка…</div></section>
-<section class="card"><h2>Базовые настройки runtime</h2><p class="panel-description">Сырые значения настроек систем, безопасности, памяти и соединителей.</p><pre id="settings" class="muted">Загрузка…</pre></section>
-<section class="card"><h2>Репликация агента</h2><p class="panel-description">Bundle переносит память, задачи, verified experience/datasets, model registry, adapters, trajectories, skills и plugins. Секреты не экспортируются. Это portable snapshot, а не автоматическая peer-синхронизация.</p><div class="actions"><button id="replica-export" type="button">Экспортировать snapshot</button><button id="replica-refresh" type="button" class="secondary">Обновить список</button></div><pre id="replica-status" class="muted">Загрузка…</pre></section>
-<section class="card"><h2>Обучение LoRA / QLoRA</h2><p class="panel-description">Обучение запускается только на verified snapshot. Preflight показывает реальные блокеры; результат содержит loss, hashes и reload forward-pass.</p><div class="actions"><button id="create-snapshot" type="button">Создать verified snapshot</button><button id="training-preflight" type="button" class="secondary">Preflight</button><button id="run-training" type="button">Запустить LoRA step</button></div><pre id="training-status" class="muted">Ожидание…</pre></section>
-<section class="card"><h2>Open-weight модели</h2><p class="panel-description">Модель объявляется manifest’ом и скачивается с Hugging Face только по явному действию. Наличие каталога не означает, что веса скачаны или verified.</p><form id="model-declare-form"><label for="model-id">Model ID</label><input id="model-id" required value="Qwen/Qwen2.5-0.5B-Instruct"><label for="model-revision">Revision</label><input id="model-revision" value="main"><button type="submit">Добавить manifest</button></form><div id="models" class="muted">Загрузка…</div></section>
-<section class="card">
-  <h2>Внешние агенты (Claude Code / Codex)</h2>
-  <p class="panel-description">Подключите установленные CLI-агенты, чтобы Synapse мог делегировать им задачи из чата или через выбор «Внешние агенты» в чате. Обнаружение читает статус Velly, но не её секреты.</p>
-  <div id="integrations-agents" class="muted">Загрузка…</div>
-  <div class="actions" style="margin-top:10px;">
-    <button id="sync-velly-btn" type="button" class="secondary">Синхронизировать агенты из Velly</button>
-    <button id="refresh-agents-btn" type="button" class="secondary">Обновить список</button>
-  </div>
-</section>
-<section class="card">
-  <h2>Приложение Velly</h2>
-  <p class="panel-description">Статус локального приложения Velly и его агентских CLI (Claude Code, Codex). Читается только несекретная конфигурация.</p>
-  <pre id="velly-status" class="muted">Загрузка…</pre>
-</section>
-</main></body></html>
+    <div id="backups" class="list-rows"><p class="muted">Загрузка копий…</p></div>
+    <details class="tech-details">
+      <summary>Где лежат файлы и как восстановить вручную</summary>
+      <p class="hint">Копии хранятся в каталоге, который возвращает сервер. Чтобы восстановить состояние: остановите Synapse, сохраните текущую базу, замените её файлом <code>backup_*.sqlite3</code> и запустите сервис снова.</p>
+    </details>
+  </section>
+
+  <section class="card settings-section" id="replication" aria-labelledby="replication-title">
+    <div class="section-head">
+      <div>
+        <h2 id="replication-title">Репликация агента</h2>
+        <p class="hint">Bundle переносит память, задачи, подтверждённый опыт, датасеты, реестр моделей, адаптеры, траектории, навыки и плагины. Секреты не экспортируются. Это переносимый снимок, а не живая синхронизация между узлами.</p>
+      </div>
+      <span class="badge badge-info">Portable snapshot</span>
+    </div>
+    <div class="chip-row ui-9374e842">
+      <button type="button" id="replica-export">Экспортировать snapshot</button>
+      <button type="button" class="secondary" id="replica-refresh">Обновить список</button>
+    </div>
+    <div id="replica-status" class="stack ui-88b9d5c6"><p class="muted">Загрузка статуса репликации…</p></div>
+  </section>
+
+  <section class="card settings-section" id="training" aria-labelledby="training-title">
+    <div class="section-head">
+      <div>
+        <h2 id="training-title">Обучение LoRA / QLoRA</h2>
+        <p class="hint">Порядок: создать verified snapshot → пройти preflight → выполнить шаг обучения. Preflight показывает реальные блокеры (нет весов, нет GPU, пустой датасет), а не имитирует успех.</p>
+      </div>
+      <span class="badge badge-warn">Требует GPU и весов</span>
+    </div>
+    <div class="chip-row ui-9374e842">
+      <button type="button" id="create-snapshot">Создать verified snapshot</button>
+      <button type="button" class="secondary" id="training-preflight">Preflight</button>
+      <button type="button" class="secondary" id="run-training">Запустить LoRA step</button>
+    </div>
+    <div id="training-status" class="stack ui-88b9d5c6"><p class="muted">Ожидание действий. Начните с создания snapshot.</p></div>
+  </section>
+
+  <section class="card settings-section" id="system" aria-labelledby="system-title">
+    <div class="section-head">
+      <div>
+        <h2 id="system-title">Базовые настройки runtime</h2>
+        <p class="hint">Фактические значения системных настроек, безопасности, памяти и соединителей. Часть из них доступна только для чтения и задаётся конфигурацией сервиса при запуске.</p>
+      </div>
+      <span class="badge badge-muted">Только чтение</span>
+    </div>
+    <div id="settings" class="field-grid ui-88b9d5c6"><p class="muted">Загрузка настроек…</p></div>
+    <details class="tech-details">
+      <summary>Показать сырой JSON</summary>
+      <pre id="settings-raw">Загрузка…</pre>
+    </details>
+  </section>
+</main>
+</body>
+</html>

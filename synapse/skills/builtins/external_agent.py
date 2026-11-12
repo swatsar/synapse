@@ -6,6 +6,8 @@ Nothing is synthesized: unavailable/failed outcomes are surfaced as errors.
 """
 from __future__ import annotations
 
+PROTOCOL_VERSION: str = "1.0"
+
 import os
 from pathlib import Path
 from typing import Any
@@ -32,10 +34,13 @@ async def execute_external_agent(ctx: ExecutionContext, agent: str = "codex", ta
 
     workspace_root = Path(
         params.get("workspace_root")
-        or os.getenv("SYNAPSE_WORKSPACE_ROOT", os.getcwd())
+        or os.getenv("SYNAPSE_WORKSPACE_ROOT")
+        or getattr(getattr(ctx, "memory_store", None), "workspace_root", None)
+        or os.getcwd()
     ).expanduser().resolve()
 
     write_enabled = bool(params.get("write_enabled", False))
+    model = params.get("model")
     request = HarnessRequest(
         task_id=str(params.get("task_id") or ctx.trace_id or "external_agent"),
         run_id=str(ctx.trace_id or "external_agent"),
@@ -47,11 +52,27 @@ async def execute_external_agent(ctx: ExecutionContext, agent: str = "codex", ta
             "write_enabled": write_enabled,
             "write_confirmation": write_enabled and bool(ctx.approval_granted),
             "workspace_scope": str(workspace_root),
+            **({"model": str(model)} if model else {}),
         },
     )
 
     timeout_seconds = params.get("timeout_seconds")
-    harness = harness_cls() if timeout_seconds is None else harness_cls(timeout_seconds=float(timeout_seconds))
+    # The settings UI enables an executor by persisting its config. Pass that
+    # decision explicitly so a chat run does not depend on a process-wide env
+    # variable that the UI cannot change.
+    from synapse.integrations.control_plane import get_control_plane
+
+    persisted = get_control_plane().executor_config().get(normalized, {})
+    harness_kwargs: dict[str, Any] = {}
+    if "enabled" in persisted:
+        harness_kwargs["enabled"] = bool(persisted["enabled"])
+    if persisted.get("command"):
+        harness_kwargs["command"] = persisted["command"]
+    if timeout_seconds is not None:
+        harness_kwargs["timeout_seconds"] = float(timeout_seconds)
+    harness = harness_cls(**harness_kwargs)
+    # Never let a persisted write flag silently escalate a read-only chat run.
+    harness.write_enabled = bool(write_enabled)
     result = await harness.execute(request)
 
     payload: dict[str, Any] = {

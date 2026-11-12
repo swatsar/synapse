@@ -13,7 +13,7 @@ class TestAPIKeyFromEnvironment:
     
     def test_api_key_not_hardcoded(self):
         """Verify no hardcoded API keys in app.py source."""
-        with open('synapse/api/app.py', 'r') as f:
+        with open('synapse/api/app.py', 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Should NOT contain hardcoded keys
@@ -29,7 +29,7 @@ class TestAPIKeyFromEnvironment:
         import os.path
         assert os.path.exists('.env.example'), ".env.example must exist"
         
-        with open('.env.example', 'r') as f:
+        with open('.env.example', 'r', encoding='utf-8') as f:
             content = f.read()
         
         assert 'SYNAPSE_API_KEY' in content

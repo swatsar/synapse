@@ -353,6 +353,8 @@ class OmniRouter:
         self._ollama_models: set[str] = set()
         self._local_model_providers: dict[str, Any] = {}
         self._circuit_breakers: dict[str, Any] = {}
+        self._last_refresh_at: float = 0.0
+        self._opencode_models: list[str] = []
         self._stats = {
             "routed_total": 0,
             "routes_by_model": {},
@@ -407,6 +409,8 @@ class OmniRouter:
             return False
         if p == "ollama":
             return self._availability.get(p, False)
+        if p == "opencode":
+            return self._availability.get(p, False)
         return self._availability.get(p, bool(os.getenv(f"{p.upper()}_API_KEY")))
 
     async def _registry(self) -> Any:
@@ -436,8 +440,9 @@ class OmniRouter:
         """Refresh local and registry-backed readiness and discovered models."""
         await self._probe_ollama()
         registry = await self._registry()
-        for profile in await registry.list():
-            self._profiles[profile.id] = profile
+        active_profiles = {profile.id: profile for profile in await registry.list()}
+        self._profiles = active_profiles
+        for profile in active_profiles.values():
             probe = await registry.test_connection(profile.id, timeout=3.0)
             self._availability[profile.id] = probe.success
             if not probe.success:
@@ -478,9 +483,59 @@ class OmniRouter:
         except Exception as exc:
             logger.debug("local model registry refresh failed: %s", exc)
 
+        # Models exposed by the local OpenCode runtime. Discovery is local and
+        # read-only; the provider class handles execution. Only models the CLI
+        # actually reports are added — a guessed catalog entry would route to a
+        # model that does not exist.
+        try:
+            from synapse.integrations.opencode_bridge import (
+                detect_models,
+                find_opencode_cli,
+                is_opencode_quota_exhausted,
+            )
+
+            opencode_models = detect_models()
+            quota_blocked = is_opencode_quota_exhausted()
+            self._opencode_models = [model.model_id for model in opencode_models]
+            self._availability["opencode"] = bool(opencode_models) and not quota_blocked
+            for model in opencode_models:
+                self.catalog[model.model_id] = ModelDescriptor(
+                    id=model.model_id,
+                    provider="opencode",
+                    display_name=model.display_name,
+                    tier=ModelTier.FAST,
+                    cost_tier=CostTier.FREE,
+                    context_window=200_000,
+                    max_output=32_000,
+                    strengths=("opencode", "free_model", "chat"),
+                    capabilities={"tool_calling": False, "computer_use": False, "vision": False, "reasoning": True, "streaming": False},
+                )
+            if not opencode_models and find_opencode_cli() is not None:
+                # CLI exists but model discovery failed; keep it in the catalog
+                # at degraded readiness rather than pretending it is usable.
+                self._availability["opencode"] = False
+        except Exception as exc:
+            self._availability["opencode"] = False
+            self._opencode_models = []
+            logger.debug("OpenCode model discovery failed: %s", exc)
+        self._last_refresh_at = time.monotonic()
+
+    async def ensure_fresh(self, ttl_seconds: float = 30.0) -> None:
+        """Refresh discovery at most once per TTL.
+
+        Model listings must reflect the machine without requiring callers to
+        know about ``?refresh=true``. Discovery is local/read-only but probes
+        configured providers, so the TTL keeps repeated UI polling cheap.
+        """
+        if time.monotonic() - self._last_refresh_at >= max(1.0, ttl_seconds):
+            await self.refresh_providers()
+
     async def route_async(self, task_description: str,
                           requirements: Optional[dict[str, Any]] = None) -> RouteDecision:
-        await self.refresh_providers()
+        # Routing is on the hot path of every task. Re-probing every configured
+        # provider on every request would add seconds of latency and spawn the
+        # OpenCode CLI repeatedly; the TTL keeps discovery current without that.
+        await self.ensure_fresh()
         requirements = requirements or {}
         explicit_model = requirements.get("model")
         local_only = bool(requirements.get("local_only") or requirements.get("privacy"))
@@ -520,6 +575,56 @@ class OmniRouter:
             # A downloaded Transformers model participates only when explicitly selected
             # by model id, preventing a new local artifact from silently changing policy.
             return decision
+        # Mycelial recall: a strongly learned provider/model path may answer a
+        # similar task faster and more reliably than the generic default. Only
+        # success-dominated paths with repeated evidence qualify, and explicit
+        # model/provider requests always win.
+        if not explicit_model and not requirements.get("provider"):
+            try:
+                from synapse.growth import get_growth_network
+
+                suggestions = get_growth_network(
+                    os.getenv("SYNAPSE_WORKSPACE_ROOT", os.getcwd())
+                ).suggest_route(
+                    task_description, limit=3, min_similarity=0.6,
+                )
+            except Exception:
+                suggestions = []
+            for suggestion in suggestions:
+                if suggestion["successes"] < 2 and not suggestion["myelinated"]:
+                    continue
+                model = suggestion["model"]
+                provider = suggestion["provider"]
+                descriptor = self.catalog.get(model)
+                if descriptor is None or descriptor.provider != provider:
+                    continue
+                if not self._candidate_ready(
+                    provider, model, requirements, check_availability=True,
+                ):
+                    continue
+                decision = RouteDecision(
+                    provider=provider,
+                    model=model,
+                    tier=descriptor.tier,
+                    cost_tier=descriptor.cost_tier,
+                    detected_domain=decision.detected_domain,
+                    reason=(
+                        "Mycelial recall: this path succeeded on a similar task "
+                        f"('{suggestion['matched_task'][:80]}')."
+                    ),
+                    confidence=min(
+                        0.99,
+                        0.6
+                        + 0.3 * suggestion["similarity"]
+                        + 0.1 * suggestion["weight"],
+                    ),
+                    fallback_chain=decision.fallback_chain,
+                    provider_available=True,
+                    context_window=descriptor.context_window,
+                    capabilities=descriptor.capabilities,
+                )
+                self._record_decision(decision)
+                break
         return decision
 
     # ------------------------------------------------------------------
@@ -586,6 +691,11 @@ class OmniRouter:
         explicit_model = reqs.get("model")
         if explicit_model and explicit_model in self.catalog:
             desc = self.catalog[explicit_model]
+            fallback_chain = (
+                self._local_fallbacks()
+                if desc.provider == "opencode"
+                else [{"provider": "ollama", "model": "llama3.2"}]
+            )
             decision = RouteDecision(
                 provider=desc.provider,
                 model=desc.id,
@@ -594,7 +704,7 @@ class OmniRouter:
                 detected_domain=domain,
                 reason=f"Explicitly requested model '{explicit_model}'.",
                 confidence=1.0,
-                fallback_chain=[{"provider": "ollama", "model": "llama3.2"}],
+                fallback_chain=fallback_chain,
                 provider_available=self.is_provider_available(desc.provider),
                 context_window=desc.context_window,
                 capabilities=desc.capabilities,
@@ -817,6 +927,15 @@ class OmniRouter:
         attempts: list[dict[str, Any]] = []
         requirements = requirements or {}
 
+        # External coding-agent CLIs (codex / claude_code) are real providers:
+        # an explicit requirements.provider routes the whole task through the
+        # installed CLI with the operator's own CLI authentication.
+        explicit_provider = str(requirements.get("provider", "")).lower().replace("-", "_")
+        if explicit_provider in {"codex", "claude_code"}:
+            return await self._execute_via_cli_agent(
+                explicit_provider, effective_prompt, requirements, decision, start_time,
+            )
+
         candidates = [{"provider": decision.provider, "model": decision.model}]
         candidates.extend(decision.fallback_chain)
         # Prioritize ready/available candidates; fall back to all eligible candidates
@@ -852,18 +971,25 @@ class OmniRouter:
             candidate_start = time.monotonic()
             try:
                 if cand_provider == "local_transformers":
-                    provider_instance = self._local_model_providers.get(cand_model)
-                    if provider_instance is None:
-                        from synapse.models import get_model_registry
-                        from synapse.llm.local_model import LocalTransformersProvider
-                        manifest = get_model_registry().get(cand_model)
-                        if manifest is None or manifest.status != "downloaded" or not manifest.local_path:
-                            raise RuntimeError("local model manifest is not downloaded")
-                        provider_instance = LocalTransformersProvider(manifest.local_path)
-                        self._local_model_providers[cand_model] = provider_instance
+                    from synapse.models import get_model_registry
+                    from synapse.llm.local_model import get_local_provider
+                    manifest = get_model_registry().get(cand_model)
+                    if manifest is None or manifest.status != "downloaded" or not manifest.local_path:
+                        raise RuntimeError("local model manifest is not downloaded")
+                    # get_local_provider keys on the promoted adapter, so a new
+                    # self-training result is applied without a process restart.
+                    provider_instance = get_local_provider(manifest.local_path)
+                    self._local_model_providers[cand_model] = provider_instance
                     response = await asyncio.wait_for(
                         provider_instance.generate(effective_prompt, **kwargs),
-                        timeout=self.request_timeout,
+                        timeout=max(self.request_timeout, 600.0),
+                    )
+                elif cand_provider == "opencode":
+                    from synapse.llm.opencode_provider import OpenCodeCLIProvider
+                    provider_instance = OpenCodeCLIProvider(cand_model)
+                    response = await asyncio.wait_for(
+                        provider_instance.generate(effective_prompt, **kwargs),
+                        timeout=max(self.request_timeout, 185.0),
                     )
                 else:
                     from synapse.llm.provider import LiteLLMProvider
@@ -880,7 +1006,7 @@ class OmniRouter:
                     )
                 cb.record_success()
                 duration = round(time.monotonic() - candidate_start, 3)
-                return {
+                payload = {
                     "success": True, "content": response.get("content", ""),
                     "model_used": cand_model, "provider_used": cand_provider,
                     "route_decision": decision.to_dict(),
@@ -889,6 +1015,36 @@ class OmniRouter:
                     "total_duration_seconds": round(time.monotonic() - start_time, 3),
                     "attempts": attempts, "protocol_version": PROTOCOL_VERSION,
                 }
+                for extra in (
+                    "finish_reason", "truncated", "max_new_tokens",
+                    "adapter_path", "adapter_applied", "adapter_error",
+                ):
+                    if extra in response:
+                        payload[extra] = response[extra]
+                requested = str(requirements.get("model") or "")
+                if requested and requested != cand_model:
+                    payload["fallback_from"] = requested
+                    reason = next(
+                        (str(item.get("error")) for item in reversed(attempts) if item.get("error")),
+                        "",
+                    )
+                    if not reason:
+                        try:
+                            from synapse.integrations.opencode_bridge import quota_status
+                            quota = quota_status()
+                            if quota.get("exhausted"):
+                                reason = quota.get("message") or "OpenCode free usage limit is exhausted"
+                        except Exception:
+                            pass
+                    if reason:
+                        payload["fallback_reason"] = reason[:500]
+                    if requested.lower().startswith("opencode/"):
+                        try:
+                            from synapse.integrations.opencode_bridge import is_opencode_quota_exhausted
+                            payload["quota_exhausted"] = is_opencode_quota_exhausted()
+                        except Exception:
+                            pass
+                return payload
             except Exception as exc:
                 cb.record_failure(exc)
                 duration = round(time.monotonic() - candidate_start, 3)
@@ -910,6 +1066,89 @@ class OmniRouter:
             "total_duration_seconds": round(time.monotonic() - start_time, 3),
             "attempts": attempts, "protocol_version": PROTOCOL_VERSION,
         }
+
+    async def _execute_via_cli_agent(
+        self,
+        provider: str,
+        prompt: str,
+        requirements: dict[str, Any],
+        decision: Any,
+        start_time: float,
+    ) -> dict[str, Any]:
+        """Run one bounded task through an external agent CLI as a provider."""
+        from pathlib import Path as _Path
+
+        from synapse.harnesses import ClaudeCodeHarness, CodexHarness, HarnessRequest
+        from synapse.integrations.control_plane import get_control_plane
+
+        persisted = get_control_plane().executor_config().get(provider, {})
+        harness_cls = CodexHarness if provider == "codex" else ClaudeCodeHarness
+        harness_kwargs: dict[str, Any] = {}
+        if "enabled" in persisted:
+            harness_kwargs["enabled"] = bool(persisted["enabled"])
+        if persisted.get("command"):
+            harness_kwargs["command"] = persisted["command"]
+        harness = harness_cls(**harness_kwargs)
+        workspace_root = _Path(
+            requirements.get("workspace_root") or os.getenv("SYNAPSE_WORKSPACE_ROOT", os.getcwd())
+        ).expanduser().resolve()
+        write_enabled = bool(requirements.get("write_enabled", False))
+        request = HarnessRequest(
+            task_id="omnirouter_cli_provider",
+            run_id="omnirouter_cli_provider",
+            prompt=prompt,
+            workspace_id=str(workspace_root),
+            metadata={
+                "workspace_root": str(workspace_root),
+                "write_enabled": write_enabled,
+                "write_confirmation": write_enabled,
+                "workspace_scope": str(workspace_root),
+                **({"model": str(requirements["model"])} if requirements.get("model") else {}),
+            },
+        )
+        timeout = requirements.get("timeout_seconds")
+        if timeout is not None:
+            harness.timeout_seconds = float(timeout)
+        result = await harness.execute(request)
+        if not result.success:
+            self._stats["execution_failures"] += 1
+            return {
+                "success": False,
+                "error": result.error or "external agent CLI failed",
+                "content": "",
+                "model_used": requirements.get("model"), "provider_used": provider,
+                "route_decision": decision.to_dict(), "usage": {},
+                "total_duration_seconds": round(time.monotonic() - start_time, 3),
+                "attempts": [{"provider": provider, "model": requirements.get("model"),
+                              "error": result.error or "CLI failed", "duration": 0.0}],
+                "protocol_version": PROTOCOL_VERSION,
+            }
+        return {
+            "success": True, "content": result.output,
+            "model_used": requirements.get("model"), "provider_used": provider,
+            "route_decision": decision.to_dict(), "usage": result.usage,
+            "duration_seconds": result.receipt.get("duration_ms", 0) / 1000,
+            "total_duration_seconds": round(time.monotonic() - start_time, 3),
+            "attempts": [], "protocol_version": PROTOCOL_VERSION,
+        }
+
+    def _local_fallbacks(self) -> list[dict[str, str]]:
+        """Downloaded checkpoints first, then Ollama as a last resort."""
+        chain: list[dict[str, str]] = []
+        try:
+            from synapse.models import get_model_registry
+
+            for manifest in get_model_registry().list():
+                if (
+                    manifest.status == "downloaded"
+                    and manifest.local_path
+                    and Path(manifest.local_path).is_dir()
+                ):
+                    chain.append({"provider": "local_transformers", "model": manifest.model_id})
+        except Exception:
+            pass
+        chain.append({"provider": "ollama", "model": "llama3.2"})
+        return chain
 
     def _candidate_ready(
         self,
@@ -937,6 +1176,16 @@ class OmniRouter:
             model == name or model == name.split(":", 1)[0] for name in self._ollama_models
         ):
             return False
+        if check_availability and provider == "opencode":
+            # Quota exhaustion is account-wide: do not present the provider as
+            # ready, so the router moves straight to the local fallback.
+            try:
+                from synapse.integrations.opencode_bridge import is_opencode_quota_exhausted
+                if is_opencode_quota_exhausted():
+                    return False
+            except Exception:
+                pass
+            return self.is_provider_available("opencode")
         return True
 
     async def _execution_config(self, provider: str, model: str) -> tuple[str, str | None, str | None]:
@@ -994,11 +1243,19 @@ class OmniRouter:
             providers[name] = {
                 "available": self.is_provider_available(name),
                 "credential_configured": bool(profile.credential_ref),
+                "auth_type": profile.auth_type.value if hasattr(profile.auth_type, "value") else str(profile.auth_type),
                 "enabled": profile.enabled,
                 "tier": "local" if profile.api_mode.value == "ollama" else "configured",
             }
         providers["ollama"]["installed_models"] = sorted(self._ollama_models)
         providers["ollama"]["endpoint"] = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+        providers["opencode"] = {
+            "available": self.is_provider_available("opencode"),
+            "key_configured": False,
+            "tier": "free",
+            "model_count": len(self._opencode_models),
+            "models": list(self._opencode_models),
+        }
         return {"providers": providers, "default_model": self.default_model,
                 "protocol_version": PROTOCOL_VERSION}
 

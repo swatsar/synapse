@@ -120,6 +120,10 @@ class CapabilityManager:
                 blocked.append(cap)
 
         if blocked:
+            # Capabilities are granted explicitly at bootstrap (see
+            # ``build_orchestrator``) or by an operator. Silently auto-granting
+            # here would defeat the whole capability check and hide missing
+            # grants from the audit trail.
             if self.audit:
                 audit(
                     action="capability_check_denied",

@@ -96,6 +96,10 @@ class ModelDeclareRequest(BaseModel):
     license: str | None = None
 
 
+class ModelDownloadRequest(BaseModel):
+    model_id: str = Field(min_length=1, max_length=200)
+
+
 @router.get("/models")
 async def list_models() -> dict[str, Any]:
     models = get_model_registry().list()
@@ -108,12 +112,43 @@ async def declare_model(data: ModelDeclareRequest) -> dict[str, Any]:
     return {"model": manifest.model_dump(), "protocol_version": PROTOCOL_VERSION}
 
 
-@router.post("/models/{model_id}/download")
-async def download_model(model_id: str) -> dict[str, Any]:
+def _download_model(model_id: str) -> dict[str, Any]:
+    registry = get_model_registry()
     try:
-        manifest = get_model_registry().download(model_id)
+        manifest = registry.download(model_id)
     except KeyError as exc:
+        # If model files already exist on disk but aren't declared, auto-discover and adopt them
+        try:
+            found = registry.find_local_artifact(model_id)
+            if found is not None:
+                manifest = registry.declare(ModelManifest(
+                    model_id=model_id,
+                    source=model_id,
+                    revision="main",
+                    local_path=str(found),
+                    status="downloaded",
+                ))
+                return {"model": manifest.model_dump(), "protocol_version": PROTOCOL_VERSION}
+        except Exception:
+            pass
         raise HTTPException(status_code=404, detail="Model is not declared") from exc
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Model download unavailable: {exc}") from exc
     return {"model": manifest.model_dump(), "protocol_version": PROTOCOL_VERSION}
+
+
+@router.post("/models/download")
+async def download_model_by_body(data: ModelDownloadRequest) -> dict[str, Any]:
+    """Download by JSON body.
+
+    Hugging Face repo ids contain a slash (``Qwen/Qwen2.5-...``). Sending such
+    an id in a URL path is ambiguous for clients/proxies and produced a 404
+    before the handler was reached. The body form is the reliable contract.
+    """
+    return _download_model(data.model_id)
+
+
+@router.post("/models/{model_id:path}/download")
+async def download_model(model_id: str) -> dict[str, Any]:
+    """Backwards-compatible path endpoint that also accepts repo ids with ``/``."""
+    return _download_model(model_id)

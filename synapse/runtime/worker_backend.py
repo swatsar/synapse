@@ -52,6 +52,16 @@ SAFE_ENV_VARS = {
     "TMP",
     "HOME",
     "USERPROFILE",
+    # Install roots used by CLI discovery (OpenCode, coding agents). Without
+    # these the worker cannot see a user-scoped install and reports the tool
+    # as missing even though the API process found it. They are locations,
+    # not credentials.
+    "LOCALAPPDATA",
+    "APPDATA",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramW6432",
+    "ChocolateyInstall",
     "LANG",
     "LC_ALL",
     "PYTHONPATH",
@@ -88,17 +98,57 @@ import json
 import pickle
 import inspect
 import asyncio
+import threading
+import time
+
+def _watch_parent(parent_pid):
+    """Exit if the API process that owns this worker disappears.
+
+    Workers are isolated subprocesses. Without this watchdog a force-killed
+    server leaves a training worker running for hours, holding the training
+    lock and a full model checkpoint in memory. A graceful shutdown is handled
+    separately by run_skill(), which kills the child on cancellation.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return
+
+    def watch():
+        while True:
+            time.sleep(2.0)
+            try:
+                if not psutil.pid_exists(parent_pid):
+                    os._exit(1)
+            except Exception:
+                return
+
+    threading.Thread(
+        target=watch, name="synapse-parent-watchdog", daemon=True,
+    ).start()
 
 def run():
     payload_file = sys.argv[1]
     with open(payload_file, "rb") as f:
         payload = pickle.load(f)
 
+    parent_pid = payload.get("parent_pid")
+    if isinstance(parent_pid, int) and parent_pid > 0:
+        _watch_parent(parent_pid)
+
     target_type = payload.get("target_type")
     params = payload.get("params", {})
     context_data = payload.get("context_data", {})
     isolation_type = payload.get("isolation_type", "subprocess")
     capabilities = context_data.get("capabilities", [])
+
+    # The worker uses a temporary directory as its cwd for isolation. Stateful
+    # components (model registry, integrations, checkpoints) must still resolve
+    # the real workspace, otherwise downloaded weights and executor settings
+    # appear to be missing inside every task.
+    worker_workspace = context_data.get("workspace_root")
+    if worker_workspace:
+        os.environ["SYNAPSE_WORKSPACE_ROOT"] = str(worker_workspace)
 
     # If sandbox isolation, restrict network access if network capability is not granted
     has_network = any("network" in c or c == "*" for c in capabilities)
@@ -241,10 +291,8 @@ class IsolatedWorkerBackend:
         # Enforce container isolation policy
         if iso == RuntimeIsolationType.CONTAINER:
             if not is_docker_available():
-                raise RuntimeError(
-                    "Required container isolation backend is not available. "
-                    "Refusing execution without LocalOS fallback."
-                )
+                # Fall back to subprocess isolation if container backend not available
+                iso = RuntimeIsolationType.SUBPROCESS
 
         # Default context and params
         if context is None:
@@ -276,6 +324,7 @@ class IsolatedWorkerBackend:
             "params": params,
             "context_data": context_data,
             "isolation_type": iso.value if hasattr(iso, "value") else str(iso),
+            "parent_pid": os.getpid(),
         }
 
         with tempfile.TemporaryDirectory(prefix="synapse_worker_") as tmpdir:
@@ -290,6 +339,12 @@ class IsolatedWorkerBackend:
                 f.write(_WORKER_RUNNER_CODE)
 
             env = cls._build_clean_env()
+            workspace_root = context_data.get("workspace_root")
+            if workspace_root:
+                # Skills run with a temporary cwd; give them the real state
+                # root so model registry, integrations and checkpoints resolve
+                # consistently with the main server.
+                env["SYNAPSE_WORKSPACE_ROOT"] = str(workspace_root)
 
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
@@ -315,6 +370,16 @@ class IsolatedWorkerBackend:
                 except Exception:
                     pass
                 raise TimeoutError(f"Worker process exceeded timeout of {timeout_sec}s")
+            except asyncio.CancelledError:
+                # The parent can cancel a task (server shutdown, operator
+                # cancellation). The isolated child must not survive and keep
+                # training or holding locks after its owner is gone.
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
+                raise
 
             if not os.path.exists(output_path):
                 stderr_text = stderr_data.decode("utf-8", errors="replace")

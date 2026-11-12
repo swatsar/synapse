@@ -26,7 +26,10 @@ async def test_write_harness_rejects_missing_confirmation(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_write_harness_accepts_nested_workspace_scope_but_reports_missing_cli(tmp_path):
+async def test_write_harness_accepts_nested_workspace_scope_but_reports_missing_cli(tmp_path, monkeypatch):
+    # Isolate from the operator's real executor config so the explicit
+    # executable is the only resolution candidate.
+    monkeypatch.setenv("SYNAPSE_WORKSPACE_ROOT", str(tmp_path))
     workspace = tmp_path / "nested"
     workspace.mkdir()
     harness = CodexHarness(enabled=True, executable="definitely-not-installed", write_enabled=True)

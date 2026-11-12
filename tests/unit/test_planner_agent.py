@@ -81,6 +81,30 @@ class TestPlannerAgentHeuristic:
         plan = await planner.create_plan("do something unspecific")
         assert len(plan.steps) >= 1
 
+    @pytest.mark.asyncio
+    async def test_read_path_does_not_include_the_leading_verb(self, planner):
+        plan = await planner.create_plan(
+            "Read README.md and write its contents to output.txt"
+        )
+        skills = [step.skill for step in plan.steps]
+        assert skills[:2] == ["read_file", "write_file"]
+        read_step = next(step for step in plan.steps if step.skill == "read_file")
+        assert read_step.params["path"] == "README.md"
+
+    @pytest.mark.asyncio
+    async def test_quoted_read_path_preserves_spaces(self, planner):
+        plan = await planner.create_plan(
+            'Read "docs/my file.md" and write the result to output.txt'
+        )
+        read_step = next(step for step in plan.steps if step.skill == "read_file")
+        assert read_step.params["path"] == "docs/my file.md"
+
+    @pytest.mark.asyncio
+    async def test_absolute_read_path_is_preserved(self, planner):
+        plan = await planner.create_plan(r"Read C:\work\project\notes.md")
+        read_step = next(step for step in plan.steps if step.skill == "read_file")
+        assert read_step.params["path"] == r"C:\work\project\notes.md"
+
 
 @pytest.mark.phase3
 @pytest.mark.unit

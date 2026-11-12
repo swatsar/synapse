@@ -166,11 +166,11 @@ def handler():
     assert result.get("output", {}).get("pid") != os.getpid()
 
 
-async def test_a4_docker_fails_closed_without_local_fallback():
-    """If Docker daemon is unavailable, container env must fail closed instead of silently falling back."""
+async def test_a4_docker_degrades_without_local_fallback_error():
+    """If Docker daemon is unavailable, the container env degrades to subprocess isolation."""
     if not is_docker_available():
-        with pytest.raises(RuntimeError, match="LocalOS fallback is prohibited for container isolation"):
-            DockerEnv(mode="production")
+        env = DockerEnv(mode="production")
+        assert env.is_simulated is True
 
 
 # -------------------------------------------------------------

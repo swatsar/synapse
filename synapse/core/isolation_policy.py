@@ -84,10 +84,11 @@ class IsolationEnforcementPolicy:
         if trust_level == SkillTrustLevel.HUMAN_APPROVED or trust_level == "human_approved":
             return RuntimeIsolationType.SUBPROCESS
 
-        # Rule: trusted with low risk can use subprocess
+        # Rule: trusted built-ins with low risk may run in the main process.
+        # Higher-risk trusted skills still get an isolated subprocess.
         if trust_level == SkillTrustLevel.TRUSTED or trust_level == "trusted":
             if risk_level <= 1:
-                return RuntimeIsolationType.SUBPROCESS
+                return RuntimeIsolationType.NONE
             return RuntimeIsolationType.SUBPROCESS
 
         # Default to container for safety (unknown trust level)

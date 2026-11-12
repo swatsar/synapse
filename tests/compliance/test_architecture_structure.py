@@ -47,6 +47,8 @@ class TestArchitectureStructure:
             "orchestrator", "interfaces", "planning", "api", "orchestrator_control",
             # Additional modules
             "deployment", "integrations", "learning", "telemetry", "audit",
+            # Model training & persistence
+            "models", "training", "replication", "experience", "growth",
             # Ecosystem
             "ecosystem", "capability",
             # Internal

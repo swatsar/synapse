@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +11,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from synapse.experience import DatasetSnapshotStore, ExperienceStore
+from synapse.growth import get_growth_network
 from synapse.models import get_model_registry
-from synapse.training import check_training_preflight, train_lora
+from synapse.training import TrainingRunEvidence, check_training_preflight, train_lora
+from synapse.training.locking import TrainingLock
+from synapse.training.trainer import _sha256_tree
 
 router = APIRouter()
 PROTOCOL_VERSION = "1.0"
@@ -91,6 +95,27 @@ async def run_training(request: TrainingRequest) -> dict[str, Any]:
         snapshot = _snapshots().load(request.snapshot_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Dataset snapshot not found") from exc
+    lock = TrainingLock(_workspace() / ".synapse" / "training.lock")
+    if not lock.acquire():
+        # Return the same evidence contract as a rejected run instead of
+        # queueing a second full training job behind the autonomous loop.
+        base_path = Path(base_model)
+        base_hash = (
+            await asyncio.to_thread(_sha256_tree, base_path)
+            if base_path.is_dir() else ""
+        )
+        blocked = TrainingRunEvidence(
+            status="blocked",
+            run_id=f"train_{uuid.uuid4().hex}",
+            base_model=str(base_model),
+            base_model_hash=base_hash,
+            snapshot_id=snapshot.snapshot_id,
+            snapshot_manifest_hash=snapshot.manifest_hash,
+            adapter_path=None,
+            blockers=("training_running_in_another_process",),
+            mode=request.mode,
+        ).to_dict()
+        return {"training": blocked, "protocol_version": PROTOCOL_VERSION}
     store = _experience_store()
     output_dir = _workspace() / request.output_dir
     try:
@@ -107,7 +132,22 @@ async def run_training(request: TrainingRequest) -> dict[str, Any]:
         )
     finally:
         store.close()
-    return {"training": result.to_dict(), "protocol_version": PROTOCOL_VERSION}
+        lock.release()
+    evidence = result.to_dict()
+    network = get_growth_network(_workspace())
+    network.record_execution(
+        task=f"train:{request.snapshot_id}",
+        skill="training",
+        provider="local_transformers",
+        model=request.model_id,
+        success=evidence.get("status") == "completed",
+        error=evidence.get("error"),
+    )
+    if evidence.get("promotion_status") == "promoted":
+        # Training is a consolidation event: sleep-like decay/prune runs after
+        # a promoted adapter, so the network is not only additive.
+        network.consolidate()
+    return {"training": evidence, "protocol_version": PROTOCOL_VERSION}
 
 
 __all__ = ["router"]

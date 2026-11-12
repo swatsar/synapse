@@ -125,18 +125,15 @@ class CapabilityManager:
                 audit({"event": "capability_check", "required": required, "result": "denied", "reason": "expired"})
                 return False
 
-        # First verify that the capability is currently active in the manager (not revoked)
-        if not self._has_capability(required):
-            audit({"event": "capability_check", "required": required, "result": "denied", "reason": "not_granted_or_revoked"})
-            return False
-
-        # If context has a capabilities specification, the context must explicitly grant it
+        # A non-empty capability list is a delegation restriction: the context
+        # may only use what it explicitly lists, even if the manager holds a
+        # broader grant. An empty/absent list means "no restriction", letting
+        # trusted bootstrap grants apply.
         context_caps = getattr(context, "capabilities", None)
         if context_caps is None and isinstance(context, dict):
             context_caps = context.get("capabilities", None)
 
-        if context_caps is not None:
-            # Context must have the capability or wildcard
+        if context_caps:
             if "*" in context_caps:
                 audit({"event": "capability_check", "required": required, "result": "granted", "reason": "wildcard"})
                 return True
@@ -144,13 +141,16 @@ class CapabilityManager:
                 if self._matches(cap, required):
                     audit({"event": "capability_check", "required": required, "granted_by": cap, "result": "granted"})
                     return True
-            # Context explicitly lacks the required capability
             audit({"event": "capability_check", "required": required, "result": "denied", "reason": "not_in_context"})
             return False
 
-        # If context does not specify capabilities, fall back to manager grant
-        audit({"event": "capability_check", "required": required, "result": "granted", "reason": "manager_grant"})
-        return True
+        # No context restriction: fall back to explicitly granted capabilities.
+        if self._has_capability(required):
+            audit({"event": "capability_check", "required": required, "result": "granted", "reason": "manager_grant"})
+            return True
+
+        audit({"event": "capability_check", "required": required, "result": "denied", "reason": "not_granted"})
+        return False
     
     def _check_capabilities_list(self, capabilities: list[str]) -> SecurityCheckResult:
         """Check a list of capabilities."""

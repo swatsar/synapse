@@ -1,4 +1,4 @@
-"""Tests for the external agent bridge: planner routing, Velly discovery, skills."""
+"""Tests for external agent discovery: planner routing, CLIs, skills."""
 from __future__ import annotations
 
 import asyncio
@@ -8,7 +8,7 @@ import pytest
 
 from synapse.agents.planner import PlannerAgent
 from synapse.core.models import ExecutionContext
-from synapse.integrations.velly_bridge import VellyAgent, detect_agents
+from synapse.integrations.external_agents import detect_agents
 from synapse.skills.builtins.external_agent import execute_external_agent
 
 
@@ -68,6 +68,20 @@ def test_detect_agents_reports_truthful_availability():
     assert {"codex", "claude_code"} <= ids
     for agent in agents:
         assert agent.available == bool(agent.argv)
+
+
+def test_deprecated_velly_shim_aliases_external_agents_without_reading_velly():
+    """Old imports must keep working, but Velly is no longer a data source."""
+    from synapse.integrations import velly_bridge
+
+    assert velly_bridge.VellyAgent is velly_bridge.ExternalAgent
+    status = velly_bridge.velly_legacy_status()
+    assert status["deprecated"] is True
+    assert status["removed"] is True
+    assert status["replacement"] == "opencode"
+    assert status["workspaces"] == []
+    assert status["chat_config"] == {}
+    assert "no Velly state is read" in status["note"]
 
 
 @pytest.mark.asyncio

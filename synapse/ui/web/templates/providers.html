@@ -1,41 +1,231 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synapse — провайдеры и OmniRouter</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script><script src="/static/providers.js" defer></script></head>
-<body><main class="container page"><header><div class="page-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span><span class="page-brand-name">Synapse<span class="brand-caption">AGENT WORKSPACE</span></span></div><div class="page-heading"><div class="eyebrow">МАРШРУТИЗАЦИЯ МОДЕЛЕЙ</div><h1>Провайдеры LLM & OmniRouter</h1></div><div class="runtime-status page-status" data-runtime-status><span class="status-dot"></span><span data-runtime-label>Проверка подключения</span><span class="runtime-version" data-runtime-version>3.4.1</span></div><nav><a href="/">Задачи</a><a class="active" href="/providers.html">Провайдеры</a><a href="/agents.html">Компоненты</a><a href="/settings.html">Настройки</a></nav></header><p id="notice" role="status"></p>
-
-<section class="card">
-  <h2>⚡ OmniRouter — Интеллектуальный роутер моделей</h2>
-  <p class="muted">OmniRouter автоматически анализирует контекст задачи, выявляет домен (код, рассуждения, computer use, локальная приватность) и выбирает оптимальную модель с цепочкой отказоустойчивости (fallback chain).</p>
-
-  <form id="sandbox-form" style="margin-top: 14px;">
-    <label for="sandbox-task">Тестовый запрос для роутера</label>
-    <div style="display: flex; gap: 8px;">
-      <input id="sandbox-task" style="flex: 1;" placeholder="Например: Напиши скрипт для GUI автоматизации через браузер..." value="Рефакторинг кода и тестирование веб-интерфейса в браузере">
-      <button type="submit" class="secondary" id="test-route-btn">Определить модель</button>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synapse — провайдеры и OmniRouter</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+<script src="/static/providers.js" defer></script>
+</head>
+<body>
+<main class="container page">
+  <header>
+    <div class="page-brand">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      <span class="page-brand-name">Synapse<span class="brand-caption">AGENT WORKSPACE</span></span>
     </div>
-  </form>
-
-  <div id="sandbox-result" class="router-decision-card" style="margin-top: 14px;" hidden>
-    <div class="router-badge-row">
-      <span class="router-brand">⚡ Выбор OmniRouter:</span>
-      <span class="model-badge" id="sandbox-model">—</span>
-      <span class="domain-badge" id="sandbox-domain">—</span>
-      <span class="cost-badge" id="sandbox-cost">—</span>
-      <span id="sandbox-availability" class="status-pill">—</span>
+    <div class="page-heading">
+      <div class="eyebrow">МАРШРУТИЗАЦИЯ МОДЕЛЕЙ</div>
+      <h1>Провайдеры LLM и OmniRouter</h1>
     </div>
-    <p class="router-reason" id="sandbox-reason" style="margin: 8px 0;"></p>
-    <div style="margin-top: 8px; font-size: 10px; color: var(--muted);">
-      <strong>Цепочка резервирования (Fallback):</strong> <span id="sandbox-fallbacks">—</span>
+    <div class="runtime-status page-status" data-runtime-status>
+      <span class="status-dot"></span><span data-runtime-label>Проверка подключения</span><span class="runtime-version" data-runtime-version>3.4.1</span>
     </div>
-  </div>
-</section>
+    <nav>
+      <a href="/">Задачи</a>
+      <a class="active" href="/providers.html" aria-current="page">Провайдеры</a>
+      <a href="/agents.html">Компоненты</a>
+      <a href="/settings.html">Настройки</a>
+    </nav>
+  </header>
 
-<section class="card">
-  <h2>Каталог моделей OmniRouter</h2>
-  <p class="muted">Доступные семейство моделей Anthropic Claude 5, OpenAI и локальные модели Ollama.</p>
-  <div id="router-catalog" class="muted">Загрузка каталога…</div>
-</section>
+  <p id="notice" role="status"></p>
 
-<section class="card"><h2>Добавить профиль провайдера</h2><p class="muted">Ключ сохраняется только как ссылка на переменную окружения SYNAPSE_PROVIDER_&lt;ИМЯ&gt;_API_KEY. Задайте её перед запуском Synapse. Профиль не активирует текущий runtime автоматически.</p>
-<form id="provider-form"><label for="provider-name">Имя</label><input id="provider-name" required value="openai"><label for="provider-key">Ключ провайдера (не сохраняется)</label><input id="provider-key" type="password" autocomplete="off" placeholder="Только подтверждение настройки env"><label for="provider-models">Модели через запятую</label><input id="provider-models" value="gpt-4o-mini"><label for="provider-priority">Приоритет</label><input id="provider-priority" type="number" min="1" max="10" value="3"><button type="submit">Сохранить профиль</button></form></section>
-<section class="card"><h2>Профили провайдеров</h2><div id="providers" class="muted">Загрузка…</div></section>
-</main></body></html>
+  <section class="page-hero" aria-labelledby="providers-intro">
+    <div class="hero-copy">
+      <div class="eyebrow accent">ПРОСТЫМИ СЛОВАМИ</div>
+      <h2 id="providers-intro">Модели, которыми пользуется Synapse</h2>
+      <p>Synapse не привязан к одной нейросети. Здесь вы подключаете <strong>провайдеров</strong> — Anthropic, OpenAI, Ollama или любой совместимый API — и задаёте их приоритет. Дальше <strong>OmniRouter</strong> сам решает, какая модель лучше подходит под конкретную задачу: код, сложные рассуждения, работа в браузере или приватная локальная обработка.</p>
+      <p>Профиль провайдера хранит адрес API и <strong>ссылку на секрет</strong>, но никогда не сам ключ. Поэтому ключи можно держать в переменных окружения или в зашифрованном хранилище.</p>
+      <div class="hero-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16v-5"/><path d="M12 8h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        Профиль не переключает текущий runtime автоматически: после смены окружения перезапустите Synapse.
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div><strong>Добавьте провайдера</strong><small>Укажите протокол, адрес API и ссылку на секрет или подключите локальную модель без ключа.</small></div>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div><strong>Проверьте соединение</strong><small>Кнопка «Проверить» делает настоящий запрос к API и показывает реальный результат.</small></div>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div><strong>Доверьте выбор роутеру</strong><small>OmniRouter учитывает домен задачи, бюджет задержки, стоимость и цепочку резервирования.</small></div>
+        </div>
+      </div>
+    </div>
+    <div class="metrics" id="provider-metrics" aria-label="Сводка по провайдерам и моделям">
+      <div class="metric"><div class="metric-value" data-metric="providers">—</div><span class="metric-label">Провайдеры</span><span class="metric-note" data-metric="providers-note">загрузка…</span></div>
+      <div class="metric"><div class="metric-value" data-metric="models">—</div><span class="metric-label">Модели в каталоге</span><span class="metric-note" data-metric="models-note">загрузка…</span></div>
+      <div class="metric"><div class="metric-value" data-metric="ready">—</div><span class="metric-label">Готовы к работе</span><span class="metric-note" data-metric="ready-note">по данным роутера</span></div>
+      <div class="metric"><div class="metric-value small" data-metric="default">—</div><span class="metric-label">Модель по умолчанию</span><span class="metric-note" data-metric="default-note">выбор OmniRouter</span></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="health-title">
+    <div class="section-head">
+      <div>
+        <h2 id="health-title">Доступность провайдеров</h2>
+        <p class="hint">Роутер проверяет наличие ключей в окружении и локальную Ollama. «Ключ настроен» не гарантирует квоту или оплату — окончательную проверку делает кнопка «Проверить соединение» в профиле ниже.</p>
+      </div>
+      <span class="badge" id="health-count">—</span>
+    </div>
+    <div id="provider-health" class="provider-grid ui-88b9d5c6"><p class="muted">Проверка доступности…</p></div>
+  </section>
+
+  <section class="card" aria-labelledby="sandbox-title">
+    <div class="section-head">
+      <div>
+        <h2 id="sandbox-title">Проверка выбора модели</h2>
+        <p class="hint">Опишите задачу так, как написали бы её в чате. Роутер покажет, какую модель он выберет, почему и какая модель подстрахует. Это предпросмотр решения, а не запуск задачи — токены не расходуются.</p>
+      </div>
+      <span class="badge badge-info">Без запуска задачи</span>
+    </div>
+
+    <form id="sandbox-form" class="stack">
+      <div class="sandbox-row">
+        <label for="sandbox-task" class="sr-only">Тестовый запрос для роутера</label>
+        <input id="sandbox-task" value="Рефакторинг кода и тестирование веб-интерфейса в браузере" placeholder="Например: Напиши скрипт для автоматизации браузера…">
+        <button type="submit" class="secondary" id="test-route-btn">Подобрать модель</button>
+      </div>
+      <div class="chip-row">
+        <span class="hint ui-1da9facb">Примеры:</span>
+        <button type="button" class="chip" data-task="Отрефактори Python-модуль и напиши тесты">Код и тесты</button>
+        <button type="button" class="chip" data-task="Проанализируй архитектуру сервиса и найди узкие места">Архитектура</button>
+        <button type="button" class="chip" data-task="Проверь интерфейс сайта в браузере и сделай скриншоты">Работа в браузере</button>
+        <button type="button" class="chip" data-task="Обработай конфиденциальные заметки без отправки в интернет">Приватные данные</button>
+        <button type="button" class="chip" data-task="Сделай краткое резюме длинного документа">Резюме текста</button>
+      </div>
+    </form>
+
+    <div id="sandbox-result" class="decision" hidden>
+      <div class="decision-top">
+        <div>
+          <div class="eyebrow">ВЫБРАННАЯ МОДЕЛЬ</div>
+          <div class="decision-model">
+            <span id="sandbox-model">—</span>
+            <span id="sandbox-availability" class="badge">—</span>
+          </div>
+        </div>
+        <div class="decision-meta">
+          <span class="meta-label">Домен</span><span id="sandbox-domain" class="badge badge-info">—</span>
+          <span class="meta-label">Стоимость</span><span id="sandbox-cost" class="badge badge-warn">—</span>
+        </div>
+      </div>
+      <p class="decision-reason" id="sandbox-reason"></p>
+      <div class="decision-footer"><strong>Если модель недоступна, роутер попробует:</strong> <span id="sandbox-fallbacks">—</span></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="catalog-title">
+    <div class="section-head">
+      <div>
+        <h2 id="catalog-title">Каталог моделей</h2>
+        <p class="hint">Модели, которые знает OmniRouter. «Локальная» означает, что модель работает на вашем компьютере через Ollama или локальные веса — без отправки данных наружу.</p>
+      </div>
+      <span class="badge" id="catalog-count">—</span>
+    </div>
+    <div class="filters" id="catalog-filters" role="group" aria-label="Фильтр моделей">
+      <button type="button" class="chip active" data-filter="all" aria-pressed="true">Все модели</button>
+      <button type="button" class="chip" data-filter="local" aria-pressed="false">Локальные</button>
+      <button type="button" class="chip" data-filter="frontier" aria-pressed="false">Frontier</button>
+      <button type="button" class="chip" data-filter="standard" aria-pressed="false">Standard</button>
+      <button type="button" class="chip" data-filter="fast" aria-pressed="false">Быстрые</button>
+    </div>
+    <div id="router-catalog" class="catalog-grid"><p class="muted">Загрузка каталога…</p></div>
+  </section>
+
+  <section class="card" id="add-provider" aria-labelledby="add-provider-title">
+    <div class="section-head">
+      <div>
+        <h2 id="add-provider-title">Добавить провайдера</h2>
+        <p class="hint">Заполните профиль один раз. Если не хотите хранить ключ в Synapse, используйте ссылку на секрет — например, <code>secret://env/OPENAI_API_KEY</code>. Перед этим создайте переменную окружения и перезапустите сервис.</p>
+      </div>
+      <span class="badge badge-accent">Ключ не попадает в профиль</span>
+    </div>
+
+    <form id="provider-form" class="stack" novalidate>
+      <div class="field-grid">
+        <div class="field">
+          <label for="provider-name">Имя профиля</label>
+          <input id="provider-name" required value="openai" placeholder="например, openai" autocomplete="off" spellcheck="false">
+          <p class="hint">Из имени создаётся идентификатор: латиница, цифры, дефис и подчёркивание.</p>
+        </div>
+        <div class="field">
+          <label for="provider-mode">Протокол API</label>
+          <select id="provider-mode">
+            <option value="openai_chat">OpenAI Chat Completions</option>
+            <option value="openai_responses">OpenAI Responses</option>
+            <option value="anthropic_messages">Anthropic Messages</option>
+            <option value="gemini_native">Google Gemini</option>
+            <option value="ollama">Ollama (локально)</option>
+            <option value="azure_openai">Azure OpenAI</option>
+            <option value="bedrock">AWS Bedrock</option>
+            <option value="vertex_ai">Google Vertex AI</option>
+            <option value="openai_compatible" selected>OpenAI-совместимый (OpenRouter, vLLM…)</option>
+            <option value="custom_http">Свой HTTP</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="provider-base-url">Базовый URL API <span class="badge badge-muted">необязательно</span></label>
+          <input id="provider-base-url" placeholder="https://api.openai.com/v1" autocomplete="off" spellcheck="false">
+          <p class="hint" id="provider-base-hint">Пусто — используется стандартный адрес выбранного протокола.</p>
+        </div>
+        <div class="field">
+          <label for="provider-auth-mode">Авторизация</label>
+          <select id="provider-auth-mode">
+            <option value="secret_ref" selected>Ссылка на секрет (рекомендуется)</option>
+            <option value="api_key">Ввести ключ (шифрованное хранилище)</option>
+            <option value="none">Без авторизации (локальная модель)</option>
+          </select>
+        </div>
+        <div class="field full" id="provider-secret-field">
+          <label for="provider-credential-ref">Ссылка на секрет</label>
+          <input id="provider-credential-ref" value="secret://env/OPENAI_API_KEY" autocomplete="off" spellcheck="false">
+          <p class="hint">Synapse возьмёт значение из источника, на который указывает ссылка. Для переменной окружения используйте формат <code>secret://env/ИМЯ_ПЕРЕМЕННОЙ</code>.</p>
+        </div>
+        <div class="field full" id="provider-key-field" hidden>
+          <label for="provider-key">API-ключ</label>
+          <input id="provider-key" type="password" autocomplete="off" placeholder="Вставьте ключ — он будет сохранён зашифрованным">
+          <p class="hint">Нужен настроенный <code>SYNAPSE_SECRET_KEY</code>. В профиле останется только ссылка <code>secret://</code>, сам ключ в интерфейс больше не вернётся.</p>
+        </div>
+        <div class="field">
+          <label for="provider-models">Модели через запятую</label>
+          <input id="provider-models" value="gpt-4o-mini" autocomplete="off" spellcheck="false">
+          <p class="hint">Первая модель станет основной, остальные — запасными. Можно оставить пустым и загрузить список из API провайдера.</p>
+        </div>
+        <div class="field">
+          <label for="provider-priority">Приоритет</label>
+          <input id="provider-priority" type="number" min="1" max="10" value="3">
+          <p class="hint">1 — пробовать в первую очередь, 10 — в последнюю.</p>
+        </div>
+      </div>
+      <div class="field-row">
+        <button type="submit" id="provider-submit">Добавить провайдера</button>
+        <span class="form-status" id="provider-form-status" role="status"></span>
+      </div>
+    </form>
+
+    <div class="callout" id="provider-auth-callout">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <span><strong>Если при сохранении ключа появляется ошибка хранилища</strong>, значит на сервере не задан <code>SYNAPSE_SECRET_KEY</code>. Это не блокирует работу: выберите «Ссылка на секрет», задайте переменную окружения с ключом и перезапустите Synapse.</span>
+    </div>
+  </section>
+
+  <section class="card" id="provider-list" aria-labelledby="provider-list-title">
+    <div class="section-head">
+      <div>
+        <h2 id="provider-list-title">Подключённые провайдеры</h2>
+        <p class="hint">Карточки упорядочены по приоритету. Проверка соединения обращается к реальному API; если провайдер требует ключ, которого нет в окружении, вы увидите честную ошибку.</p>
+      </div>
+      <span class="badge" id="providers-count">—</span>
+    </div>
+    <div id="providers" class="provider-grid"><p class="muted">Загрузка профилей…</p></div>
+  </section>
+</main>
+</body>
+</html>

@@ -184,25 +184,30 @@ class ExternalCliHarness(HarnessAdapter):
     command: str = ""
 
     def __init__(self, *, executable: str | None = None, enabled: bool | None = None,
-                 timeout_seconds: float = 120.0, write_enabled: bool = False,
+                 timeout_seconds: float | None = None, write_enabled: bool | None = None,
                  command: list[str] | tuple[str, ...] | str | None = None):
         self.executable = executable or self.command
         configured: dict[str, Any] = {}
-        if enabled is None or timeout_seconds == 120.0 or not write_enabled:
-            try:
-                from synapse.integrations.control_plane import get_control_plane
-                configured = get_control_plane().executor_config().get(self.name, {})
-            except (OSError, TypeError, ValueError):
-                configured = {}
-        self.enabled = bool(configured["enabled"]) if enabled is None and "enabled" in configured else (_enabled() if enabled is None else enabled)
-        self.timeout_seconds = float(configured.get("timeout_seconds", timeout_seconds))
-        self.write_enabled = bool(configured.get("write_enabled", write_enabled))
+        try:
+            from synapse.integrations.control_plane import get_control_plane
+            configured = get_control_plane().executor_config().get(self.name, {})
+        except (OSError, TypeError, ValueError):
+            configured = {}
+        # Explicit constructor arguments win over the persisted control-plane
+        # config; the persisted values only fill what was not passed so that a
+        # test or a chat run can never be silently escalated or downgraded.
+        self.enabled = bool(enabled) if enabled is not None else bool(configured.get("enabled", _enabled()))
+        self.timeout_seconds = float(
+            timeout_seconds if timeout_seconds is not None
+            else configured.get("timeout_seconds", 120.0)
+        )
+        self.write_enabled = bool(write_enabled) if write_enabled is not None else bool(configured.get("write_enabled", False))
         # An explicit argv (for example [node, codex.js] for npm-wrapped CLIs)
-        # overrides plain executable resolution; persisted config wins last.
+        # overrides plain executable resolution; persisted config applies only
+        # when the caller did not pass an explicit command.
         self.command_argv: list[str] = _normalize_command(command) if command else []
-        configured_command = _normalize_command(configured.get("command"))
-        if configured_command:
-            self.command_argv = configured_command
+        if not self.command_argv:
+            self.command_argv = _normalize_command(configured.get("command"))
 
     @abstractmethod
     def build_argv(self, prefix: list[str], request: HarnessRequest, workspace: Path) -> list[str]:
@@ -286,10 +291,18 @@ class CodexHarness(ExternalCliHarness):
 
     def build_argv(self, prefix: list[str], request: HarnessRequest, workspace: Path) -> list[str]:
         sandbox = "workspace-write" if self.write_enabled else "read-only"
-        return [
-            *prefix, "exec", "--json", "--ephemeral", "--ignore-user-config",
-            "--sandbox", sandbox, "--cd", str(workspace), request.prompt,
+        # User config is deliberately NOT ignored: it carries the project trust
+        # and provider auth the operator already configured for the CLI.
+        # Dropping it downgrades every run to untrusted/read-only on Windows.
+        argv = [
+            *prefix, "exec", "--json", "--ephemeral", "--skip-git-repo-check",
+            "--sandbox", sandbox, "--cd", str(workspace),
         ]
+        model = request.metadata.get("model")
+        if isinstance(model, str) and model.strip():
+            argv += ["-c", f"model={model.strip()}"]
+        argv.append(request.prompt)
+        return argv
 
 
 class ClaudeCodeHarness(ExternalCliHarness):
@@ -299,12 +312,16 @@ class ClaudeCodeHarness(ExternalCliHarness):
     def build_argv(self, prefix: list[str], request: HarnessRequest, workspace: Path) -> list[str]:
         tools = "Read,Glob,Grep,Write,Edit" if self.write_enabled else "Read,Glob,Grep"
         permission_mode = "acceptEdits" if self.write_enabled else "dontAsk"
-        return [
+        argv = [
             *prefix, "-p", request.prompt, "--output-format", "stream-json", "--verbose",
             "--no-session-persistence", "--safe-mode", "--strict-mcp-config",
             "--permission-mode", permission_mode, "--tools", tools,
             "--add-dir", str(workspace),
         ]
+        model = request.metadata.get("model")
+        if isinstance(model, str) and model.strip():
+            argv += ["--model", model.strip()]
+        return argv
 
 
 class HermesHarness(UnconfiguredHarness):

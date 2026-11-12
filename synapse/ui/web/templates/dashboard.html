@@ -141,7 +141,7 @@
       <div class="inspector-content" id="inspector-security" role="tabpanel" hidden>
         <p class="panel-description">Cloudflare Security Audit: статический анализ кода, поиск секретов и уязвимостей.</p>
         <button class="primary full-width" id="run-security-scan-btn" type="button"><svg><use href="#i-shield"/></svg> Запустить аудит безопасности</button>
-        <div id="security-report-card" hidden style="margin-top:14px;">
+        <div id="security-report-card" hidden class="ui-88b9d5c6">
           <div class="stat-summary-card">
             <div class="stat-grade" id="sec-grade">A+</div>
             <div class="stat-info">
@@ -158,12 +158,12 @@
           <input type="search" id="memory-search-input" placeholder="Поиск по памяти..." class="small-input">
           <button class="secondary small-button" id="memory-search-btn" type="button">Найти</button>
         </div>
-        <details class="advanced-payload" style="margin: 10px 0;">
+        <details class="advanced-payload ui-21ed360e">
           <summary>+ Добавить правило / факт</summary>
-          <div class="form-group" style="margin-top:8px;">
-            <input type="text" id="new-mem-title" placeholder="Заголовок правила" style="width:100%;margin-bottom:6px;">
-            <textarea id="new-mem-content" rows="2" placeholder="Содержимое правила или соглашения..." style="width:100%;margin-bottom:6px;"></textarea>
-            <select id="new-mem-type" style="width:100%;margin-bottom:6px;">
+          <div class="form-group ui-b1ecc496">
+            <input type="text" id="new-mem-title" placeholder="Заголовок правила" class="ui-543ba1ba">
+            <textarea id="new-mem-content" rows="2" placeholder="Содержимое правила или соглашения..." class="ui-543ba1ba"></textarea>
+            <select id="new-mem-type" class="ui-543ba1ba">
               <option value="convention">Convention (Правило разработки)</option>
               <option value="project">Project (Архитектура / Стек)</option>
               <option value="feedback">Feedback (Корректировка)</option>
@@ -177,7 +177,7 @@
       <div class="inspector-content" id="inspector-benchmarks" role="tabpanel" hidden>
         <p class="panel-description">Nutlope Hallmark: Тестирование качества рассуждений, кода и безопасности.</p>
         <button class="primary full-width" id="run-benchmarks-btn" type="button"><svg><use href="#i-refresh"/></svg> Запустить Hallmark бенчмарк</button>
-        <div id="benchmark-results-container" hidden style="margin-top:14px;">
+        <div id="benchmark-results-container" hidden class="ui-88b9d5c6">
           <div class="stat-summary-card">
             <div class="stat-grade" id="bench-grade">A+</div>
             <div class="stat-info">
@@ -197,15 +197,52 @@
             <small>Готово для fine-tuning: <span id="evo-sft-ready">0</span> успешных</small>
           </div>
         </div>
-        <div style="display:flex;gap:8px;margin:10px 0;">
+        <div class="section-divider ui-6950353f"></div>
+        <h4 class="ui-07c97389">Мицелиальная сеть роста</h4>
+        <p class="panel-description ui-e4ad4a16">Задачи, навыки и модели связываются в растущий граф: успех усиливает путь, ошибка тормозит, консолидация ослабляет и удаляет мёртвые связи.</p>
+        <div class="stat-summary-card">
+          <div class="stat-grade" id="growth-count">0</div>
+          <div class="stat-info">
+            <div>Событий обучения: <strong id="growth-events">0</strong></div>
+            <small>Узлов: <span id="growth-nodes">0</span> · Связей: <span id="growth-edges">0</span> · Миелинизировано: <span id="growth-myelinated">0</span></small>
+          </div>
+        </div>
+        <p class="panel-description ui-e4ad4a16" id="growth-status-line">Сеть ещё не сформирована.</p>
+        <p class="panel-description ui-e4ad4a16" id="growth-adapter-line">Обученный адаптер: проверка…</p>
+        <p class="panel-description ui-e4ad4a16" id="growth-autonomy-line">Автономный цикл: проверка…</p>
+        <p class="panel-description ui-e4ad4a16" id="growth-readiness-line">Готовность к обучению: проверка…</p>
+        <div class="field full">
+          <label for="learning-topic-input">Тема для обучения</label>
+          <input id="learning-topic-input" placeholder="Например: Python и типизация" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="ui-4cfd81dd">
+          <select id="learning-teacher-select" class="ui-7623f055" aria-label="Модель-учитель" title="Модель-учитель">
+            <option value="auto">Авто — лучший доступный учитель</option>
+          </select>
+          <button class="secondary small-button" id="learning-start-btn" type="button">Обучить по теме</button>
+        </div>
+        <p class="panel-description ui-e4ad4a16" id="learning-teacher-line">Учителя: проверка доступных моделей…</p>
+        <div class="ui-3609be34">
+          <button class="secondary small-button full-width" id="refresh-growth-btn" type="button">Обновить сеть</button>
+          <button class="primary small-button full-width" id="consolidate-growth-btn" type="button">Провести консолидацию</button>
+        </div>
+        <div class="ui-3609be34">
+          <button class="secondary small-button full-width" id="autonomy-tick-btn" type="button">Запустить цикл саморазвития</button>
+          <button class="secondary small-button full-width" id="autonomy-train-btn" type="button">Обучить сейчас</button>
+          <button class="secondary small-button full-width" id="autonomy-study-btn" type="button">Изучить документацию</button>
+        </div>
+        <div id="growth-fast-paths" class="memory-list ui-d8a81eac"></div>
+        <div class="section-divider ui-6950353f"></div>
+        <h4 class="ui-07c97389">Метакогниция и саморазвитие агентов</h4>
+        <div class="ui-3609be34">
           <button class="secondary small-button full-width" id="export-sft-btn" type="button">📥 Экспорт SFT (.jsonl)</button>
           <button class="secondary small-button full-width" id="export-dpo-btn" type="button">⚖️ Экспорт DPO пар</button>
         </div>
-        <div class="section-divider" style="margin:14px 0 8px;border-top:1px solid var(--border, #333);"></div>
-        <h4 style="margin:0 0 6px;font-size:13px;font-weight:600;">Метакогниция и саморазвитие агентов</h4>
-        <p class="panel-description" style="margin-bottom:8px;">Анализ узких мест, неудач и генерация улучшенных инструкций (prompts):</p>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <select id="evo-agent-select" style="flex:1;">
+        <div class="section-divider ui-6950353f"></div>
+        <h4 class="ui-07c97389">Метакогниция и саморазвитие агентов</h4>
+        <p class="panel-description ui-e4ad4a16">Анализ узких мест, неудач и генерация улучшенных инструкций (prompts):</p>
+        <div class="ui-4cfd81dd">
+          <select id="evo-agent-select" class="ui-7623f055">
             <option value="developer">DeveloperAgent (Кодогенерация)</option>
             <option value="critic">CriticAgent (Ревью и проверка)</option>
             <option value="planner">PlannerAgent (Декомпозиция задач)</option>
@@ -213,19 +250,19 @@
           </select>
           <button class="primary small-button" id="optimize-agent-btn" type="button">Оптимизировать</button>
         </div>
-        <button class="secondary small-button full-width" id="analyze-patterns-btn" type="button" style="margin-bottom:10px;">🔍 Анализ узких мест навыков</button>
-        <div id="evolution-insights-card" hidden class="stat-summary-card" style="margin-top:8px;flex-direction:column;align-items:flex-start;">
-          <div id="evo-insights-title" style="font-weight:600;margin-bottom:4px;font-size:12px;"></div>
-          <pre id="evo-insights-body" style="font-size:11px;white-space:pre-wrap;margin:0;max-height:200px;overflow-y:auto;width:100%;"></pre>
+        <button class="secondary small-button full-width ui-af3fee87" id="analyze-patterns-btn" type="button">🔍 Анализ узких мест навыков</button>
+        <div id="evolution-insights-card" hidden class="stat-summary-card ui-aac0a78e">
+          <div id="evo-insights-title" class="ui-0725911b"></div>
+          <pre id="evo-insights-body" class="ui-da3233cf"></pre>
         </div>
-        <div id="trajectories-list" class="memory-list" style="margin-top:10px;"></div>
+        <div id="trajectories-list" class="memory-list ui-d8a81eac"></div>
       </div>
       <div class="inspector-content" id="inspector-computer" role="tabpanel" hidden>
         <p class="panel-description">Computer Use: Безопасное управление браузером с валидацией доменов и чекпоинтами.</p>
-        <div class="form-group" style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;gap:6px;">
-            <input type="url" id="browser-url-input" placeholder="https://example.com или http://localhost:8000" style="flex:1;">
-            <select id="browser-action-select" style="width:130px;">
+        <div class="form-group ui-f67b86e0">
+          <div class="ui-1d8943fa">
+            <input type="url" id="browser-url-input" placeholder="https://example.com или http://localhost:8000" class="ui-7623f055">
+            <select id="browser-action-select" class="ui-29dbf95c">
               <option value="navigate">Navigate</option>
               <option value="screenshot">Screenshot</option>
               <option value="scrape">Scrape text</option>
@@ -233,67 +270,67 @@
               <option value="fill">Fill input</option>
             </select>
           </div>
-          <div style="display:flex;gap:6px;" id="browser-extra-inputs">
-            <input type="text" id="browser-selector-input" placeholder="CSS селектор (напр. button, input)" style="flex:1;">
-            <input type="text" id="browser-value-input" placeholder="Значение для ввода" style="flex:1;">
+          <div id="browser-extra-inputs" class="ui-1d8943fa">
+            <input type="text" id="browser-selector-input" placeholder="CSS селектор (напр. button, input)" class="ui-7623f055">
+            <input type="text" id="browser-value-input" placeholder="Значение для ввода" class="ui-7623f055">
           </div>
           <button class="primary full-width small-button" id="execute-browser-btn" type="button">Выполнить действие браузера</button>
         </div>
-        <div id="browser-viewport" style="margin-top:12px;border:1px solid var(--border, #333);border-radius:6px;padding:8px;background:rgba(0,0,0,0.2);" hidden>
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;color:var(--text-muted, #888);">
+        <div id="browser-viewport" hidden class="ui-927c2db1">
+          <div class="ui-d6957ce5">
             <span id="browser-status-line">Статус: готово</span>
             <span id="browser-url-display"></span>
           </div>
-          <img id="browser-screenshot-img" alt="Снимок экрана браузера" style="max-width:100%;border-radius:4px;display:none;" />
-          <pre id="browser-content-display" style="font-size:11px;white-space:pre-wrap;max-height:220px;overflow-y:auto;margin:0;display:none;width:100%;"></pre>
+          <img id="browser-screenshot-img" alt="Снимок экрана браузера" class="ui-c8d63367" />
+          <pre id="browser-content-display" class="ui-d1764efe"></pre>
         </div>
       </div>
       <div class="inspector-content" id="inspector-router" role="tabpanel" hidden>
         <p class="panel-description">OmniRouter: Интеллектуальная маршрутизация моделей (Claude 5, OpenAI o1/GPT-4o, Ollama), бюджеты задержки и автоматический fallback.</p>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <input type="text" id="router-test-task" placeholder="Задача для анализа (напр. 'Write an async web scraper')" style="flex:1;">
+        <div class="ui-4cfd81dd">
+          <input type="text" id="router-test-task" placeholder="Задача для анализа (напр. 'Write an async web scraper')" class="ui-7623f055">
           <button class="primary small-button" id="router-test-btn" type="button">Маршрут</button>
           <button class="secondary small-button" id="router-exec-btn" type="button">Запуск</button>
         </div>
-        <div style="display:flex;gap:12px;font-size:12px;margin-bottom:8px;">
-          <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="router-test-local"> Только офлайн / Local</label>
-          <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" id="router-test-fast"> Fast Latency</label>
+        <div class="ui-5771608a">
+          <label class="ui-7e407a00"><input type="checkbox" id="router-test-local"> Только офлайн / Local</label>
+          <label class="ui-7e407a00"><input type="checkbox" id="router-test-fast"> Fast Latency</label>
         </div>
-        <div id="router-test-result" hidden class="stat-summary-card" style="margin-top:8px;flex-direction:column;align-items:flex-start;">
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+        <div id="router-test-result" hidden class="stat-summary-card ui-aac0a78e">
+          <div class="ui-323faf76">
             <span class="router-brand">⚡ OmniRouter</span>
             <span class="model-badge" id="rt-model">—</span>
             <span class="domain-badge" id="rt-domain">—</span>
             <span class="cost-badge" id="rt-cost">—</span>
-            <span style="font-size:11px;color:var(--text-muted, #888);">Уверенность: <strong id="rt-conf">0%</strong></span>
+            <span class="ui-6ba9f5ca">Уверенность: <strong id="rt-conf">0%</strong></span>
           </div>
-          <p id="rt-reason" style="font-size:11px;margin:4px 0;"></p>
-          <div style="font-size:10px;color:var(--text-muted, #888);margin-bottom:4px;">Цепочка Fallback: <span id="rt-fallback">—</span></div>
-          <div id="rt-output-box" hidden style="width:100%;margin-top:6px;padding:6px;background:rgba(0,0,0,0.25);border-radius:4px;">
-            <div style="font-size:11px;font-weight:600;margin-bottom:2px;">Результат выполнения:</div>
-            <pre id="rt-output" style="font-size:11px;white-space:pre-wrap;max-height:160px;overflow-y:auto;margin:0;"></pre>
-            <div id="rt-meta" style="font-size:10px;color:var(--text-muted, #888);margin-top:4px;"></div>
+          <p id="rt-reason" class="ui-77f62615"></p>
+          <div class="ui-55e36a12">Цепочка Fallback: <span id="rt-fallback">—</span></div>
+          <div id="rt-output-box" hidden class="ui-4cae6628">
+            <div class="ui-047b3ab2">Результат выполнения:</div>
+            <pre id="rt-output" class="ui-2d1ab801"></pre>
+            <div id="rt-meta" class="ui-e1af83ee"></div>
           </div>
         </div>
-        <div style="margin-top:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <h4 style="margin:0;font-size:12px;">Каталог моделей и провайдеров</h4>
+        <div class="ui-9374e842">
+          <div class="ui-a42388f6">
+            <h4 class="ui-42d5fcd7">Каталог моделей и провайдеров</h4>
             <button class="secondary small-button" id="refresh-router-catalog" type="button">Обновить</button>
           </div>
-          <div id="router-catalog-list" class="memory-list" style="max-height:220px;overflow-y:auto;"></div>
+          <div id="router-catalog-list" class="memory-list ui-16bef17a"></div>
         </div>
       </div>
       <div class="inspector-content" id="inspector-skills" role="tabpanel" hidden>
         <p class="panel-description">Mattpocock Skills: Каталог декларативных компонуемых навыков платформы с валидацией схемы.</p>
         <details class="advanced-payload"><summary>Параметры навыка JSON</summary><textarea id="skill-exec-params" aria-label="Параметры навыка JSON" placeholder='{"code":"print(1)"}'>{}</textarea></details>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <h4 style="margin:0;font-size:12px;">Зарегистрированные навыки</h4>
+        <div class="ui-5a9738ff">
+          <h4 class="ui-42d5fcd7">Зарегистрированные навыки</h4>
           <button class="secondary small-button" id="refresh-skills-btn" type="button">Обновить</button>
         </div>
-        <div id="skills-catalog-list" class="memory-list" style="max-height:240px;overflow-y:auto;"></div>
-        <div id="skill-exec-card" hidden class="stat-summary-card" style="margin-top:10px;flex-direction:column;align-items:flex-start;">
-          <div style="font-weight:600;font-size:12px;margin-bottom:4px;" id="skill-exec-title">Выполнение навыка</div>
-          <pre id="skill-exec-result" style="font-size:11px;white-space:pre-wrap;margin:0;max-height:180px;overflow-y:auto;width:100%;"></pre>
+        <div id="skills-catalog-list" class="memory-list ui-cd070d3e"></div>
+        <div id="skill-exec-card" hidden class="stat-summary-card ui-0152ee10">
+          <div id="skill-exec-title" class="ui-68858403">Выполнение навыка</div>
+          <pre id="skill-exec-result" class="ui-89141dec"></pre>
         </div>
       </div>
       <div class="inspector-content" id="inspector-session" role="tabpanel" hidden><div class="session-stats"><div><strong id="stat-total">0</strong><span>Запусков</span></div><div><strong id="stat-completed">0</strong><span>Завершено</span></div><div><strong id="stat-failed">0</strong><span>Ошибок</span></div></div><dl class="metadata-list"><dt>ID сессии</dt><dd id="session-id">—</dd><dt>Создана</dt><dd id="session-created">—</dd><dt>Режим</dt><dd>Локальный runtime</dd></dl><button class="secondary full-width" id="export-session" type="button">Экспортировать JSON</button><button class="text-danger full-width" id="archive-session" type="button">Архивировать сессию</button></div>

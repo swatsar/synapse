@@ -1,6 +1,106 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Synapse — компоненты</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/app.css"><script src="/static/app.js" defer></script><script src="/static/agents.js" defer></script></head>
-<body><main class="container page"><header><div class="page-brand"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span><span class="page-brand-name">Synapse<span class="brand-caption">AGENT WORKSPACE</span></span></div><div class="page-heading"><div class="eyebrow">КОМПОНЕНТЫ RUNTIME</div><h1>Компоненты</h1></div><div class="runtime-status page-status" data-runtime-status><span class="status-dot"></span><span data-runtime-label>Проверка подключения</span><span class="runtime-version" data-runtime-version>3.4.1</span></div><nav><a href="/">Задачи</a><a href="/providers.html">Провайдеры</a><a class="active" href="/agents.html">Компоненты</a><a href="/settings.html">Настройки</a></nav></header>
-<p class="muted">Это компоненты единого runtime, а не независимые фоновые процессы. Отдельные start/stop не поддерживаются.</p><p id="notice" role="status"></p><section class="card"><h2>Встроенные компоненты</h2><div id="agents" class="muted">Загрузка…</div></section>
-<section class="card"><h2>Исполнители и интеграции</h2><p class="panel-description">Здесь отображаются внешние executors, MCP и plugins. Статус «доступен» означает только наличие runtime-контура; запуск всё равно проходит через approval, capabilities и безопасный режим.</p><div id="integrations" class="muted">Загрузка…</div></section>
-</main></body></html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Synapse — компоненты</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+<script src="/static/agents.js" defer></script>
+</head>
+<body>
+<main class="container page">
+  <header>
+    <div class="page-brand">
+      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      <span class="page-brand-name">Synapse<span class="brand-caption">AGENT WORKSPACE</span></span>
+    </div>
+    <div class="page-heading">
+      <div class="eyebrow">КОМПОНЕНТЫ RUNTIME</div>
+      <h1>Компоненты</h1>
+    </div>
+    <div class="runtime-status page-status" data-runtime-status>
+      <span class="status-dot"></span><span data-runtime-label>Проверка подключения</span><span class="runtime-version" data-runtime-version>3.4.1</span>
+    </div>
+    <nav>
+      <a href="/">Задачи</a>
+      <a href="/providers.html">Провайдеры</a>
+      <a class="active" href="/agents.html" aria-current="page">Компоненты</a>
+      <a href="/settings.html">Настройки</a>
+    </nav>
+  </header>
+
+  <p id="notice" role="status"></p>
+
+  <section class="page-hero" aria-labelledby="components-intro">
+    <div class="hero-copy">
+      <div class="eyebrow accent">КАК УСТРОЕН SYNAPSE</div>
+      <h2 id="components-intro">Один runtime, несколько ролей</h2>
+      <p>Planner, Critic, Developer и Security Manager — это <strong>не отдельные программы</strong>, а роли внутри единого runtime. Они работают вместе на каждом шаге задачи: планируют, проверяют риск, пишут код, оценивают результат и сохраняют опыт.</p>
+      <p>Отдельно здесь показаны <strong>внешние исполнители</strong> — Codex CLI и Claude Code, а также расширения: MCP-серверы и плагины. Они подключаются опционально и всегда проходят через approval, capabilities и безопасный режим.</p>
+      <div class="hero-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16v-5"/><path d="M12 8h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        Запуск и остановка отдельных компонентов не поддерживаются — это осознанное ограничение архитектуры.
+      </div>
+    </div>
+    <div class="metrics" id="component-metrics" aria-label="Сводка по компонентам">
+      <div class="metric"><div class="metric-value" data-metric="components">—</div><span class="metric-label">Встроенные роли</span><span class="metric-note" data-metric="components-note">Planner · Critic · Developer · Security</span></div>
+      <div class="metric"><div class="metric-value" data-metric="executors">—</div><span class="metric-label">Внешние исполнители</span><span class="metric-note" data-metric="executors-note">Codex · Claude Code</span></div>
+      <div class="metric"><div class="metric-value" data-metric="mcp">—</div><span class="metric-label">MCP-серверы</span><span class="metric-note" data-metric="mcp-note">подключения инструментов</span></div>
+      <div class="metric"><div class="metric-value" data-metric="plugins">—</div><span class="metric-label">Плагины</span><span class="metric-note" data-metric="plugins-note">зарегистрированные manifest’ы</span></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="pipeline-title">
+    <div class="section-head">
+      <div>
+        <h2 id="pipeline-title">Что происходит с задачей</h2>
+        <p class="hint">Каждая задача проходит один и тот же цикл. Так проще понять, зачем нужен каждый компонент и где именно вмешивается проверка безопасности.</p>
+      </div>
+      <span class="badge badge-accent">8 шагов</span>
+    </div>
+    <div class="pipeline">
+      <div class="pipeline-step"><span class="pipeline-num">1</span><strong>Восприятие</strong><small>Читает задачу, файлы и контекст сессии.</small></div>
+      <div class="pipeline-step"><span class="pipeline-num">2</span><strong>Воспоминание</strong><small>Ищет похожий опыт в памяти и навыках.</small></div>
+      <div class="pipeline-step"><span class="pipeline-num">3</span><strong>Планирование</strong><small>Planner разбивает задачу на шаги.</small></div>
+      <div class="pipeline-step"><span class="pipeline-num">4</span><strong>Безопасность</strong><small>Security Manager проверяет риск и capabilities.</small></div>
+      <div class="pipeline-step"><span class="pipeline-num">5</span><strong>Действие</strong><small>Developer и инструменты выполняют шаг.</small></div>
+      <div class="pipeline-step"><span class="pipeline-num">6</span><strong>Наблюдение</strong><small>Собирает вывод, ошибки и артефакты.</small></div>
+      <div class="pipeline-step"><span class="pipeline-num">7</span><strong>Оценка</strong><small>Critic проверяет качество результата.</small></div>
+      <div class="pipeline-step"><span class="pipeline-num">8</span><strong>Обучение</strong><small>Сохраняет опыт и обновляет навыки.</small></div>
+    </div>
+    <div class="callout">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 4v5c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V7l7-4Z"/><path d="m9 12 2 2 4-4"/></svg>
+      <span><strong>Безопасность встроена в цикл, а не добавлена сверху.</strong> Действия с записью, Shell и сетью требуют подтверждения согласно выбранному уровню HITL в настройках. Внешние агенты работают в безопасном режиме и с ограничением времени.</span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="builtin-title">
+    <div class="section-head">
+      <div>
+        <h2 id="builtin-title">Встроенные компоненты</h2>
+        <p class="hint">Эти роли всегда находятся внутри runtime. Их состояние «Встроен» означает, что реализация загружена и доступна для выполнения задач.</p>
+      </div>
+      <span class="badge" id="components-count">—</span>
+    </div>
+    <div id="agents" class="component-grid"><p class="muted">Загрузка компонентов…</p></div>
+  </section>
+
+  <section class="card" id="integrations" aria-labelledby="integrations-title">
+    <div class="section-head">
+      <div>
+        <h2 id="integrations-title">Исполнители и интеграции</h2>
+        <p class="hint">Внешние CLI-агенты, MCP-серверы, плагины и runtime OpenCode. Статус «доступен» означает только наличие runtime-контура: фактический запуск всё равно проходит approval и проверку capabilities.</p>
+      </div>
+      <a class="chip" href="/settings.html#external-agents">Настроить в «Настройках»</a>
+    </div>
+    <div id="integration-cards" class="integration-grid"><p class="muted">Загрузка интеграций…</p></div>
+    <details class="tech-details">
+      <summary>Технический снимок интеграций</summary>
+      <pre id="integrations-raw">Загрузка…</pre>
+    </details>
+  </section>
+</main>
+</body>
+</html>

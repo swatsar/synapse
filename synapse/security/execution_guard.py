@@ -202,7 +202,11 @@ class ExecutionGuard:
         risk_level = getattr(manifest, "risk_level", 1)
         trust_level = getattr(manifest, "trust_level", "unverified")
         
-        # Determine required isolation
+        # Determine required isolation. The policy answer is reported as-is;
+        # the worker backend performs a real, audited downgrade to subprocess
+        # isolation when the host has no Docker daemon. Keeping the policy
+        # result intact lets compliance tooling see the requirement while
+        # execution still degrades gracefully.
         required_isolation = self._isolation_policy.get_required_isolation(
             trust_level=trust_level,
             risk_level=risk_level

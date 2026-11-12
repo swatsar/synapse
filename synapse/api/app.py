@@ -69,9 +69,23 @@ def _session(application: FastAPI, session_id: str) -> dict[str, Any]:
 async def lifespan(application: FastAPI):
     """Own runtime resources and await outstanding work during graceful shutdown."""
     from synapse.core.orchestrator import build_orchestrator
-    from synapse.runtime.container import get_runtime_container
+    from synapse.runtime.container import (
+        RuntimeContainer,
+        get_runtime_container,
+        set_runtime_container,
+    )
 
+    workspace = Path(
+        os.getenv("SYNAPSE_WORKSPACE_ROOT") or os.getcwd()
+    ).expanduser().resolve()
     container = get_runtime_container()
+    if container.workspace_root != workspace:
+        # The runtime container owns workspace-scoped stores and a durable work
+        # database. An embedded run (tests, another workspace, a second app in
+        # the same process) must never reuse a container bound to a different
+        # — possibly already deleted — workspace.
+        container = RuntimeContainer(workspace_root=workspace)
+        set_runtime_container(container)
     application.state.container = container
     await container.start()
 
@@ -91,11 +105,34 @@ async def lifespan(application: FastAPI):
     if owns_store:
         application.state.workspace_store = container.workspace_store
     application.state.omnirouter = container.omnirouter
+    try:
+        # Warm the model catalog before the first request: OpenCode/registered
+        # providers are discovered once at startup instead of only when a
+        # client happens to pass ?refresh=true.
+        await application.state.omnirouter.refresh_providers()
+    except Exception:
+        pass
+    autonomy_loop = None
+    if owns_runtime:
+        from synapse.growth import get_autonomy_loop
+
+        workspace = os.getenv("SYNAPSE_WORKSPACE_ROOT") or os.getcwd()
+        autonomy_loop = get_autonomy_loop(
+            workspace,
+            growth_network=getattr(application.state.orchestrator, "growth_network", None),
+        )
+        application.state.autonomy_loop = autonomy_loop
+        autonomy_loop.start()
     jobs: set[asyncio.Task] = set()
     application.state.background_jobs = jobs
     try:
         yield
     finally:
+        if autonomy_loop is not None:
+            # Stop the maintenance cadence before closing the orchestrator so it
+            # never touches a closed memory/growth store.
+            await autonomy_loop.stop()
+            application.state.autonomy_loop = None
         if jobs:
             await asyncio.gather(*jobs, return_exceptions=True)
         if owns_runtime:
@@ -162,6 +199,15 @@ class TaskRequest(BaseModel):
     task: str = Field(min_length=1, max_length=20_000)
     payload: dict[str, Any] | None = None
     session_id: str | None = None
+    protocol_version: Literal["1.0"] = PROTOCOL_VERSION
+    model_config = {"extra": "forbid"}
+
+
+class TaskFeedback(BaseModel):
+    """Explicit human judgement about one completed task."""
+
+    passed: bool
+    note: str | None = Field(default=None, max_length=2_000)
     protocol_version: Literal["1.0"] = PROTOCOL_VERSION
     model_config = {"extra": "forbid"}
 
@@ -300,6 +346,21 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
                     await work_engine.release(lease, final_status)
         status = outcome.get("status", "failed")
         result = outcome.get("result", outcome)
+        # Independent verification is computed before persistence so the task
+        # record and the training evidence agree on the same verdict.
+        from synapse.experience import verify_task_outcome
+
+        workspace_root = Path(
+            getattr(container, "workspace_root", Path.cwd())
+            if container is not None else Path.cwd()
+        )
+        verification = verify_task_outcome(
+            task.get("payload") or {},
+            result if isinstance(result, dict) else {},
+            workspace_root=workspace_root,
+        )
+        if isinstance(result, dict):
+            result["verification"] = verification
         record = store.update_task(
             task_id, status=status, success=bool(outcome.get("success", False)),
             error=outcome.get("error"), result=result, completed_at=utc_now(),
@@ -307,23 +368,71 @@ async def _execute_task(application: FastAPI, task_id: str) -> dict[str, Any]:
         )
         if container is not None and getattr(container, "experience_store", None) is not None:
             from synapse.experience import ExperienceRecord
+            from synapse.experience.verification import build_training_feedback
+
             receipt = result.get("invocation_receipt", {}) if isinstance(result, dict) else {}
+            verified = (
+                bool(outcome.get("success", False))
+                and verification["passed"] is True
+            )
+            # Only a model-backed answer can become training text. A verified
+            # deterministic tool step (for example read_file) is real evidence,
+            # but it must not be attributed to the router's tentative provider.
+            training = build_training_feedback(
+                task["task"], result if isinstance(result, dict) else {},
+            )
+            trainable = bool(verified and training["training_ready"])
+            feedback: dict[str, Any] = {
+                "verification": verification,
+                "model_backed": training["model_backed"],
+                "training_ready": trainable,
+            }
+            if training["training_text"]:
+                # Keep the candidate even before verification so explicit human
+                # approval can promote it later without re-running the task.
+                feedback["candidate_training_text"] = training["training_text"]
+            if trainable:
+                feedback["training_text"] = training["training_text"]
+            eligibility = "eligible" if trainable else "ineligible"
+            criteria = task.get("payload") or {}
+            raw_criteria = criteria.get("acceptance_criteria") or criteria.get("verification")
+            if isinstance(raw_criteria, str):
+                acceptance = [raw_criteria]
+            elif isinstance(raw_criteria, (list, tuple)):
+                acceptance = [str(item) for item in raw_criteria]
+            elif isinstance(raw_criteria, dict):
+                acceptance = [json.dumps(raw_criteria, ensure_ascii=False, sort_keys=True)]
+            else:
+                acceptance = []
             container.experience_store.append(ExperienceRecord(
                 task_id=task_id,
                 run_id=receipt.get("run_id", durable_run.id if durable_run else task_id),
                 session_id=task["session_id"],
                 objective=task["task"],
                 inputs=task.get("payload") or {},
+                acceptance_criteria=acceptance,
                 executor="orchestrator.handle",
-                provider=(route_decision.to_dict().get("provider") if route_decision else None),
-                model=(route_decision.to_dict().get("model") if route_decision else None),
+                provider=training["provider"],
+                model=training["model"],
                 execution_success=bool(outcome.get("success", False)),
-                verifier_passed=None,
-                verifier_status="inconclusive",
-                eligibility="ineligible",
+                verifier_passed=verification["passed"],
+                verifier_status=verification["status"],
+                eligibility=eligibility,
+                feedback=feedback,
                 error=outcome.get("error"),
                 latency_ms=record.get("duration_ms"),
-                provenance={"source": "http_task", "invocation_receipt": receipt},
+                provenance={
+                    "source": "http_task",
+                    "invocation_receipt": receipt,
+                    "verification": {
+                        "status": verification["status"],
+                        "criteria_count": verification.get("criteria_count", 0),
+                    },
+                    "training_ready": trainable,
+                    "route_decision": (
+                        route_decision.to_dict() if route_decision else None
+                    ),
+                },
             ))
         if status == "approval_required":
             risk_level = (result or {}).get("plan", {}).get("risk_level", 3)
@@ -478,6 +587,64 @@ async def get_task(task_id: str, request: Request):
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
+
+
+@app.post("/api/v1/tasks/{task_id}/feedback")
+async def task_feedback(task_id: str, data: TaskFeedback, request: Request):
+    """Accept or reject a completed answer as independent training evidence.
+
+    Human judgement is a verifier, not a hidden self-report: approval can make
+    a real model answer eligible for the next autonomous training run, while
+    rejection prevents it from ever being trained on.
+    """
+    store = _store(request.app)
+    task = store.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.get("status") not in {"completed", "failed"}:
+        raise HTTPException(
+            status_code=409,
+            detail="Feedback is only accepted for finished tasks",
+        )
+    container = getattr(request.app.state, "container", None)
+    experience = getattr(container, "experience_store", None)
+    if experience is None:
+        raise HTTPException(status_code=503, detail="Experience store is not initialized")
+    record = experience.apply_human_verification(
+        task_id, passed=data.passed, note=data.note,
+    )
+    if record is None:
+        raise HTTPException(
+            status_code=404, detail="No experience record exists for this task",
+        )
+    orchestrator = getattr(request.app.state, "orchestrator", None)
+    growth = getattr(orchestrator, "growth_network", None)
+    if growth is not None:
+        try:
+            growth.record_execution(
+                task=record.objective or task["task"],
+                skill="human_feedback",
+                provider=record.provider,
+                model=record.model,
+                success=bool(data.passed),
+                error=None if data.passed else "human rejected the answer",
+                session_id=task.get("session_id"),
+            )
+        except Exception:
+            pass
+    store.add_event(task["session_id"], task_id, "feedback", {
+        "passed": bool(data.passed),
+        "note": data.note or "",
+        "training_ready": record.verified_for_training,
+    })
+    return {
+        "success": True,
+        "task_id": task_id,
+        "experience_id": record.experience_id,
+        "passed": bool(data.passed),
+        "training_eligible": record.verified_for_training,
+        "protocol_version": PROTOCOL_VERSION,
+    }
 
 
 @app.post("/api/v1/tasks/{task_id}/retry", status_code=202)

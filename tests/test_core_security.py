@@ -34,10 +34,9 @@ class TestCoreSecurity:
 
     @pytest.mark.asyncio
     async def test_require_capabilities_denied(self, capability_manager):
-        """Test requiring capabilities without token fails."""
+        """Capabilities that were never granted must be rejected, not auto-granted."""
         from synapse.core.security import CapabilityError
-        
-        # Should fail without token
+
         with pytest.raises(CapabilityError):
             await capability_manager.require(["missing:capability"], agent_id="default")
 

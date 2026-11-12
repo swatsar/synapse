@@ -59,6 +59,10 @@ class SkillManifest(BaseModel):
     risk_level: int = 1
     trust_level: str = "unverified"
     isolation_type: str = "subprocess"
+    # Wall-clock budget for isolated worker execution. ``None`` keeps the
+    # guard's default (60s). Model-backed or training skills need a larger
+    # budget because CPU inference/training legitimately takes minutes.
+    timeout_seconds: float | None = None
 
 
 class ActionPlan(BaseModel):

@@ -515,13 +515,14 @@ class TestExecutionGuardComprehensive:
     
     @pytest.mark.asyncio
     async def test_check_execution_allowed_no_capability_manager(self, test_skill, test_context):
-        """Test check_execution_allowed without capability manager."""
+        """A guard without a capability manager must fail closed, not skip checks."""
         guard = ExecutionGuard()  # No capability manager
-        
+
         result = await guard.check_execution_allowed(test_skill, test_context)
-        
-        # Should still work, just skip capability check
-        assert result.allowed == True
+
+        assert result.allowed is False
+        assert "CapabilityManager not configured" in result.reason
+        assert list(result.blocked_capabilities) == ["fs:read:/workspace/**"]
     
     def test_get_required_isolation(self, execution_guard):
         """Test get_required_isolation method."""

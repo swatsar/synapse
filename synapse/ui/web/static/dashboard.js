@@ -106,10 +106,38 @@
         retry.addEventListener('click', () => retryTask(task.id));
         actions.append(retry);
       }
+      if (task.status === 'completed' && message.task_id) {
+        // Explicit human judgement is an independent verifier: approval can
+        // turn this answer into training evidence for the next self-training run.
+        const good = el('button', 'Полезно', 'small-button'); good.type = 'button';
+        good.title = 'Подтвердить ответ как обучающий пример';
+        good.addEventListener('click', () => sendFeedback(task.id, true, actions, good));
+        const bad = el('button', 'Неточно', 'small-button'); bad.type = 'button';
+        bad.title = 'Не использовать этот ответ для обучения';
+        bad.addEventListener('click', () => sendFeedback(task.id, false, actions, bad));
+        actions.append(good, bad);
+      }
       body.append(actions);
     }
     row.append(avatar, body);
     return row;
+  }
+
+  async function sendFeedback(taskId, passed, container, button) {
+    button.disabled = true;
+    try {
+      const result = await api(`/tasks/${taskId}/feedback`, {
+        method: 'POST',
+        body: JSON.stringify({passed}),
+      });
+      container.querySelectorAll('button').forEach(node => { node.disabled = true; });
+      notify(result.training_eligible
+        ? 'Ответ подтверждён и станет обучающим примером.'
+        : 'Оценка сохранена. Этот ответ не пойдёт в обучение.');
+    } catch (err) {
+      button.disabled = false;
+      notify(err.message, true);
+    }
   }
 
   function renderMessages() {
@@ -445,6 +473,10 @@
         payload = payload || {};
         if (selectedModel.startsWith('agent:')) {
           payload.executor = selectedModel.slice('agent:'.length);
+          // OpenCode-configured model passthrough (e.g. openai/gpt-6-astra for codex).
+          if (!payload.model && state.agentDefaults?.[payload.executor]) {
+            payload.model = state.agentDefaults[payload.executor];
+          }
         } else {
           payload.model = selectedModel;
         }
@@ -491,13 +523,20 @@
     if (!group) return;
     try {
       const data = await api('/integrations/agents');
+      state.agentDefaults = {};
       for (const option of group.querySelectorAll('option')) {
         const agentId = option.value.slice('agent:'.length);
         const agent = (data.agents || []).find(item => item.id === agentId);
         if (!agent) continue;
-        option.disabled = !agent.enabled && !agent.configured;
-        if (!agent.enabled) option.textContent = option.textContent.replace(/\s*(отключён|включён)$/, '') + (agent.configured ? ' · отключён' : ' · не найден');
-        else option.textContent = option.textContent.replace(/\s*· (отключён|не найден)$/, '');
+        if (agent.default_model) {
+          state.agentDefaults[agentId] = agent.default_model;
+          const suffix = agent.enabled ? ` · модель ${agent.default_model}` : (agent.configured ? ' · отключён' : ' · не найден');
+          option.textContent = option.textContent.replace(/\s*· .*$/, '') + suffix;
+        } else {
+          option.disabled = !agent.enabled && !agent.configured;
+          if (!agent.enabled) option.textContent = option.textContent.replace(/\s*(отключён|включён)$/, '') + (agent.configured ? ' · отключён' : ' · не найден');
+          else option.textContent = option.textContent.replace(/\s*· (отключён|не найден)$/, '');
+        }
       }
     } catch (error) { /* inventory is optional; leave options as-is */ }
   }
@@ -693,8 +732,257 @@
     }
   });
 
+  // Mycelial growth network: tasks, skills, providers and their learned paths.
+  function renderTeacherOptions(data) {
+    const select = $('learning-teacher-select');
+    const line = $('learning-teacher-line');
+    if (!select || !line) return;
+    if (!data) {
+      line.textContent = 'Учителя: каталог недоступен.';
+      return;
+    }
+    const current = select.value;
+    clear(select);
+    for (const teacher of data.teachers || []) {
+      const option = el('option', teacher.label || teacher.id);
+      option.value = teacher.id;
+      select.append(option);
+    }
+    if (current && [...select.options].some(option => option.value === current)) {
+      select.value = current;
+    }
+    const opencode = data.opencode || {};
+    const quota = opencode.quota || {};
+    const parts = [
+      quota.exhausted
+        ? `OpenCode: ${opencode.model_count ?? 0} моделей в списке · лимит исчерпан, будет локальный fallback`
+        : `OpenCode: ${opencode.available_models ?? 0} моделей`,
+      `локальных: ${data.local_models ?? 0}`,
+      `агентов: ${data.external_agents ?? 0}`,
+    ];
+    line.textContent = `Учителя: ${parts.join(' · ')}`;
+  }
+
+  async function loadGrowth() {
+    try {
+      const [data, autonomy, teachers] = await Promise.all([
+        api('/growth/status'),
+        api('/growth/autonomy').catch(() => null),
+        api('/growth/teachers').catch(() => null),
+      ]);
+      renderTeacherOptions(teachers);
+      const nodes = data.nodes ?? 0;
+      $('growth-count').textContent = nodes;
+      $('growth-events').textContent = data.events ?? 0;
+      $('growth-nodes').textContent = nodes;
+      $('growth-edges').textContent = data.edges ?? 0;
+      $('growth-myelinated').textContent = data.myelinated_paths ?? 0;
+
+      const statusLine = $('growth-status-line');
+      if (!nodes) {
+        statusLine.textContent = 'Сеть ещё не сформирована. Выполните задачи, чтобы вырастить первые связи.';
+      } else {
+        const kinds = data.nodes_by_kind || {};
+        const parts = Object.entries(kinds).map(([kind, count]) => `${kind}: ${count}`);
+        const last = data.last_consolidation || {};
+        const replay = last.replayed_paths != null ? ` · replay: ${last.replayed_paths}` : '';
+        statusLine.textContent = `Состояние: ${data.status} · ${parts.join(' · ')} · консолидаций: ${data.consolidation_passes ?? 0} · ко-активаций: ${data.coactivation_paths ?? 0}${replay}`;
+      }
+
+      const autonomyLine = $('growth-autonomy-line');
+      if (autonomy) {
+        const train = autonomy.last_train_result || {};
+        const trainText = autonomy.auto_train_enabled
+          ? `включено (${train.status || 'ещё не запускалось'})`
+          : 'выключено';
+        autonomyLine.textContent = `Автономный цикл: ${autonomy.status === 'running' ? 'работает' : 'ожидает'} · автообучение: ${trainText} · тиков: ${autonomy.ticks ?? 0} · консолидаций: ${autonomy.last_consolidation_pass ?? 0}`;
+      }
+
+      const readinessLine = $('growth-readiness-line');
+      const readiness = autonomy?.training_readiness;
+      if (readinessLine && readiness) {
+        const blockerLabels = {
+          auto_train_disabled: 'автообучение выключено',
+          not_enough_verified_experience: 'мало проверенного опыта',
+          no_new_verified_experience: 'нет нового проверенного опыта',
+          cooldown: 'пауза между запусками',
+          training_already_running: 'обучение уже идёт',
+        };
+        const blockers = (readiness.blockers || []).map(item => blockerLabels[item] || item);
+        const tail = readiness.ready
+          ? 'можно запускать'
+          : `блокеры: ${blockers.join(', ') || 'нет данных'}`;
+        const study = autonomy?.last_self_study_result;
+        const studyTail = study
+          ? ` · самообучение: ${study.created ?? 0} фактов`
+          : '';
+        readinessLine.textContent = `Готовность к обучению: ${readiness.ready ? 'да' : 'нет'} · проверено: ${readiness.verified_records ?? 0} · новых: ${readiness.new_verified_records ?? 0} · нужно: ${readiness.required_records ?? 0}/${readiness.required_new_records ?? 0} · ${tail}${studyTail}`;
+      }
+
+      const adapterLine = $('growth-adapter-line');
+      const adapter = data.self_development || {};
+      if (adapter.status === 'no_local_model') {
+        adapterLine.textContent = 'Локальная модель не загружена: обучение недоступно.';
+      } else if (adapter.selected) {
+        const applied = adapter.applied ? 'применён к инференсу' : 'выбран, применится при следующем ответе';
+        const error = adapter.error ? ` · ошибка: ${adapter.error}` : '';
+        adapterLine.textContent = `Обученный адаптер: ${adapter.adapter_name || adapter.adapter_path} · ${applied}${error}`;
+      } else {
+        adapterLine.textContent = 'Обученный адаптер: пока нет promoted-адаптера, ответы идут с базовой модели.';
+      }
+
+      const list = clear($('growth-fast-paths'));
+      const fast = data.fast_paths || [];
+      const weak = data.weak_paths || [];
+      if (!fast.length && !weak.length) {
+        list.append(el('p', 'Пока нет ни быстрых, ни слабых путей. Сеть начнёт различать их по мере накопления опыта.', 'muted'));
+        return;
+      }
+      for (const path of fast.slice(0, 6)) {
+        const item = el('div', undefined, 'memory-item');
+        const header = el('div', undefined, 'memory-header');
+        header.append(
+          el('strong', `${path.source} → ${path.target}`),
+          el('span', 'быстрый путь', 'severity-pill LOW'),
+        );
+        item.append(header, el('p', `${path.relation} · вес ${path.weight} · успехов ${path.successes} · ошибок ${path.failures}`));
+        list.append(item);
+      }
+      for (const path of weak.slice(0, 4)) {
+        const item = el('div', undefined, 'memory-item');
+        const header = el('div', undefined, 'memory-header');
+        header.append(
+          el('strong', `${path.source} → ${path.target}`),
+          el('span', 'слабый путь', 'severity-pill CRITICAL'),
+        );
+        item.append(header, el('p', `${path.relation} · вес ${path.weight} · успехов ${path.successes} · ошибок ${path.failures}`));
+        list.append(item);
+      }
+    } catch (err) {
+      console.error('Failed to load growth network:', err);
+    }
+  }
+
+  $('refresh-growth-btn')?.addEventListener('click', () => loadGrowth());
+
+  $('learning-start-btn')?.addEventListener('click', async () => {
+    const btn = $('learning-start-btn');
+    const topic = ($('learning-topic-input')?.value || '').trim();
+    const teacher = $('learning-teacher-select')?.value || 'auto';
+    if (!topic) {
+      notify('Укажите тему для обучения.', true);
+      return;
+    }
+    btn.disabled = true;
+    try {
+      if (!state.sessionId) await createSession();
+      const record = await api(`/sessions/${encodeURIComponent(state.sessionId)}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify({
+          task: `научи меня ${topic}`,
+          payload: {
+            learning_topic: topic,
+            teacher,
+            max_cycles: 2,
+            pairs_per_cycle: 8,
+          },
+          session_id: state.sessionId,
+        }),
+      });
+      state.selectedTaskId = record.id;
+      $('learning-topic-input').value = '';
+      notify(`Обучение запущено: тема «${topic}», учитель ${teacher}. Результат появится в чате.`);
+      showTab('run');
+      await loadSession();
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('consolidate-growth-btn')?.addEventListener('click', async () => {
+    const btn = $('consolidate-growth-btn');
+    btn.disabled = true;
+    try {
+      const result = await api('/growth/consolidate', {method: 'POST'});
+      const summary = result.summary || {};
+      notify(`Консолидация №${summary.pass ?? '?'}: узлов ${summary.nodes ?? 0}, связей ${summary.edges ?? 0}.`);
+      await loadGrowth();
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('autonomy-tick-btn')?.addEventListener('click', async () => {
+    const btn = $('autonomy-tick-btn');
+    btn.disabled = true;
+    try {
+      const result = await api('/growth/autonomy/tick', {method: 'POST'});
+      const cycle = result.cycle || {};
+      const training = cycle.training || {};
+      const parts = [];
+      if (cycle.consolidated) parts.push('сеть консолидирована');
+      if (training.status) parts.push(`обучение: ${training.status}`);
+      if (!parts.length) parts.push('изменений не требуется');
+      notify(`Цикл саморазвития №${cycle.tick ?? '?'}: ${parts.join(' · ')}.`);
+      await loadGrowth();
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('autonomy-train-btn')?.addEventListener('click', async () => {
+    const btn = $('autonomy-train-btn');
+    btn.disabled = true;
+    try {
+      const result = await api('/growth/autonomy/train', {method: 'POST'});
+      const training = result.training || {};
+      if (training.status === 'skipped') {
+        const readiness = result.readiness || {};
+        const blockerLabels = {
+          auto_train_disabled: 'автообучение выключено',
+          not_enough_verified_experience: 'мало проверенного опыта',
+          no_new_verified_experience: 'нет нового проверенного опыта',
+          cooldown: 'пауза между запусками',
+          training_already_running: 'обучение уже идёт',
+        };
+        const blockers = (readiness.blockers || []).map(item => blockerLabels[item] || item);
+        notify(`Обучение не запущено: ${blockers.join(', ') || training.reason || 'нет условий'}.`, true);
+      } else {
+        notify(`Обучение: ${training.status || 'запущено'} · promotion: ${training.promotion_status || '—'} · адаптер: ${training.adapter_path || '—'}.`);
+      }
+      await loadGrowth();
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('autonomy-study-btn')?.addEventListener('click', async () => {
+    const btn = $('autonomy-study-btn');
+    btn.disabled = true;
+    try {
+      const result = await api('/growth/autonomy/self-study?max_records=8', {method: 'POST'});
+      const created = result.created ?? 0;
+      const skipped = result.skipped ?? 0;
+      notify(`Самообучение: создано ${created} проверенных фактов, пропущено ${skipped}.`);
+      await loadGrowth();
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // Self-Evolution & Trajectory Export Handlers
   async function loadTrajectories() {
+    await loadGrowth();
     try {
       const data = await api('/platform/trajectories?limit=50');
       const trajs = data.trajectories || [];
@@ -1003,9 +1291,37 @@
     });
   });
 
+  async function loadModelOptions() {
+    const select = $('model-select');
+    if (!select) return;
+    const selected = select.value;
+    select.querySelector('#dynamic-model-options')?.remove();
+    try {
+      const data = await api('/router/catalog?refresh=true');
+      const models = (data.catalog || []).filter(m => m.provider === 'opencode' || m.is_local);
+      if (!models.length) return;
+      const group = document.createElement('optgroup');
+      group.id = 'dynamic-model-options';
+      group.label = 'OpenCode и локальные веса';
+      for (const model of models) {
+        const option = document.createElement('option');
+        option.value = model.id;
+        const prefix = model.provider === 'opencode' ? 'OpenCode' : 'Локально';
+        option.textContent = `${prefix} · ${model.display_name || model.id}`;
+        group.append(option);
+      }
+      const agents = select.querySelector('#agent-options-group');
+      select.insertBefore(group, agents || null);
+      if ([...select.options].some(option => option.value === selected)) select.value = selected;
+    } catch (error) {
+      // The catalog panel shows the detailed error; chat still works with auto.
+    }
+  }
+
   (async function init() {
     await api('/workspace').then(info => { $('workspace-label').textContent = info.root; $('workspace-label').title = info.root; }).catch(error => { if (error.status !== 401) notify(error.message, true); });
     loadAgentAvailability();
+    loadModelOptions();
     await loadSessions(); await loadSession(); startPolling();
   })();
 })();

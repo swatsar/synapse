@@ -1,6 +1,8 @@
 """Read-only workspace inventory skill."""
 from __future__ import annotations
 
+PROTOCOL_VERSION: str = "1.0"
+
 from pathlib import Path
 from typing import Any
 

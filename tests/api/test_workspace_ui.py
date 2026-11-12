@@ -23,8 +23,9 @@ def workspace_client(tmp_path, monkeypatch):
         yield client, tmp_path
 
 
-def wait_for_task(client, task_id):
-    for _ in range(100):
+def wait_for_task(client, task_id, timeout=60.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
         resp = client.get(f"/api/v1/tasks/{task_id}")
         if resp.status_code == 200:
             task = resp.json()

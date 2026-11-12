@@ -1,6 +1,8 @@
 """Persistent, non-secret control-plane state for operator-managed integrations."""
 from __future__ import annotations
 
+PROTOCOL_VERSION: str = "1.0"
+
 import json
 import os
 import tempfile

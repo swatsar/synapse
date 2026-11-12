@@ -4,7 +4,18 @@ Protocol Version: 1.0
 """
 from fastapi import APIRouter
 
-from synapse.api.routes import agents, integrations, providers, replication, router, runtime_config, settings, tools_platform, training
+from synapse.api.routes import (
+    agents,
+    growth,
+    integrations,
+    providers,
+    replication,
+    router,
+    runtime_config,
+    settings,
+    tools_platform,
+    training,
+)
 
 PROTOCOL_VERSION: str = "1.0"
 
@@ -17,6 +28,7 @@ api_router.include_router(runtime_config.router, prefix="/runtime-config", tags=
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(replication.router, prefix="/replication", tags=["replication"])
 api_router.include_router(training.router, prefix="/training", tags=["training"])
+api_router.include_router(growth.router, prefix="/growth", tags=["growth"])
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(router.router, prefix="/router", tags=["router"])
 api_router.include_router(tools_platform.router, prefix="/platform", tags=["platform"])

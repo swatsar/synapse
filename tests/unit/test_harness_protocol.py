@@ -14,7 +14,7 @@ from synapse.harnesses import (
 
 @pytest.mark.asyncio
 async def test_harness_is_execution_adapter_not_orchestrator():
-    result = await CodexHarness().execute(HarnessRequest("t", "r", "implement"))
+    result = await CodexHarness(enabled=False).execute(HarnessRequest("t", "r", "implement"))
     assert result.success is False
     assert "not configured" in result.error
 

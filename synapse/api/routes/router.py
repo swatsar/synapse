@@ -44,9 +44,13 @@ def _get_router(request: Request) -> OmniRouter:
 
 
 @router.get("/catalog")
-async def get_model_catalog(request: Request) -> dict[str, Any]:
+async def get_model_catalog(request: Request, refresh: bool = False) -> dict[str, Any]:
     """Return all supported models with capabilities, context windows, and cost tiers."""
     r = _get_router(request)
+    if refresh:
+        await r.refresh_providers()
+    else:
+        await r.ensure_fresh()
     return {
         "catalog": r.get_catalog(),
         "total_models": len(r.catalog),

@@ -28,7 +28,7 @@ import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from synapse.core.isolation_policy import RuntimeIsolationType
 from synapse.core.models import ExecutionContext, ResourceLimits, SkillManifest
@@ -349,6 +349,26 @@ class SkillRegistry:
         """Return metadata for skills that are allowed to execute."""
         return [record.to_dict() for record in self.get_active_skills()]
 
+    def _worker_limits(self, manifest: SkillManifest) -> Any:
+        """Build the worker budget, honouring a per-skill timeout.
+
+        The guard's default 60-second CPU limit is fine for file/network
+        operations but far too small for model inference or LoRA training.
+        """
+        timeout = getattr(manifest, "timeout_seconds", None)
+        if not timeout:
+            return self.guard.limits
+        base = self.guard.limits
+        memory_mb = getattr(base, "memory_mb", None)
+        if memory_mb is None and isinstance(base, dict):
+            memory_mb = base.get("memory_mb")
+        return {
+            "cpu_seconds": float(timeout),
+            "memory_mb": float(memory_mb or 4096),
+            "disk_mb": float(getattr(base, "disk_mb", 1024) or 1024),
+            "network_kb": float(getattr(base, "network_kb", 10240) or 10240),
+        }
+
     async def execute(
         self,
         name: str,
@@ -371,19 +391,43 @@ class SkillRegistry:
             raise PermissionError(check.reason or f"Execution denied: {name}")
 
         required_iso = check.required_isolation
+        # A trusted built-in that depends on in-process state (e.g. the cached
+        # local model) may explicitly opt out of worker isolation. This is only
+        # allowed for shipped built-ins below the high-risk container boundary;
+        # generated/unverified skills can never use it.
+        if (
+            required_iso == RuntimeIsolationType.SUBPROCESS
+            and record.is_builtin
+            and str(getattr(record.manifest, "trust_level", "")).lower() == "trusted"
+            and int(getattr(record.manifest, "risk_level", 1)) < 3
+            and str(getattr(record.manifest, "isolation_type", "")).lower()
+            in {"none", "main", "in_process"}
+        ):
+            required_iso = RuntimeIsolationType.NONE
+            audit(
+                event="isolation_overridden",
+                skill=name,
+                **{
+                    "from": "subprocess",
+                    "to": "none",
+                    "reason": "trusted_builtin_in_process",
+                },
+            )
+
         if required_iso in (
             RuntimeIsolationType.SUBPROCESS,
             RuntimeIsolationType.SANDBOX,
             RuntimeIsolationType.CONTAINER,
         ):
             from synapse.runtime.worker_backend import IsolatedWorkerBackend
+            worker_limits = self._worker_limits(record.manifest)
             if record.file_path:
                 result = await IsolatedWorkerBackend.run_skill(
                     target_type="file",
                     file_path=record.file_path,
                     context=context,
                     params=params,
-                    limits=self.guard.limits,
+                    limits=worker_limits,
                     isolation_type=required_iso,
                 )
             else:
@@ -392,7 +436,7 @@ class SkillRegistry:
                     handler_callable=record.handler,
                     context=context,
                     params=params,
-                    limits=self.guard.limits,
+                    limits=worker_limits,
                     isolation_type=required_iso,
                 )
             if not isinstance(result, dict):

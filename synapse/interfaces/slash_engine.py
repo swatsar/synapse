@@ -215,22 +215,26 @@ class SlashCommandEngine:
             )
         )
 
-        # /agents — inventory of external coding-agent CLIs and their status.
+        # /agents — inventory of external coding-agent CLIs and OpenCode status.
         async def _agents_handler(*args) -> dict[str, Any]:
-            from synapse.integrations.velly_bridge import detect_agents, velly_status
+            from synapse.integrations.external_agents import detect_agents
+            from synapse.integrations.opencode_bridge import opencode_status
 
-            status = velly_status()
+            status = opencode_status()
             return {
-                "agents": status["agents"],
-                "workspaces": status["workspaces"],
-                "chat_config": status["chat_config"],
+                "agents": [agent.to_dict() for agent in detect_agents()],
+                "opencode": {
+                    "status": status.get("status"),
+                    "models": status.get("model_ids", []),
+                    "quota": status.get("quota"),
+                },
                 "note": "enable via /agent <id> enable, or the integrations page",
             }
 
         self.register(
             SlashCommandDef(
                 name="agents",
-                description="List installed external agents (Claude Code, Codex) and Velly app status.",
+                description="List installed external agents (Claude Code, Codex) and OpenCode status.",
                 usage="/agents",
                 handler=_agents_handler,
                 category="integrations",
@@ -250,7 +254,7 @@ class SlashCommandEngine:
             control_plane = get_control_plane()
             action = args[1].lower() if len(args) > 1 else "status"
             if action == "enable":
-                from synapse.integrations.velly_bridge import sync_agents_to_control_plane
+                from synapse.integrations.external_agents import sync_agents_to_control_plane
 
                 sync_agents_to_control_plane()
                 config = control_plane.update_executor(agent_id, enabled=True)
@@ -293,10 +297,11 @@ class SlashCommandEngine:
         # /train <topic> — chat-driven learning loop over the local model.
         async def _train_handler(*args) -> dict[str, Any]:
             if not args:
-                return {"error": "Usage: /train <topic> [cycles=N] [pairs=N]"}
+                return {"error": "Usage: /train <topic> [cycles=N] [pairs=N] [teacher=opencode|opencode/<model>|auto]"}
             topic_parts = []
             cycles = 3
             pairs = 8
+            teacher = "auto"
             for arg in args:
                 if arg.lower().startswith("cycles="):
                     try:
@@ -308,11 +313,13 @@ class SlashCommandEngine:
                         pairs = max(2, min(int(arg.split("=", 1)[1]), 64))
                     except ValueError:
                         return {"error": "pairs must be an integer"}
+                elif arg.lower().startswith("teacher="):
+                    teacher = arg.split("=", 1)[1].strip() or "auto"
                 else:
                     topic_parts.append(arg)
             topic = " ".join(topic_parts).strip()
             if not topic:
-                return {"error": "Usage: /train <topic> [cycles=N] [pairs=N]"}
+                return {"error": "Usage: /train <topic> [cycles=N] [pairs=N] [teacher=opencode|opencode/<model>|auto]"}
             from synapse.core.models import ExecutionContext
             from synapse.skills.builtins.learning_loop import execute_learning_loop
 
@@ -324,13 +331,17 @@ class SlashCommandEngine:
             )
             return await execute_learning_loop(
                 context, topic=topic, max_cycles=cycles, pairs_per_cycle=pairs,
+                teacher=teacher,
             )
 
         self.register(
             SlashCommandDef(
                 name="train",
-                description="Run the chat-driven LoRA learning loop on a topic while holdout loss improves.",
-                usage="/train <topic> [cycles=N] [pairs=N]",
+                description=(
+                    "Run the chat-driven LoRA learning loop on a topic while holdout "
+                    "loss improves. OpenCode models can act as the teacher."
+                ),
+                usage="/train <topic> [cycles=N] [pairs=N] [teacher=opencode|opencode/<model>|auto]",
                 handler=_train_handler,
                 category="training",
             )
