@@ -153,6 +153,15 @@ async def growth_paths(
     }
 
 
+@router.get("/graph")
+async def growth_graph(
+    node_limit: int = Query(default=80, ge=1, le=200),
+    edge_limit: int = Query(default=200, ge=1, le=600),
+) -> dict[str, Any]:
+    """Bounded subgraph for the interface map (nodes ranked by hub score)."""
+    return _network().graph(node_limit=node_limit, edge_limit=edge_limit)
+
+
 @router.get("/suggest")
 async def growth_suggest(
     task: str = Query(..., min_length=1, max_length=2000),
@@ -207,6 +216,19 @@ async def growth_autonomy() -> dict[str, Any]:
     return _autonomy().status()
 
 
+@router.post("/autonomy/pause")
+async def growth_autonomy_pause() -> dict[str, Any]:
+    """Stop consolidation and automatic training until explicitly resumed."""
+    loop = _autonomy()
+    return {"status": loop.pause(), "protocol_version": PROTOCOL_VERSION}
+
+
+@router.post("/autonomy/resume")
+async def growth_autonomy_resume() -> dict[str, Any]:
+    loop = _autonomy()
+    return {"status": loop.resume(), "protocol_version": PROTOCOL_VERSION}
+
+
 @router.post("/autonomy/tick")
 async def growth_autonomy_tick() -> dict[str, Any]:
     """Run one self-development cycle immediately (consolidate, maybe train)."""
@@ -225,9 +247,9 @@ async def growth_autonomy_train(
 ) -> dict[str, Any]:
     """Run one gated LoRA training attempt immediately.
 
-    ``force`` bypasses only the cooldown; the verified-record threshold and the
-    promotion gate still apply, so this cannot train on unverified data or keep
-    a worse adapter.
+    ``force`` bypasses the cooldown and the pause switch (an explicit operator
+    action); the verified-record threshold and the promotion gate still apply,
+    so this cannot train on unverified data or keep a worse adapter.
     """
     loop = _autonomy()
     outcome = await loop.train_now(force=force)

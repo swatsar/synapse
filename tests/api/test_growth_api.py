@@ -244,3 +244,47 @@ def test_growth_record_requires_task_and_skill(monkeypatch, tmp_path):
     assert response.json()["success"] is False
     assert "task and skill" in response.json()["error"]
     growth_module._default_networks.pop(str(tmp_path.resolve()), None)
+
+
+def test_growth_graph_returns_bounded_renderable_subgraph(monkeypatch, tmp_path):
+    from synapse.growth import network as growth_module
+
+    monkeypatch.delenv("SYNAPSE_API_KEY", raising=False)
+    monkeypatch.setenv("SYNAPSE_WORKSPACE_ROOT", str(tmp_path))
+    growth_module._default_networks.pop(str(tmp_path.resolve()), None)
+
+    with TestClient(app) as client:
+        for index in range(5):
+            recorded = client.post(
+                "/api/v1/growth/record",
+                json={
+                    "task": f"render page {index}",
+                    "skill": "frontend",
+                    "provider": "opencode",
+                    "model": "opencode/test-free",
+                    "success": index % 2 == 0,
+                },
+            )
+            assert recorded.status_code == 200
+
+        response = client.get("/api/v1/growth/graph?node_limit=20&edge_limit=30")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["protocol_version"] == "1.0"
+        assert payload["nodes"] and payload["edges"]
+        ids = {node["id"] for node in payload["nodes"]}
+        assert all(
+            edge["source_id"] in ids and edge["target_id"] in ids
+            for edge in payload["edges"]
+        )
+        assert payload["nodes_total"] >= len(payload["nodes"])
+        assert payload["edges_total"] >= len(payload["edges"])
+
+        tiny = client.get("/api/v1/growth/graph?node_limit=1&edge_limit=1")
+        assert tiny.status_code == 200
+        assert len(tiny.json()["nodes"]) == 1
+
+        invalid = client.get("/api/v1/growth/graph?node_limit=0")
+        assert invalid.status_code == 422
+
+    growth_module._default_networks.pop(str(tmp_path.resolve()), None)

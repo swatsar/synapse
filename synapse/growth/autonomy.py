@@ -180,6 +180,18 @@ class AutonomyLoop:
             for key in _STUDY_STATE_KEYS:
                 if key in disk:
                     self.state[key] = disk[key]
+        # Pause is an operator switch, not training evidence. Whichever process
+        # changed it last wins, so pausing through the follower API also stops
+        # the owner's cadence instead of being overwritten on the next save.
+        try:
+            disk_paused_at = float(disk.get("paused_changed_at") or 0)
+            mine_paused_at = float(self.state.get("paused_changed_at") or 0)
+        except (TypeError, ValueError):
+            disk_paused_at = mine_paused_at = 0.0
+        if disk_paused_at > mine_paused_at:
+            self.state["paused"] = bool(disk.get("paused"))
+            self.state["paused_at"] = disk.get("paused_at")
+            self.state["paused_changed_at"] = disk_paused_at
 
     def _save_state(self) -> None:
         try:
@@ -300,6 +312,20 @@ class AutonomyLoop:
 
     async def tick(self) -> dict[str, Any]:
         """Run one maintenance cycle; safe to call manually or on schedule."""
+        self._sync_shared_state()
+        if self.state.get("paused"):
+            # Pause is a global operator switch: no consolidation, no training.
+            # It is persisted in autonomy_state.json so followers and restarts
+            # honour it too.
+            return {
+                "tick": int(self.state.get("ticks") or 0),
+                "consolidated": False,
+                "training": None,
+                "auto_train_enabled": self.auto_train_enabled,
+                "paused": True,
+                "skipped": "autonomy_paused",
+                "protocol_version": PROTOCOL_VERSION,
+            }
         if not self._owner and not self._acquire_process_lock():
             return {
                 "tick": int(self.state.get("ticks") or 0),
@@ -354,6 +380,8 @@ class AutonomyLoop:
         return result
 
     async def _maybe_train(self, *, force: bool = False) -> dict[str, Any] | None:
+        if self.state.get("paused") and not force:
+            return {"status": "skipped", "reason": "autonomy_paused"}
         if self._training:
             return {"status": "skipped", "reason": "training_already_running"}
         # Cadence ownership only elects who ticks. A manual run may arrive on
@@ -521,6 +549,8 @@ class AutonomyLoop:
             if cooling else 0.0
         )
         blockers: list[str] = []
+        if self.state.get("paused"):
+            blockers.append("autonomy_paused")
         if not self.auto_train_enabled:
             blockers.append("auto_train_disabled")
         if verified < self.min_records:
@@ -562,6 +592,8 @@ class AutonomyLoop:
 
         if not self.auto_train_enabled:
             return _refused("auto_train_disabled")
+        if self.state.get("paused") and not force:
+            return _refused("autonomy_paused")
         # No cadence-ownership requirement here: a one-off operator command is
         # allowed on a follower API process. `_maybe_train` serializes actual
         # runs with the cross-process training lock.
@@ -627,6 +659,11 @@ class AutonomyLoop:
                 output_dir=output_dir,
                 steps=self.train_steps,
                 require_gpu=False,
+                metadata={
+                    "origin": "autonomy",
+                    "topic": "autonomous self-training",
+                    "teacher": "verified_experience",
+                },
             )
             evidence = result.to_dict()
             success = evidence.get("status") == "completed"
@@ -709,6 +746,21 @@ class AutonomyLoop:
                 pass
         self._release_process_lock()
 
+    def pause(self) -> dict[str, Any]:
+        """Stop consolidation and automatic training until resumed."""
+        self.state["paused"] = True
+        self.state["paused_at"] = _now()
+        self.state["paused_changed_at"] = time.time()
+        self._save_state()
+        return self.status()
+
+    def resume(self) -> dict[str, Any]:
+        self.state["paused"] = False
+        self.state["resumed_at"] = _now()
+        self.state["paused_changed_at"] = time.time()
+        self._save_state()
+        return self.status()
+
     def status(self) -> dict[str, Any]:
         # A follower does not tick, so show the owner's persisted state
         # instead of a stale in-memory snapshot. The owner also merges newer
@@ -723,6 +775,8 @@ class AutonomyLoop:
             "status": "running" if self._task and not self._task.done() else "idle",
             "process_role": "owner" if self._owner else "follower",
             "auto_train_enabled": self.auto_train_enabled,
+            "paused": bool(self.state.get("paused")),
+            "paused_at": self.state.get("paused_at"),
             "interval_seconds": self.interval_seconds,
             "consolidate_every_events": self.consolidate_every,
             "min_verified_records": self.min_records,

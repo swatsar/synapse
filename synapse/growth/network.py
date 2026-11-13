@@ -517,35 +517,44 @@ class GrowthNetwork:
         myelinated_only: bool = False,
         weak_only: bool = False,
         limit: int = 20,
+        node_ids: list[str] | None = None,
     ) -> list[dict[str, Any]]:
+        node_filter = ""
+        params: list[Any] = []
+        if node_ids:
+            placeholders = ",".join("?" for _ in node_ids)
+            node_filter = f" AND e.src IN ({placeholders}) AND e.dst IN ({placeholders})"
+            params.extend(node_ids)
+            params.extend(node_ids)
         if myelinated_only:
             rows = db.execute(
-                """SELECT e.*, s.label AS src_label, d.label AS dst_label
+                f"""SELECT e.*, s.label AS src_label, d.label AS dst_label
                    FROM edges e
                    JOIN nodes s ON s.node_id=e.src
                    JOIN nodes d ON d.node_id=e.dst
-                   WHERE e.myelinated=1
+                   WHERE e.myelinated=1{node_filter}
                    ORDER BY e.weight DESC LIMIT ?""",
-                (max(1, min(limit, 200)),),
+                (*params, max(1, min(limit, 600))),
             ).fetchall()
         elif weak_only:
             rows = db.execute(
-                """SELECT e.*, s.label AS src_label, d.label AS dst_label
+                f"""SELECT e.*, s.label AS src_label, d.label AS dst_label
                    FROM edges e
                    JOIN nodes s ON s.node_id=e.src
                    JOIN nodes d ON d.node_id=e.dst
-                   WHERE e.failures >= 2 AND e.failures > e.successes
+                   WHERE e.failures >= 2 AND e.failures > e.successes{node_filter}
                    ORDER BY e.failures DESC, e.weight ASC LIMIT ?""",
-                (max(1, min(limit, 200)),),
+                (*params, max(1, min(limit, 600))),
             ).fetchall()
         else:
             rows = db.execute(
-                """SELECT e.*, s.label AS src_label, d.label AS dst_label
+                f"""SELECT e.*, s.label AS src_label, d.label AS dst_label
                    FROM edges e
                    JOIN nodes s ON s.node_id=e.src
                    JOIN nodes d ON d.node_id=e.dst
+                   WHERE 1=1{node_filter}
                    ORDER BY e.weight DESC LIMIT ?""",
-                (max(1, min(limit, 200)),),
+                (*params, max(1, min(limit, 600))),
             ).fetchall()
         return [
             {
@@ -616,6 +625,40 @@ class GrowthNetwork:
     def recent_paths(self, limit: int = 50) -> list[dict[str, Any]]:
         with self._lock, self._session() as db:
             return self._query_edges(db, limit=limit)
+
+    def graph(
+        self,
+        *,
+        node_limit: int = 80,
+        edge_limit: int = 200,
+    ) -> dict[str, Any]:
+        """Export a bounded, renderable subgraph for the UI map.
+
+        Nodes are ranked by hub score, so the most meaningful part of the
+        network is drawn first. Edges are filtered to the selected nodes so a
+        renderer never receives a dangling line. Read-only: no consolidation,
+        decay or counter updates happen here.
+        """
+        cap_nodes = max(1, min(int(node_limit), 200))
+        cap_edges = max(1, min(int(edge_limit), 600))
+        with self._lock, self._session() as db:
+            nodes = self._query_nodes(db, order="hub", limit=cap_nodes)
+            node_ids = [node["id"] for node in nodes]
+            edges = (
+                self._query_edges(db, limit=cap_edges, node_ids=node_ids)
+                if node_ids
+                else []
+            )
+            nodes_total = int(db.execute("SELECT COUNT(*) FROM nodes").fetchone()[0])
+            edges_total = int(db.execute("SELECT COUNT(*) FROM edges").fetchone()[0])
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "nodes_total": nodes_total,
+            "edges_total": edges_total,
+            "truncated": nodes_total > len(nodes) or edges_total > len(edges),
+            "protocol_version": PROTOCOL_VERSION,
+        }
 
     def suggest_skill(
         self,

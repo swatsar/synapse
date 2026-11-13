@@ -54,6 +54,50 @@ def test_autonomy_training_is_skipped_without_enough_experience(tmp_path):
     assert loop.state.get("last_train_attempt") is None
 
 
+def test_autonomy_pause_stops_ticks_and_survives_restart(tmp_path):
+    network = GrowthNetwork(tmp_path / "growth.sqlite3")
+    for index in range(4):
+        network.record_execution(task=f"task {index}", skill="skill_a", success=True)
+
+    loop = AutonomyLoop(tmp_path, growth_network=network, interval_seconds=60)
+    loop.consolidate_every = 3
+    loop.auto_train_enabled = True
+
+    status = loop.pause()
+    assert status["paused"] is True
+    assert "autonomy_paused" in loop.training_readiness()["blockers"]
+
+    result = asyncio.run(loop.tick())
+    assert result["skipped"] == "autonomy_paused"
+    assert result["consolidated"] is False
+    assert result["training"] is None
+    assert loop.status()["ticks"] == 0
+
+    # Pause is persisted: a restart must not silently start training again.
+    reloaded = AutonomyLoop(tmp_path, growth_network=network, interval_seconds=60)
+    assert reloaded.status()["paused"] is True
+    assert "autonomy_paused" in reloaded.training_readiness()["blockers"]
+
+    resumed = reloaded.resume()
+    assert resumed["paused"] is False
+    assert "autonomy_paused" not in reloaded.training_readiness()["blockers"]
+    assert asyncio.run(reloaded.tick()).get("skipped") != "autonomy_paused"
+
+
+def test_paused_loop_refuses_manual_training_until_resumed(tmp_path):
+    loop = AutonomyLoop(tmp_path, growth_network=GrowthNetwork(":memory:"))
+    loop.auto_train_enabled = True
+    loop.pause()
+
+    outcome = asyncio.run(loop.train_now())
+    assert outcome["training"]["status"] == "skipped"
+    assert outcome["training"]["reason"] == "autonomy_paused"
+
+    loop.resume()
+    outcome = asyncio.run(loop.train_now())
+    assert outcome["training"].get("reason") != "autonomy_paused"
+
+
 def test_training_readiness_reports_gates_and_unlocks(tmp_path):
     """Readiness must tell the operator exactly what blocks real training."""
     import time
