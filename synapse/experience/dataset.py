@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from synapse.experience.store import ExperienceRecord, ExperienceStore
+from synapse.experience.store import ExperienceRecord, ExperienceStore, training_identity
 
 PROTOCOL_VERSION = "1.0"
 
@@ -68,6 +68,15 @@ class DatasetSnapshotStore:
         records = experience_store.list_records(verified_only=True, limit=10000)
         if not records:
             raise ValueError("No verified experience records available for dataset snapshot")
+        source_count = len(records)
+        # A teacher can return the same pair in several cycles. Duplicate
+        # training texts add no information and bias the adapter toward one
+        # answer, so the snapshot keeps only the first (newest) record per
+        # identity.
+        unique: dict[str, ExperienceRecord] = {}
+        for record in records:
+            unique.setdefault(training_identity(record), record)
+        records = list(unique.values())
         records = sorted(records, key=lambda record: record.record_hash)
         ids = [record.experience_id for record in records]
         shuffled = list(ids)
@@ -95,7 +104,7 @@ class DatasetSnapshotStore:
             holdout_ids=holdout_ids,
             manifest_hash=_hash_payload(manifest),
             created_at=datetime.now(UTC).isoformat(),
-            metadata={**(metadata or {}), "seed": seed, "verified_record_count": len(records)},
+            metadata={**(metadata or {}), "seed": seed, "verified_record_count": len(records), "source_record_count": source_count, "duplicate_records_dropped": source_count - len(records)},
         )
         path = self.root / f"{snapshot.snapshot_id}.json"
         path.write_text(json.dumps(snapshot.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")

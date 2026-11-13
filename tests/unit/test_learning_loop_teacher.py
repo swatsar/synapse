@@ -98,6 +98,49 @@ async def test_generate_pairs_falls_back_to_local_and_reports_it(
 
 
 @pytest.mark.asyncio
+async def test_quota_failure_is_reported_with_retry_evidence(tmp_path, monkeypatch):
+    from synapse.integrations import opencode_bridge
+
+    class FakeQuotaError(RuntimeError):
+        retry_after_seconds = 321
+
+    async def fake_opencode(model_id: str, prompt: str) -> str:
+        raise FakeQuotaError("Free usage limit reached")
+
+    async def fake_local(prompt: str) -> str:
+        return "Q: What is a tuple?\nA: An immutable sequence."
+
+    quota = {
+        "exhausted": True,
+        "message": "Free usage limit reached",
+        "retry_after_seconds": 321,
+        "reset_at": None,
+    }
+    monkeypatch.setattr(
+        learning_loop, "_opencode_teacher_models",
+        lambda teacher: ["opencode/test-free"],
+    )
+    monkeypatch.setattr(learning_loop, "_generate_pairs_opencode", fake_opencode)
+    monkeypatch.setattr(learning_loop, "_generate_pairs_locally", fake_local)
+    monkeypatch.setattr(learning_loop, "_local_teacher_id", lambda: "Qwen/test")
+    monkeypatch.setattr(opencode_bridge, "quota_status", lambda: dict(quota))
+
+    pairs, evidence = await learning_loop._generate_pairs(
+        "opencode", "Python", "Russian", 1, tmp_path,
+    )
+
+    assert pairs == [{
+        "prompt": "What is a tuple?",
+        "response": "An immutable sequence.",
+    }]
+    attempt = evidence["attempts"][0]
+    assert attempt["kind"] == "opencode"
+    assert attempt["retry_after_seconds"] == 321
+    assert attempt["quota_status"]["retry_after_seconds"] == 321
+    assert evidence["opencode_quota"]["exhausted"] is True
+
+
+@pytest.mark.asyncio
 async def test_learning_loop_does_not_train_while_another_run_holds_the_lock(
     tmp_path, monkeypatch,
 ):

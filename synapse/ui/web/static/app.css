@@ -10,7 +10,7 @@
   --border-soft: #212635;
   --text: #eef0f5;
   --secondary: #c3c8d4;
-  --muted: #8a90a0;
+  --muted: #a4aaba;
   --accent: #a78bfa;
   --accent-bright: #c4b5fd;
   --accent-bg: #2b2640;
@@ -21,7 +21,7 @@
   --danger: #f39aa3;
   --danger-bg: #3c2026;
   --info: #8fc0f0;
-  --text-muted: #8a90a0;
+  --text-muted: #a4aaba;
   --font: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
   --mono: "JetBrains Mono", Consolas, "Cascadia Code", monospace;
   font-family: var(--font);
@@ -557,6 +557,46 @@ input:disabled, select:disabled, textarea:disabled { opacity: .55; }
   .container.page h1 { max-width: calc(100vw - 190px); white-space: normal; font-size: 19px; line-height: 1.25; }
   .container.page .page-brand { margin-right: 0; }
   .container.page > header { gap: 12px; }
+}
+
+/* Very narrow phones (<=420px): the composer toolbar, tables and the growth
+   graph otherwise overflow or squeeze labels into unreadable columns. */
+@media (max-width: 420px) {
+  .workspace-header { height: 58px; padding: 0 8px; gap: 6px; }
+  h1 { max-width: 46vw; font-size: 12px; }
+  .header-actions .icon-button { width: 30px; height: 30px; padding: 6px; }
+  .conversation { padding: 18px 10px; }
+  .welcome { padding-top: 2vh; }
+  .welcome h2 { font-size: 22px; }
+  .welcome-symbol { width: 48px; height: 48px; margin-bottom: 18px; }
+  .user-message { margin-left: 0; }
+  .agent-message { grid-template-columns: 22px minmax(0, 1fr); gap: 8px; }
+  .agent-avatar { width: 22px; height: 22px; border-radius: 7px; }
+  .agent-content { font-size: 12.5px; line-height: 1.7; }
+  .composer-area { padding: 6px 8px 10px; }
+  .composer { padding: 10px 9px 8px; border-radius: 11px; }
+  .composer-tools { gap: 4px; }
+  .tool-button, .mode-button { padding: 4px 6px; }
+  .model-select { max-width: 128px; font-size: 9px; }
+  #mode-label { display: none; }
+  .composer-hint { font-size: 8.5px; }
+  .container, .container.page { padding: 16px 10px; }
+  .container.page h1 { max-width: none; font-size: 18px; }
+  .container > header { gap: 10px; padding-bottom: 12px; margin-bottom: 16px; }
+  .container nav { gap: 2px; }
+  .container nav a { padding: 5px 7px; }
+  .card, .metric { padding: 11px; }
+  .metrics { grid-template-columns: 1fr; }
+  .metric.wide { grid-column: span 1; }
+  .page-hero { gap: 14px; }
+  .actions { gap: 6px; }
+  .actions > * { flex: 1 1 100%; }
+  td { padding: 4px 2px; overflow-wrap: anywhere; }
+  .stat-summary-card { align-items: flex-start; gap: 10px; padding: 10px; }
+  .stat-grade { width: 44px; height: 44px; font-size: 22px; }
+  .growth-graph { overflow-x: auto; }
+  .growth-graph svg { min-width: 360px; }
+  .toast { left: 8px; right: 8px; bottom: 8px; }
 }
 
 /* --- generated inline-style utilities --- */

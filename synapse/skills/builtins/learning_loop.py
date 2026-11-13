@@ -40,6 +40,39 @@ _PAIR_HINT_PLAIN = (
     "Separate dialogues with a blank line."
 )
 
+_MIN_PROMPT_CHARS = 3
+_MIN_RESPONSE_CHARS = 2
+
+_REFUSAL_PREFIXES = (
+    "i can't",
+    "i cannot",
+    "i'm sorry",
+    "i am sorry",
+    "sorry,",
+    "as an ai",
+    "as a language model",
+    "i am unable",
+    "i'm unable",
+    "unfortunately, i",
+    "не могу",
+    "не получится",
+    "извините",
+    "к сожалению, я",
+    "я не могу",
+    "как искусственный интеллект",
+    "как языковая модель",
+)
+
+_ERROR_PREFIXES = (
+    "traceback (most recent call last)",
+    "error:",
+    "exception:",
+)
+
+_PLACEHOLDER_RESPONSES = {
+    "...", "…", "-", "–", "—", "n/a", "none", "null", "undefined", "todo",
+}
+
 
 def _teacher_argv(teacher: str) -> list[str] | None:
     try:
@@ -160,25 +193,38 @@ async def _generate_pairs(
     if opencode_requested:
         models = _opencode_teacher_models(teacher)
         if not models:
-            attempts.append({
+            from synapse.integrations.opencode_bridge import quota_status
+
+            quota = quota_status()
+            attempt: dict[str, Any] = {
                 "teacher": teacher if teacher_mode != "auto" else "opencode",
                 "kind": "opencode",
                 "result": "unavailable_or_quota_exhausted",
-            })
+            }
+            if quota.get("exhausted") or quota.get("retry_after_seconds"):
+                attempt["quota_status"] = quota
+            attempts.append(attempt)
         for model_id in models:
             try:
                 raw = await _generate_pairs_opencode(model_id, prompt)
             except Exception as exc:
-                attempts.append({
+                from synapse.integrations.opencode_bridge import quota_status
+
+                quota = quota_status()
+                attempt = {
                     "teacher": model_id, "kind": "opencode",
                     "error": str(exc)[:500],
-                })
-                from synapse.integrations.opencode_bridge import (
-                    is_opencode_quota_exhausted,
-                )
-
-                if is_opencode_quota_exhausted():
+                }
+                retry_after = getattr(exc, "retry_after_seconds", 0)
+                if retry_after:
+                    attempt["retry_after_seconds"] = int(retry_after)
+                if quota.get("exhausted"):
+                    # Surface the real cooldown instead of an opaque failure:
+                    # the UI and self-report can then say when to retry.
+                    attempt["quota_status"] = quota
+                    attempts.append(attempt)
                     break
+                attempts.append(attempt)
                 continue
             pairs = _parse_pairs(raw)
             if pairs:
@@ -204,6 +250,10 @@ async def _generate_pairs(
     }
     if attempts:
         evidence["attempts"] = attempts
+        if any(attempt.get("kind") == "opencode" for attempt in attempts):
+            from synapse.integrations.opencode_bridge import quota_status
+
+            evidence["opencode_quota"] = quota_status()
     return pairs, evidence
 
 
@@ -262,6 +312,89 @@ def _parse_pairs_plain(raw: str) -> list[dict[str, str]]:
     return pairs
 
 
+def _normalize_pair_text(value: Any) -> str:
+    return " ".join(str(value or "").split())
+
+
+def _verify_pairs(
+    pairs: list[dict[str, str]],
+    *,
+    existing_identities: set[str] | None = None,
+    min_pairs: int = 2,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    """Independently check teacher output before it becomes training data.
+
+    A teacher response is not evidence by itself. Each pair must be non-empty,
+    non-refusing, non-placeholder and novel compared with the store and with
+    the rest of the batch. Only pairs that survive are allowed to be written
+    with ``verifier_passed=True``.
+    """
+    from synapse.experience.store import training_fingerprint
+
+    existing = set(existing_identities or ())
+    accepted: list[dict[str, str]] = []
+    seen_prompts: set[str] = set()
+    seen_identities: set[str] = set()
+    dropped = {
+        "too_short": 0,
+        "refusal": 0,
+        "error_output": 0,
+        "placeholder": 0,
+        "echo": 0,
+        "duplicate_prompt": 0,
+        "duplicate_pair": 0,
+        "already_learned": 0,
+    }
+    for raw_pair in pairs:
+        if not isinstance(raw_pair, dict):
+            dropped["too_short"] += 1
+            continue
+        prompt = _normalize_pair_text(raw_pair.get("prompt"))
+        response = _normalize_pair_text(raw_pair.get("response"))
+        if len(prompt) < _MIN_PROMPT_CHARS or len(response) < _MIN_RESPONSE_CHARS:
+            dropped["too_short"] += 1
+            continue
+        lowered = response.casefold()
+        if lowered in _PLACEHOLDER_RESPONSES:
+            dropped["placeholder"] += 1
+            continue
+        if lowered.startswith(_REFUSAL_PREFIXES):
+            dropped["refusal"] += 1
+            continue
+        if lowered.startswith(_ERROR_PREFIXES):
+            dropped["error_output"] += 1
+            continue
+        if prompt.casefold() == response.casefold():
+            dropped["echo"] += 1
+            continue
+        prompt_key = prompt.casefold()
+        if prompt_key in seen_prompts:
+            dropped["duplicate_prompt"] += 1
+            continue
+        identity = "text:" + training_fingerprint(
+            f"User: {prompt}\nAssistant: {response}"
+        )
+        if identity in existing:
+            dropped["already_learned"] += 1
+            continue
+        if identity in seen_identities:
+            dropped["duplicate_pair"] += 1
+            continue
+        seen_prompts.add(prompt_key)
+        seen_identities.add(identity)
+        accepted.append({"prompt": prompt, "response": response, "identity": identity})
+
+    report: dict[str, Any] = {
+        "received": len(pairs),
+        "accepted": len(accepted),
+        "min_required": max(1, int(min_pairs)),
+        "passed": len(accepted) >= max(1, int(min_pairs)),
+        "dropped": {key: value for key, value in dropped.items() if value},
+        "method": "learning_loop_pair_verifier",
+    }
+    return accepted, report
+
+
 async def execute_learning_loop(ctx: ExecutionContext, topic: str = "", **params):
     """Run generate → snapshot → train cycles while the holdout loss improves."""
     from synapse.experience import DatasetSnapshotStore, ExperienceRecord, ExperienceStore
@@ -304,6 +437,30 @@ async def execute_learning_loop(ctx: ExecutionContext, topic: str = "", **params
                 })
                 break
 
+            # Teacher output is a candidate, not verified experience. Pairs are
+            # checked for emptiness, refusals, placeholders, duplicates and
+            # novelty against the store before any record is marked passed.
+            pairs, verification = _verify_pairs(
+                pairs,
+                existing_identities=store.training_identities(verified_only=False),
+                min_pairs=min(2, pairs_per_cycle),
+            )
+            if not verification["passed"]:
+                cycles.append({
+                    "cycle": cycle_index,
+                    "status": "blocked",
+                    "blocker": "pairs_failed_verification",
+                    "teacher": teacher_evidence,
+                    "verification": verification,
+                })
+                break
+
+            actual_teacher = str(teacher_evidence.get("teacher") or teacher)
+            teacher_kind = str(teacher_evidence.get("kind") or "unknown")
+            checks = [
+                "non_empty", "not_refusal", "not_placeholder",
+                "not_error_output", "not_echo", "novel", "unique_prompt",
+            ]
             records = [
                 ExperienceRecord(
                     task_id=f"learning_loop:{topic[:40]}",
@@ -312,22 +469,51 @@ async def execute_learning_loop(ctx: ExecutionContext, topic: str = "", **params
                     objective=f"{topic} [{language}]",
                     inputs={
                         "cycle": cycle_index,
-                        "teacher": teacher,
+                        "teacher_requested": teacher,
+                        "teacher_actual": actual_teacher,
+                        "teacher_kind": teacher_kind,
                         "teacher_evidence": teacher_evidence,
                     },
                     executor="learning_loop",
-                    model=f"teacher:{teacher_evidence.get('teacher') or teacher}",
+                    model=f"teacher:{actual_teacher}",
                     execution_success=True,
                     verifier_passed=True,
                     verifier_status="passed",
                     eligibility="eligible",
-                    feedback={"training_text": f"User: {pair['prompt']}\nAssistant: {pair['response']}"},
-                    provenance={"source": "chat_learning_loop", "cycle": cycle_index},
+                    feedback={
+                        "training_text": f"User: {pair['prompt']}\nAssistant: {pair['response']}",
+                        "learning_loop_verification": {
+                            "method": verification["method"],
+                            "checks": checks,
+                            "identity": pair.get("identity"),
+                        },
+                    },
+                    provenance={
+                        "source": "chat_learning_loop",
+                        "cycle": cycle_index,
+                        "teacher": actual_teacher,
+                        "teacher_kind": teacher_kind,
+                        "pair_verification": {
+                            "method": verification["method"],
+                            "checks": checks,
+                            "received": verification["received"],
+                            "accepted": verification["accepted"],
+                        },
+                    },
                 )
                 for pair in pairs
             ]
-            for record in records:
-                store.append(record)
+            records, skipped_pairs = store.append_unique(records)
+            if not records:
+                cycles.append({
+                    "cycle": cycle_index,
+                    "status": "blocked",
+                    "blocker": "all_pairs_already_learned",
+                    "teacher": teacher_evidence,
+                    "verification": verification,
+                    "skipped_pairs": len(skipped_pairs),
+                })
+                break
 
             try:
                 snapshot = snapshots.create(store, seed=cycle_index)
@@ -368,7 +554,9 @@ async def execute_learning_loop(ctx: ExecutionContext, topic: str = "", **params
                     metadata={
                         "origin": "learning_loop",
                         "topic": topic,
-                        "teacher": teacher,
+                        "teacher": actual_teacher,
+                        "teacher_requested": teacher,
+                        "teacher_kind": teacher_kind,
                         "cycle": cycle_index,
                     },
                 )
@@ -379,6 +567,9 @@ async def execute_learning_loop(ctx: ExecutionContext, topic: str = "", **params
                 "cycle": cycle_index,
                 "teacher": teacher_evidence,
                 "pairs": len(pairs),
+                "stored_pairs": len(records),
+                "skipped_pairs": len(skipped_pairs),
+                "verification": verification,
                 "status": evidence["status"],
                 "final_loss": evidence.get("final_loss"),
                 "holdout_loss_before": evidence.get("holdout_loss_before"),

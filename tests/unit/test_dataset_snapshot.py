@@ -33,3 +33,27 @@ def test_snapshot_requires_verified_records_and_is_deterministically_split(tmp_p
     assert not set(first.dev_ids) & set(first.holdout_ids)
     assert snapshots.load(first.snapshot_id).manifest_hash == first.manifest_hash
     experiences.close()
+
+
+def test_snapshot_deduplicates_identical_training_texts(tmp_path):
+    experiences = ExperienceStore(tmp_path / "experience.sqlite3")
+    text = "User: What is a list?\nAssistant: An ordered collection."
+    for index in range(4):
+        experiences.append(ExperienceRecord(
+            task_id=f"task-dup-{index}",
+            run_id=f"run-dup-{index}",
+            executor="fixture",
+            execution_success=True,
+            verifier_passed=True,
+            verifier_status="passed",
+            eligibility="eligible",
+            feedback={"training_text": text},
+        ))
+    snapshot = DatasetSnapshotStore(tmp_path / "datasets").create(
+        experiences, seed=7,
+    )
+    assert len(snapshot.source_record_ids) == 1
+    assert snapshot.metadata["source_record_count"] == 4
+    assert snapshot.metadata["verified_record_count"] == 1
+    assert snapshot.metadata["duplicate_records_dropped"] == 3
+    experiences.close()

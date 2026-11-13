@@ -123,3 +123,43 @@ def test_human_rejection_removes_training_text(tmp_path):
     assert store.list_records(verified_only=True) == []
     assert store.latest_for_task("missing-task") is None
     store.close()
+
+
+def _training_record(task_id: str, text: str) -> ExperienceRecord:
+    return ExperienceRecord(
+        task_id=task_id,
+        run_id=f"run-{task_id}",
+        objective="fixture",
+        executor="fixture",
+        execution_success=True,
+        verifier_passed=True,
+        verifier_status="passed",
+        eligibility="eligible",
+        feedback={"training_text": text},
+    )
+
+
+def test_distinct_training_count_and_append_unique(tmp_path):
+    store = ExperienceStore(tmp_path / "experience.sqlite3")
+    text = "User: What is a list?\nAssistant: An ordered collection."
+    for index in range(3):
+        store.append(_training_record(f"task-{index}", text))
+
+    # Raw rows stay auditable, but only one distinct training example exists.
+    assert store.count(verified_only=True) == 3
+    assert store.count_distinct_training(verified_only=True) == 1
+
+    duplicate = _training_record("task-duplicate", text)
+    accepted, skipped = store.append_unique([duplicate])
+    assert accepted == []
+    assert skipped == [duplicate]
+    assert store.count(verified_only=True) == 3
+
+    fresh = _training_record(
+        "task-fresh", "User: What is a tuple?\nAssistant: An immutable sequence.",
+    )
+    accepted, skipped = store.append_unique([fresh])
+    assert accepted == [fresh]
+    assert skipped == []
+    assert store.count_distinct_training(verified_only=True) == 2
+    store.close()

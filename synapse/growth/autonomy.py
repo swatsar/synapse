@@ -525,7 +525,8 @@ class AutonomyLoop:
             self.workspace_root / ".synapse" / "experience.sqlite3"
         )
         try:
-            verified = store.count(verified_only=True)
+            verified_rows = store.count(verified_only=True)
+            verified = store.count_distinct_training(verified_only=True)
         finally:
             store.close()
         trained = int(self.state.get("last_train_verified_records") or 0)
@@ -567,6 +568,7 @@ class AutonomyLoop:
         return {
             "ready": not blockers,
             "verified_records": verified,
+            "verified_record_rows": verified_rows,
             "trained_verified_records": trained,
             "new_verified_records": new_records,
             "required_records": self.min_records,
@@ -619,8 +621,7 @@ class AutonomyLoop:
 
         store = ExperienceStore(self.workspace_root / ".synapse" / "experience.sqlite3")
         try:
-            records = store.list_records(verified_only=True, limit=10000)
-            verified = len(records)
+            verified = store.count_distinct_training(verified_only=True)
             already_trained = int(self.state.get("last_train_verified_records") or 0)
             if verified < self.min_records:
                 return {

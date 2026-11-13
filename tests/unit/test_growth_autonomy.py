@@ -146,6 +146,38 @@ def test_training_readiness_reports_gates_and_unlocks(tmp_path):
     assert cooling["cooldown_remaining_seconds"] > 0
 
 
+def test_training_readiness_counts_distinct_training_texts(tmp_path):
+    from synapse.experience import ExperienceRecord, ExperienceStore
+
+    (tmp_path / ".synapse").mkdir()
+    store = ExperienceStore(tmp_path / ".synapse" / "experience.sqlite3")
+    text = "User: What is a list?\nAssistant: An ordered collection."
+    for index in range(3):
+        store.append(ExperienceRecord(
+            task_id=f"task-distinct-{index}",
+            run_id=f"run-distinct-{index}",
+            executor="fixture",
+            execution_success=True,
+            verifier_passed=True,
+            verifier_status="passed",
+            eligibility="eligible",
+            feedback={"training_text": text},
+        ))
+    store.close()
+
+    loop = AutonomyLoop(
+        tmp_path, growth_network=GrowthNetwork(tmp_path / "growth.sqlite3")
+    )
+    loop.auto_train_enabled = True
+    loop.min_records = 2
+    loop.min_new_records = 1
+    readiness = loop.training_readiness()
+
+    assert readiness["verified_records"] == 1
+    assert readiness["verified_record_rows"] == 3
+    assert "not_enough_verified_experience" in readiness["blockers"]
+
+
 def test_training_readiness_reports_cross_process_lock(tmp_path):
     """A follower must not claim training can start while another process trains."""
     from synapse.experience import ExperienceRecord, ExperienceStore

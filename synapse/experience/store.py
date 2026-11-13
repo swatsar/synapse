@@ -28,6 +28,17 @@ def _json_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def training_fingerprint(text: str) -> str:
+    """Stable fingerprint of a training text, insensitive to spacing/case.
+
+    Repeated generations of the same instruction/response pair must not count
+    as fresh experience: otherwise a looping teacher could keep the autonomy
+    gate open with identical data.
+    """
+    normalized = " ".join(str(text or "").split()).lower()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 @dataclass(frozen=True)
 class ExperienceRecord:
     """Immutable-at-write evidence for one task/run execution."""
@@ -84,6 +95,28 @@ class ExperienceRecord:
         values = dict(data)
         values.pop("verified_for_training", None)
         return cls(**values)
+
+
+def training_text_of(record: ExperienceRecord) -> str:
+    """Return the text a trainer would learn from, or an empty string."""
+    feedback = record.feedback or {}
+    for key in ("training_text", "candidate_training_text", "response"):
+        value = feedback.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def training_identity(record: ExperienceRecord) -> str:
+    """Identity used for novelty/dedup checks.
+
+    Records without training text fall back to their immutable hash so they
+    still count individually instead of collapsing into one empty text.
+    """
+    text = training_text_of(record)
+    if text:
+        return "text:" + training_fingerprint(text)
+    return "record:" + str(record.record_hash or record.experience_id)
 
 
 class ExperienceStore:
@@ -154,29 +187,112 @@ class ExperienceStore:
                 self._db.close()
                 self._db = None
 
+    def _insert_locked(self, db: sqlite3.Connection, record: ExperienceRecord) -> None:
+        db.execute(
+            """INSERT INTO experiences(
+                experience_id, record_hash, task_id, execution_success,
+                verifier_passed, verifier_status, eligibility, created_at,
+                payload_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                record.experience_id,
+                record.record_hash,
+                record.task_id,
+                int(record.execution_success),
+                None if record.verifier_passed is None else int(record.verifier_passed),
+                record.verifier_status,
+                record.eligibility,
+                record.created_at,
+                json.dumps(record.to_dict(), ensure_ascii=False, sort_keys=True),
+            ),
+        )
+
     def append(self, record: ExperienceRecord) -> ExperienceRecord:
         with self._lock:
             db = self._connect()
-            db.execute(
-                """INSERT INTO experiences(
-                    experience_id, record_hash, task_id, execution_success,
-                    verifier_passed, verifier_status, eligibility, created_at,
-                    payload_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    record.experience_id,
-                    record.record_hash,
-                    record.task_id,
-                    int(record.execution_success),
-                    None if record.verifier_passed is None else int(record.verifier_passed),
-                    record.verifier_status,
-                    record.eligibility,
-                    record.created_at,
-                    json.dumps(record.to_dict(), ensure_ascii=False, sort_keys=True),
-                ),
-            )
+            self._insert_locked(db, record)
             db.commit()
             return record
+
+    def _training_identities_locked(
+        self,
+        db: sqlite3.Connection,
+        *,
+        verified_only: bool,
+        limit: int = 10000,
+    ) -> set[str]:
+        query = "SELECT payload_json FROM experiences"
+        if verified_only:
+            query += " WHERE execution_success=1 AND verifier_passed=1 AND verifier_status='passed' AND eligibility='eligible'"
+        query += " ORDER BY created_at DESC LIMIT ?"
+        rows = db.execute(query, (max(1, min(limit, 100000)),)).fetchall()
+        identities: set[str] = set()
+        for row in rows:
+            try:
+                payload = json.loads(row[0])
+            except ValueError:
+                continue
+            feedback = payload.get("feedback") or {}
+            text = ""
+            if isinstance(feedback, dict):
+                for key in ("training_text", "candidate_training_text", "response"):
+                    value = feedback.get(key)
+                    if isinstance(value, str) and value.strip():
+                        text = value.strip()
+                        break
+            if text:
+                identities.add("text:" + training_fingerprint(text))
+            else:
+                identities.add(
+                    "record:" + str(payload.get("record_hash") or payload.get("experience_id") or "")
+                )
+        return identities
+
+    def training_identities(
+        self, *, verified_only: bool = False, limit: int = 10000,
+    ) -> set[str]:
+        """Return dedup identities for stored training texts.
+
+        The learning loop uses this before writing newly generated pairs so a
+        cycle cannot re-add experience it has already learned.
+        """
+        with self._lock:
+            return self._training_identities_locked(
+                self._connect(), verified_only=verified_only, limit=limit,
+            )
+
+    def count_distinct_training(self, *, verified_only: bool = False) -> int:
+        """Count unique training identities, not raw database rows."""
+        return len(self.training_identities(verified_only=verified_only, limit=100000))
+
+    def append_unique(
+        self,
+        records: list[ExperienceRecord],
+        *,
+        verified_only: bool = True,
+    ) -> tuple[list[ExperienceRecord], list[ExperienceRecord]]:
+        """Append only records whose training identity is not stored yet.
+
+        Returns ``(accepted, skipped)``. The check and the inserts share one
+        lock, so two writers cannot both add the same training text.
+        """
+        with self._lock:
+            db = self._connect()
+            existing = self._training_identities_locked(
+                db, verified_only=verified_only, limit=100000,
+            )
+            accepted: list[ExperienceRecord] = []
+            skipped: list[ExperienceRecord] = []
+            for record in records:
+                identity = training_identity(record)
+                if identity in existing:
+                    skipped.append(record)
+                    continue
+                existing.add(identity)
+                self._insert_locked(db, record)
+                accepted.append(record)
+            db.commit()
+            return accepted, skipped
 
     def list_records(self, *, verified_only: bool = False, limit: int = 1000) -> list[ExperienceRecord]:
         with self._lock:
@@ -305,4 +421,11 @@ class ExperienceStore:
             return int(db.execute(query).fetchone()[0])
 
 
-__all__ = ["ExperienceRecord", "ExperienceStore", "PROTOCOL_VERSION"]
+__all__ = [
+    "ExperienceRecord",
+    "ExperienceStore",
+    "PROTOCOL_VERSION",
+    "training_fingerprint",
+    "training_identity",
+    "training_text_of",
+]
