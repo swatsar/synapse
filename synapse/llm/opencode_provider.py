@@ -80,6 +80,39 @@ def _merge_config_content(model_id: str) -> dict[str, Any]:
     return content
 
 
+# Lines the CLI appends when the free tier is exhausted. They are runtime
+# notices, not assistant answers, so they must never be rendered as chat text.
+_QUOTA_NOTICE_MARKERS = (
+    "subscribe to opencode go",
+    "free usage limit reached",
+    "usage limit reached",
+    "upgrade to continue",
+)
+_QUOTA_NOTICE_MAX_CHARS = 400
+
+
+def _strip_quota_notice_lines(content: str) -> str:
+    """Drop quota boilerplate lines while keeping a real answer around them."""
+    kept = [
+        line for line in content.splitlines()
+        if not any(marker in line.casefold() for marker in _QUOTA_NOTICE_MARKERS)
+    ]
+    stripped = "\n".join(kept).strip()
+    return stripped if stripped else content.strip()
+
+
+def _is_quota_notice(content: str) -> bool:
+    """True when the whole response is only an exhausted-quota notice."""
+    from synapse.integrations.opencode_bridge import classify_opencode_error
+
+    compact = " ".join(content.split())
+    if not compact or len(compact) > _QUOTA_NOTICE_MAX_CHARS:
+        return False
+    if any(marker in compact.casefold() for marker in _QUOTA_NOTICE_MARKERS):
+        return True
+    return classify_opencode_error(compact) == "quota"
+
+
 def _parse_events(stdout: str) -> tuple[list[str], str | None]:
     texts: list[str] = []
     error: str | None = None
@@ -179,7 +212,7 @@ class OpenCodeCLIProvider:
 
         texts, error = _parse_events(completed.stdout or "")
         content = "\n\n".join(texts).strip()
-        if error and not content:
+        if error:
             kind = record_opencode_failure(error)
             if kind == "quota":
                 state = quota_status()
@@ -188,7 +221,20 @@ class OpenCodeCLIProvider:
                     if state["retry_after_seconds"] else str(error),
                     retry_after_seconds=state["retry_after_seconds"],
                 )
+            # An error event means the run failed even if some text was
+            # streamed first. Returning that partial text would hide the
+            # failure and leak runtime diagnostics into the chat answer.
             raise RuntimeError(error)
+        content = _strip_quota_notice_lines(content)
+        if content and _is_quota_notice(content):
+            record_opencode_failure(content)
+            state = quota_status()
+            raise OpenCodeQuotaExceeded(
+                "OpenCode free usage limit is exhausted"
+                + (f" (retry in {state['retry_after_seconds']}s)" if state["retry_after_seconds"] else "")
+                + ". Subscribe to OpenCode Go, configure another provider, or use the local model.",
+                retry_after_seconds=state["retry_after_seconds"],
+            )
         if not content:
             stderr = (completed.stderr or "").strip()
             suffix = f" stderr: {stderr[:400]}" if stderr else ""
