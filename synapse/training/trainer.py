@@ -12,9 +12,11 @@ import gc
 import hashlib
 import json
 import os
+import time
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from synapse.experience import DatasetSnapshot, ExperienceStore
 from synapse.training.preflight import check_training_preflight
@@ -332,14 +334,46 @@ def train_lora(
     require_gpu: bool = True,
     micro_batch_size: int | None = None,
     gradient_accumulation_steps: int = 0,
+    metadata: dict[str, Any] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> TrainingRunEvidence:
-    """Run real LoRA training and return machine-checkable evidence."""
+    """Run real LoRA training and return machine-checkable evidence.
+
+    ``metadata`` is copied into ``training_manifest.json`` (topic, teacher,
+    origin) so adapter history is auditable. ``should_cancel`` is checked
+    between optimizer steps/expensive phases for cooperative cancellation by
+    the HTTP job runner. ``progress_callback`` receives coarse progress events
+    that the UI can poll; neither hook changes what the adapter learns.
+    """
     import uuid
+
+    started = time.monotonic()
+
+    def _cancelled() -> bool:
+        return bool(should_cancel and should_cancel())
+
+    def _progress(phase: str, **fields: Any) -> None:
+        if progress_callback is None:
+            return
+        try:
+            progress_callback({"phase": phase, **fields})
+        except Exception:  # progress reporting must never fail a training run
+            pass
 
     run_id = f"train_{uuid.uuid4().hex}"
     base_path = Path(base_model).expanduser().resolve()
     output_path = Path(output_dir).expanduser().resolve()
     base_hash = _sha256_tree(base_path) if base_path.is_dir() else ""
+
+    def _cancelled_evidence() -> TrainingRunEvidence:
+        return TrainingRunEvidence(
+            status="cancelled", run_id=run_id, base_model=str(base_path),
+            base_model_hash=base_hash, snapshot_id=snapshot.snapshot_id,
+            snapshot_manifest_hash=snapshot.manifest_hash, adapter_path=None,
+            blockers=("cancelled_by_operator",), mode=mode,
+            error="cancelled_by_operator",
+        )
     preflight = check_training_preflight(
         snapshot=snapshot, base_model=base_path, require_gpu=require_gpu
     )
@@ -387,6 +421,9 @@ def train_lora(
         )
 
     torch, LoraConfig, PeftModel, TaskType, get_peft_model, AutoModelForCausalLM, AutoTokenizer = _load_runtime()
+    if _cancelled():
+        return _cancelled_evidence()
+    _progress("loading_model", records=len(records), holdout_records=len(holdout_records))
     device = _select_device(torch, require_gpu=require_gpu)
     dtype = torch.float16 if device == "cuda" else torch.float32
     tokenizer = AutoTokenizer.from_pretrained(str(base_path), local_files_only=True)
@@ -396,6 +433,9 @@ def train_lora(
         str(base_path), local_files_only=True, dtype=dtype,
     ).to(device)
     model.config.use_cache = False
+    if _cancelled():
+        return _cancelled_evidence()
+    _progress("measuring_holdout")
     holdout_loss_before = _loss_on_records(model, tokenizer, holdout_records, device, max_length)
     if holdout_loss_before is None:
         return TrainingRunEvidence(
@@ -444,11 +484,16 @@ def train_lora(
     model.train()
     final_loss: float | None = None
     cursor = 0
+    total_steps = max(1, steps)
     try:
-        for _ in range(max(1, steps)):
+        for step_index in range(total_steps):
+            if _cancelled():
+                return _cancelled_evidence()
             optimizer.zero_grad(set_to_none=True)
             step_losses: list[float] = []
             for _ in range(accumulate):
+                if _cancelled():
+                    return _cancelled_evidence()
                 batch = batches[cursor % len(batches)]
                 cursor += 1
                 encoded = tokenizer(
@@ -468,6 +513,13 @@ def train_lora(
                 step_losses.append(float(loss.detach().cpu().item()))
             optimizer.step()
             final_loss = sum(step_losses) / len(step_losses)
+            _progress(
+                "training", step=step_index + 1, steps=total_steps,
+                loss=final_loss,
+            )
+        if _cancelled():
+            return _cancelled_evidence()
+        _progress("saving_adapter", steps=total_steps)
         output_path.mkdir(parents=True, exist_ok=True)
         model.save_pretrained(output_path)
         tokenizer.save_pretrained(output_path)
@@ -521,7 +573,12 @@ def train_lora(
             "base_model_hash": base_hash, "adapter_hash": adapter_hash,
             "snapshot_id": snapshot.snapshot_id, "snapshot_manifest_hash": snapshot.manifest_hash,
             "trainable_parameter_count": trainable, "total_parameter_count": total,
-            "steps": max(1, steps), "final_loss": final_loss,
+            "created_at": datetime.now(UTC).isoformat(),
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "device": device,
+            "records": len(records),
+            "holdout_records": len(holdout_records),
+            "steps": total_steps, "final_loss": final_loss,
             "micro_batch_size": micro_batch_size,
             "gradient_accumulation_steps": accumulate,
             "holdout_metric": "causal_lm_loss", "holdout_loss_before": holdout_loss_before,
@@ -532,14 +589,21 @@ def train_lora(
             "behavioral_passed_after": behavioral_after,
             "behavioral_gate": behavioral_gate,
         }
+        if metadata:
+            manifest["metadata"] = dict(metadata)
+            for key in ("topic", "teacher", "origin"):
+                value = metadata.get(key)
+                if value:
+                    manifest[key] = value
         (output_path / "training_manifest.json").write_text(
             json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+        _progress("completed", steps=total_steps, final_loss=final_loss)
         return TrainingRunEvidence(
             status="completed", run_id=run_id, base_model=str(base_path), base_model_hash=base_hash,
             snapshot_id=snapshot.snapshot_id, snapshot_manifest_hash=snapshot.manifest_hash,
             adapter_path=str(output_path), trainable_parameter_count=trainable,
-            total_parameter_count=total, steps=max(1, steps), final_loss=final_loss,
+            total_parameter_count=total, steps=total_steps, final_loss=final_loss,
             holdout_loss_before=holdout_loss_before, holdout_loss_after=holdout_loss_after,
             holdout_metric="causal_lm_loss", promotion_gate=promotion_gate,
             promotion_status=promotion_status,

@@ -12,7 +12,6 @@ from __future__ import annotations
 PROTOCOL_VERSION: str = "1.0"
 
 import asyncio
-import json
 import logging
 import os
 import threading
@@ -35,27 +34,18 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _same_model_path(left: str | Path, right: str | Path) -> bool:
-    try:
-        return (
-            str(Path(left).expanduser().resolve()).casefold()
-            == str(Path(right).expanduser().resolve()).casefold()
-        )
-    except (OSError, ValueError):
-        return str(left).casefold() == str(right).casefold()
-
-
 def discover_promoted_adapter(
     model_path: str | Path,
     workspace_root: str | Path | None = None,
 ) -> Path | None:
-    """Return the newest promoted LoRA adapter that belongs to this model.
+    """Return the adapter inference must load for this model.
 
-    Adapter directories are written by the training pipeline as
-    ``.synapse/adapters/<run>/``. Only adapters with a matching
+    A valid explicit pin (``<adapters>/active.json``) wins, then the newest
+    promoted adapter of the same base model. Only adapters with a matching
     ``training_manifest.json`` promotion status are eligible; a rejected or
     unrelated adapter must never silently alter inference. An explicit
-    ``SYNAPSE_ADAPTER_PATH`` wins for manual pinning.
+    ``SYNAPSE_ADAPTER_PATH`` environment variable wins over both for manual
+    pinning.
     """
     explicit = os.getenv("SYNAPSE_ADAPTER_PATH", "").strip()
     if explicit:
@@ -64,55 +54,9 @@ def discover_promoted_adapter(
     if os.getenv("SYNAPSE_DISABLE_ADAPTERS", "").strip() in {"1", "true", "yes"}:
         return None
 
-    model = Path(model_path).expanduser().resolve()
-    roots: list[Path] = []
-    if workspace_root:
-        roots.append(Path(workspace_root).expanduser().resolve() / ".synapse" / "adapters")
-    # model_path is normally <workspace>/.synapse/models/<checkpoint>.
-    roots.append(model.parent.parent / "adapters")
+    from synapse.training.adapters import discover_promoted_adapter as _discover
 
-    best: tuple[float, Path] | None = None
-    seen: set[str] = set()
-    for root in roots:
-        if not root.is_dir():
-            continue
-        for candidate in root.iterdir():
-            if not candidate.is_dir():
-                continue
-            key = str(candidate.resolve()).casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            if not (candidate / "adapter_config.json").is_file():
-                continue
-            manifest_file = candidate / "training_manifest.json"
-            if manifest_file.is_file():
-                try:
-                    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    continue
-                if manifest.get("promotion_status") != "promoted":
-                    continue
-                base_model = manifest.get("base_model")
-                if base_model and not _same_model_path(base_model, model):
-                    continue
-            else:
-                try:
-                    config = json.loads(
-                        (candidate / "adapter_config.json").read_text(encoding="utf-8")
-                    )
-                except (OSError, ValueError):
-                    continue
-                base_model = config.get("base_model_name_or_path")
-                if base_model and not _same_model_path(base_model, model):
-                    continue
-            try:
-                mtime = candidate.stat().st_mtime
-            except OSError:
-                continue
-            if best is None or mtime > best[0]:
-                best = (mtime, candidate)
-    return best[1] if best else None
+    return _discover(model_path, workspace_root)
 
 
 class LocalModelUnavailable(RuntimeError):

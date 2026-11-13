@@ -365,6 +365,12 @@ async def execute_learning_loop(ctx: ExecutionContext, topic: str = "", **params
                     ),
                     steps=steps,
                     require_gpu=require_gpu,
+                    metadata={
+                        "origin": "learning_loop",
+                        "topic": topic,
+                        "teacher": teacher,
+                        "cycle": cycle_index,
+                    },
                 )
             finally:
                 training_lock.release()
