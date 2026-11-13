@@ -355,6 +355,7 @@ class OmniRouter:
         self._circuit_breakers: dict[str, Any] = {}
         self._last_refresh_at: float = 0.0
         self._opencode_models: list[str] = []
+        self._quota_blocked: bool = False
         self._stats = {
             "routed_total": 0,
             "routes_by_model": {},
@@ -497,6 +498,7 @@ class OmniRouter:
             opencode_models = detect_models()
             quota_blocked = is_opencode_quota_exhausted()
             self._opencode_models = [model.model_id for model in opencode_models]
+            self._quota_blocked = quota_blocked
             self._availability["opencode"] = bool(opencode_models) and not quota_blocked
             for model in opencode_models:
                 self.catalog[model.model_id] = ModelDescriptor(
@@ -1218,9 +1220,54 @@ class OmniRouter:
     # Catalog, Stats & Health
     # ------------------------------------------------------------------
 
+    def _model_availability(self, model: ModelDescriptor) -> tuple[bool, str | None]:
+        """Return whether this catalog entry can actually serve a request now.
+
+        The catalog mixes canonical descriptors with locally discovered models
+        and providers discovered from CLI/profile state. Without this flag the
+        UI offered Claude/GPT/Ollama entries even when no credential, server or
+        pulled model existed, so selecting one failed only at execution time.
+        """
+        provider = model.provider
+        if provider == "local_transformers":
+            try:
+                from synapse.models import get_model_registry
+
+                manifest = get_model_registry().get(model.id)
+            except Exception:
+                manifest = None
+            if manifest is None or manifest.status != "downloaded" or not manifest.local_path:
+                return False, "model_not_downloaded"
+            return True, None
+        if provider == "ollama":
+            if not self.is_provider_available("ollama"):
+                return False, "provider_unreachable"
+            if self._ollama_models and model.id not in self._ollama_models:
+                return False, "model_not_installed"
+            return True, None
+        if provider == "opencode":
+            if self.is_provider_available("opencode"):
+                return True, None
+            return False, "quota_exhausted" if self._quota_blocked else "provider_unavailable"
+        if self.is_provider_available(provider):
+            return True, None
+        configured = provider in self._profiles or bool(
+            os.getenv(f"{provider.upper()}_API_KEY")
+        )
+        return False, "provider_unreachable" if configured else "provider_not_configured"
+
     def get_catalog(self) -> list[dict[str, Any]]:
-        """Return full catalog of supported models with descriptors."""
-        return [m.to_dict() for m in self.catalog.values()]
+        """Return full catalog of supported models with live availability."""
+        items: list[dict[str, Any]] = []
+        for model in self.catalog.values():
+            available, reason = self._model_availability(model)
+            items.append(
+                model.to_dict() | {
+                    "available": available,
+                    "unavailable_reason": reason,
+                }
+            )
+        return items
 
     def get_stats(self) -> dict[str, Any]:
         """Return runtime router telemetry."""

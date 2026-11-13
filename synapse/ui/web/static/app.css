@@ -602,4 +602,10 @@ input:disabled, select:disabled, textarea:disabled { opacity: .55; }
 .ui-da3233cf { font-size:11px;white-space:pre-wrap;margin:0;max-height:200px;overflow-y:auto;width:100%; }
 .ui-e1af83ee { font-size:10px;color:var(--text-muted, #888);margin-top:4px; }
 .ui-e4ad4a16 { margin-bottom:8px; }
+.growth-graph { margin:8px 0 2px;border:1px solid var(--border, #333);border-radius:10px;background:rgba(255,255,255,.02);overflow:hidden; }
+.growth-graph svg { display:block;width:100%;height:auto; }
+.growth-graph .graph-kind-label { fill:var(--text-muted, #8b93a7);font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase; }
+.growth-graph .graph-edge { transition:opacity .15s ease; }
+.growth-graph .graph-edge.myelinated { filter:drop-shadow(0 0 2px rgba(126,226,184,.55)); }
+.growth-graph .graph-node { stroke:rgba(10,12,18,.65);stroke-width:1; }
 .ui-f67b86e0 { display:flex;flex-direction:column;gap:8px; }

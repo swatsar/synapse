@@ -70,6 +70,33 @@
     return details;
   }
 
+  function outputMetaText(task) {
+    const outputs = task?.result?.action_result?.outputs;
+    if (!Array.isArray(outputs) || !outputs.length) return '';
+    const out = outputs.find(item => item && (item.provider || item.content !== undefined)) || outputs[0];
+    if (!out || typeof out !== 'object') return '';
+    const describe = value => {
+      if (!value) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'object') return [value.provider, value.model].filter(Boolean).join('/');
+      return String(value);
+    };
+    const parts = [];
+    if (out.provider === 'local_transformers') parts.push('Локальная модель');
+    else if (out.provider) parts.push(String(out.provider));
+    if (out.model) parts.push(String(out.model));
+    if (out.adapter_applied) {
+      const name = String(out.adapter_path || '').split(/[\\/]/).filter(Boolean).pop();
+      parts.push(name ? `адаптер ${name} применён` : 'адаптер применён');
+    }
+    const fallbackFrom = describe(out.fallback_from || task?.result?.fallback_from);
+    if (fallbackFrom) parts.push(`fallback: ${fallbackFrom}`);
+    if (out.quota_exhausted || task?.result?.quota_exhausted) parts.push('лимит учителя исчерпан');
+    const reason = describe(out.fallback_reason || task?.result?.fallback_reason);
+    if (reason) parts.push(reason);
+    return parts.join(' · ');
+  }
+
   function messageView(message) {
     const task = message.task_id ? taskById(message.task_id) : null;
     if (message.role === 'user') {
@@ -92,6 +119,8 @@
       body.append(el('div', task.status === 'queued' ? 'Задача добавлена в очередь…' : 'Выполняю когнитивный цикл…', 'agent-content'), miniTimeline(task));
     } else {
       body.append(el('div', message.content || 'Нет ответа.', `agent-content${task?.status === 'failed' ? ' error' : ''}`));
+      const meta = outputMetaText(task);
+      if (meta) body.append(el('div', meta, 'step-note'));
       if (task) body.append(miniTimeline(task));
     }
     if (task) {
@@ -382,7 +411,20 @@
   function showTab(name) {
     for (const button of document.querySelectorAll('[data-tab]')) {
       const active = button.dataset.tab === name;
-      button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+      // Roving tabindex: only the active tab is in the Tab order, arrows move
+      // between tabs. Without this a keyboard user had to tab through all ten.
+      button.tabIndex = active ? 0 : -1;
+      if (active) {
+        const strip = button.closest('.inspector-tabs');
+        if (strip) {
+          const left = button.offsetLeft;
+          if (left < strip.scrollLeft || left + button.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+            strip.scrollLeft = Math.max(0, left - 8);
+          }
+        }
+      }
     }
     for (const panel of document.querySelectorAll('.inspector-content')) panel.hidden = panel.id !== `inspector-${name}`;
   }
@@ -583,7 +625,29 @@
     if (window.innerWidth > 1190) { $('inspector').hidden = true; document.querySelector('.app-shell').style.gridTemplateColumns = '256px minmax(0, 1fr) 0'; }
     $('toggle-inspector').setAttribute('aria-expanded', 'false');
   });
-  for (const button of document.querySelectorAll('[data-tab]')) button.addEventListener('click', () => showTab(button.dataset.tab));
+  const inspectorTabs = [...document.querySelectorAll('[data-tab]')];
+  for (const button of inspectorTabs) {
+    const panel = document.getElementById(`inspector-${button.dataset.tab}`);
+    if (panel) {
+      panel.setAttribute("aria-labelledby", button.id);
+      button.setAttribute("aria-controls", panel.id);
+    }
+    button.tabIndex = button.classList.contains("active") ? 0 : -1;
+    button.addEventListener('click', () => showTab(button.dataset.tab));
+    button.addEventListener('keydown', event => {
+      const index = inspectorTabs.indexOf(button);
+      let next = null;
+      if (event.key === 'ArrowRight') next = inspectorTabs[(index + 1) % inspectorTabs.length];
+      else if (event.key === 'ArrowLeft') next = inspectorTabs[(index - 1 + inspectorTabs.length) % inspectorTabs.length];
+      else if (event.key === 'Home') next = inspectorTabs[0];
+      else if (event.key === 'End') next = inspectorTabs[inspectorTabs.length - 1];
+      if (next) {
+        event.preventDefault();
+        showTab(next.dataset.tab);
+        next.focus();
+      }
+    });
+  }
   for (const button of document.querySelectorAll('[data-prompt]')) button.addEventListener('click', () => {
     $('task').value = button.dataset.prompt;
     if (button.dataset.prompt === 'Read a file') openFilePicker(); else $('task').focus();
@@ -733,6 +797,28 @@
   });
 
   // Mycelial growth network: tasks, skills, providers and their learned paths.
+  let teacherStats = null;
+  let teacherQuotaDeadline = 0;
+
+  function teacherLineText() {
+    if (!teacherStats) return '';
+    const data = teacherStats;
+    const opencode = data.opencode || {};
+    const quota = opencode.quota || {};
+    let opencodeText;
+    if (quota.exhausted) {
+      const remaining = teacherQuotaDeadline
+        ? Math.max(0, teacherQuotaDeadline - Date.now())
+        : 0;
+      const minutes = Math.ceil(remaining / 60000);
+      const eta = minutes > 0 ? `, сброс через ~${minutes} мин` : ', сброс ожидается';
+      opencodeText = `OpenCode: ${opencode.model_count ?? 0} моделей · лимит исчерпан${eta}, будет локальный fallback`;
+    } else {
+      opencodeText = `OpenCode: ${opencode.available_models ?? 0} моделей`;
+    }
+    return `Учителя: ${opencodeText} · локальных: ${data.local_models ?? 0} · агентов: ${data.external_agents ?? 0}`;
+  }
+
   function renderTeacherOptions(data) {
     const select = $('learning-teacher-select');
     const line = $('learning-teacher-line');
@@ -751,16 +837,134 @@
     if (current && [...select.options].some(option => option.value === current)) {
       select.value = current;
     }
-    const opencode = data.opencode || {};
-    const quota = opencode.quota || {};
-    const parts = [
-      quota.exhausted
-        ? `OpenCode: ${opencode.model_count ?? 0} моделей в списке · лимит исчерпан, будет локальный fallback`
-        : `OpenCode: ${opencode.available_models ?? 0} моделей`,
-      `локальных: ${data.local_models ?? 0}`,
-      `агентов: ${data.external_agents ?? 0}`,
-    ];
-    line.textContent = `Учителя: ${parts.join(' · ')}`;
+    teacherStats = data;
+    const retry = Number((data.opencode?.quota || {}).retry_after_seconds || 0);
+    teacherQuotaDeadline = retry > 0 ? Date.now() + retry * 1000 : 0;
+    line.textContent = teacherLineText();
+  }
+
+  setInterval(() => {
+    const line = $('learning-teacher-line');
+    if (line && teacherStats) line.textContent = teacherLineText();
+  }, 30000);
+
+  const GRAPH_KIND_ORDER = ['task', 'skill', 'provider', 'model'];
+  const GRAPH_KIND_LABELS = {
+    task: 'задачи',
+    skill: 'навыки',
+    provider: 'провайдеры',
+    model: 'модели',
+  };
+  const GRAPH_KIND_COLORS = {
+    task: '#6ea8fe',
+    skill: '#7ee2b8',
+    provider: '#f6c177',
+    model: '#c792ea',
+  };
+
+  function svgNode(name, attrs) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for (const [key, value] of Object.entries(attrs || {})) node.setAttribute(key, value);
+    return node;
+  }
+
+  async function loadGrowthGraph() {
+    const host = $('growth-graph');
+    const note = $('growth-graph-note');
+    if (!host || !note) return;
+    host.replaceChildren();
+    try {
+      const data = await api('/growth/graph?node_limit=60&edge_limit=160');
+      const nodes = data.nodes || [];
+      const edges = data.edges || [];
+      if (!nodes.length) {
+        note.textContent = 'Сеть ещё пуста: выполните несколько задач, и карта появится.';
+        return;
+      }
+      const width = 660;
+      const height = 340;
+      const padX = 84;
+      const padY = 40;
+      const grouped = new Map(GRAPH_KIND_ORDER.map(kind => [kind, []]));
+      for (const node of nodes) {
+        if (!grouped.has(node.kind)) grouped.set(node.kind, []);
+        grouped.get(node.kind).push(node);
+      }
+      const columns = [...grouped.entries()].filter(([, items]) => items.length);
+      // Keep the task → skill → provider → model flow stable even when one
+      // layer has no nodes yet: an empty layer leaves a gap, not a shift.
+      const stepX = (width - padX * 2) / (GRAPH_KIND_ORDER.length - 1);
+      const positions = new Map();
+      const columnX = columns.map(([kind]) =>
+        padX + stepX * Math.max(0, GRAPH_KIND_ORDER.indexOf(kind)));
+      columns.forEach(([, items], columnIndex) => {
+        const sorted = items.slice().sort((a, b) => Number(b.weight) - Number(a.weight));
+        const stepY = (height - padY * 2) / Math.max(1, sorted.length - 1);
+        sorted.forEach((node, index) => {
+          positions.set(node.id, {x: columnX[columnIndex], y: padY + stepY * index, node});
+        });
+      });
+
+      const svg = svgNode('svg', {
+        viewBox: `0 0 ${width} ${height}`,
+        role: 'presentation',
+        'aria-hidden': 'true',
+      });
+      columns.forEach(([kind], columnIndex) => {
+        const label = svgNode('text', {
+          x: String(columnX[columnIndex]),
+          y: '15',
+          'text-anchor': 'middle',
+          class: 'graph-kind-label',
+        });
+        label.textContent = GRAPH_KIND_LABELS[kind] || kind;
+        svg.append(label);
+      });
+
+      const edgeLayer = svgNode('g', {class: 'graph-edges'});
+      for (const edge of edges) {
+        const from = positions.get(edge.source_id);
+        const to = positions.get(edge.target_id);
+        if (!from || !to) continue;
+        const weight = Number(edge.weight) || 0.1;
+        const coactivation = edge.relation === 'co_activates';
+        const path = svgNode('path', {
+          d: `M ${from.x} ${from.y} C ${from.x + 40} ${from.y}, ${to.x - 40} ${to.y}, ${to.x} ${to.y}`,
+          class: `graph-edge${edge.myelinated ? ' myelinated' : ''}`,
+          stroke: coactivation ? '#7ee2b8' : '#8b93a7',
+          'stroke-width': String(Math.max(0.6, Math.min(4, weight))),
+          'stroke-dasharray': coactivation ? '3 3' : 'none',
+          opacity: String(Math.min(0.85, 0.22 + weight / 4)),
+        });
+        const title = svgNode('title');
+        title.textContent = `${edge.source} → ${edge.target} · ${edge.relation} · вес ${weight.toFixed(2)} · успехов ${edge.successes}, ошибок ${edge.failures}`;
+        path.append(title);
+        edgeLayer.append(path);
+      }
+      svg.append(edgeLayer);
+
+      const nodeLayer = svgNode('g', {class: 'graph-nodes'});
+      for (const {x, y, node} of positions.values()) {
+        const radius = 4 + Math.min(7, Math.sqrt(Number(node.activations) || 1));
+        const circle = svgNode('circle', {
+          cx: String(x),
+          cy: String(y),
+          r: String(radius),
+          fill: GRAPH_KIND_COLORS[node.kind] || '#9aa4b2',
+          class: 'graph-node',
+        });
+        const title = svgNode('title');
+        title.textContent = `${node.kind}: ${node.label} · вес ${Number(node.weight).toFixed(2)} · активаций ${node.activations}`;
+        circle.append(title);
+        nodeLayer.append(circle);
+      }
+      svg.append(nodeLayer);
+      host.append(svg);
+      const shown = `Показано ${nodes.length} из ${data.nodes_total} узлов и ${edges.length} из ${data.edges_total} связей`;
+      note.textContent = data.truncated ? `${shown}: карта обрезана по важности.` : `${shown}.`;
+    } catch (err) {
+      note.textContent = `Карта недоступна: ${err.message}`;
+    }
   }
 
   async function loadGrowth() {
@@ -795,13 +999,22 @@
         const trainText = autonomy.auto_train_enabled
           ? `включено (${train.status || 'ещё не запускалось'})`
           : 'выключено';
-        autonomyLine.textContent = `Автономный цикл: ${autonomy.status === 'running' ? 'работает' : 'ожидает'} · автообучение: ${trainText} · тиков: ${autonomy.ticks ?? 0} · консолидаций: ${autonomy.last_consolidation_pass ?? 0}`;
+        const mode = autonomy.paused
+          ? `на паузе${autonomy.paused_at ? ` с ${date(autonomy.paused_at)}` : ''}`
+          : (autonomy.status === 'running' ? 'работает' : 'ожидает');
+        autonomyLine.textContent = `Автономный цикл: ${mode} · автообучение: ${trainText} · тиков: ${autonomy.ticks ?? 0} · консолидаций: ${autonomy.last_consolidation_pass ?? 0}`;
+        const pauseButton = $('autonomy-pause-btn');
+        if (pauseButton) {
+          pauseButton.dataset.paused = autonomy.paused ? '1' : '0';
+          pauseButton.textContent = autonomy.paused ? 'Возобновить автономность' : 'Пауза автономности';
+        }
       }
 
       const readinessLine = $('growth-readiness-line');
       const readiness = autonomy?.training_readiness;
       if (readinessLine && readiness) {
         const blockerLabels = {
+          autonomy_paused: 'автономность на паузе',
           auto_train_disabled: 'автообучение выключено',
           not_enough_verified_experience: 'мало проверенного опыта',
           no_new_verified_experience: 'нет нового проверенного опыта',
@@ -812,11 +1025,15 @@
         const tail = readiness.ready
           ? 'можно запускать'
           : `блокеры: ${blockers.join(', ') || 'нет данных'}`;
+        const cooldown = Number(readiness.cooldown_remaining_seconds || 0);
+        const cooldownText = cooldown > 0
+          ? ` · пауза ещё ${Math.ceil(cooldown / 3600)} ч`
+          : '';
         const study = autonomy?.last_self_study_result;
         const studyTail = study
           ? ` · самообучение: ${study.created ?? 0} фактов`
           : '';
-        readinessLine.textContent = `Готовность к обучению: ${readiness.ready ? 'да' : 'нет'} · проверено: ${readiness.verified_records ?? 0} · новых: ${readiness.new_verified_records ?? 0} · нужно: ${readiness.required_records ?? 0}/${readiness.required_new_records ?? 0} · ${tail}${studyTail}`;
+        readinessLine.textContent = `Готовность к обучению: ${readiness.ready ? 'да' : 'нет'} · проверено: ${readiness.verified_records ?? 0}, нужно всего ≥${readiness.required_records ?? 0} · новых: ${readiness.new_verified_records ?? 0}, нужно ≥${readiness.required_new_records ?? 0} · ${tail}${cooldownText}${studyTail}`;
       }
 
       const adapterLine = $('growth-adapter-line');
@@ -831,12 +1048,10 @@
         adapterLine.textContent = 'Обученный адаптер: пока нет promoted-адаптера, ответы идут с базовой модели.';
       }
 
-      const list = clear($('growth-fast-paths'));
-      const fast = data.fast_paths || [];
+      const list = clear($('growth-fast-paths'));      const fast = data.fast_paths || [];
       const weak = data.weak_paths || [];
       if (!fast.length && !weak.length) {
         list.append(el('p', 'Пока нет ни быстрых, ни слабых путей. Сеть начнёт различать их по мере накопления опыта.', 'muted'));
-        return;
       }
       for (const path of fast.slice(0, 6)) {
         const item = el('div', undefined, 'memory-item');
@@ -860,8 +1075,156 @@
       }
     } catch (err) {
       console.error('Failed to load growth network:', err);
+      const statusLine = $('growth-status-line');
+      if (statusLine) statusLine.textContent = `Сеть недоступна: ${err.message}. Нажмите «Обновить сеть».`;
+    }
+    await Promise.all([loadAdapters(), loadTrainingJobs(), loadGrowthGraph()]);
+  }
+
+  const JOB_STATUS_LABELS = {
+    queued: 'в очереди',
+    running: 'идёт',
+    completed: 'завершён',
+    failed: 'ошибка',
+    blocked: 'заблокирован',
+    cancelled: 'отменён',
+    interrupted: 'прерван',
+  };
+  const JOB_PHASE_LABELS = {
+    queued: 'подготовка',
+    loading_model: 'загрузка модели',
+    measuring_holdout: 'замер holdout',
+    training: 'обучение',
+    saving_adapter: 'сохранение адаптера',
+    completed: 'готово',
+    done: 'готово',
+  };
+
+  async function cancelTrainingJob(runId, button) {
+    button.disabled = true;
+    try {
+      const data = await api(`/training/runs/${encodeURIComponent(runId)}/cancel`, {method: 'POST'});
+      notify(data.cancelled
+        ? 'Отмена запрошена: прогон остановится после текущего шага.'
+        : 'Прогон уже завершён, отменять нечего.');
+      await loadTrainingJobs();
+    } catch (err) {
+      notify(err.message, true);
+      button.disabled = false;
     }
   }
+
+  async function loadTrainingJobs() {
+    const list = $('training-jobs');
+    if (!list) return;
+    clear(list);
+    try {
+      const data = await api('/training/runs?limit=5');
+      const jobs = data.jobs || [];
+      if (!jobs.length) {
+        list.append(el('p', 'Фоновых прогонов пока нет.', 'muted'));
+        return;
+      }
+      for (const job of jobs) {
+        const item = el('div', undefined, 'memory-item');
+        const header = el('div', undefined, 'memory-header');
+        header.append(el('strong', job.run_id));
+        header.append(el('span', JOB_STATUS_LABELS[job.status] || job.status,
+          ['failed', 'blocked', 'interrupted'].includes(job.status) ? 'severity-pill CRITICAL' : 'severity-pill LOW'));
+        const progress = job.progress || {};
+        const details = [];
+        if (progress.phase) details.push(JOB_PHASE_LABELS[progress.phase] || progress.phase);
+        if (progress.step != null && progress.steps != null) details.push(`шаг ${progress.step}/${progress.steps}`);
+        if (progress.loss != null) details.push(`loss ${Number(progress.loss).toFixed(3)}`);
+        if (job.duration_seconds != null) details.push(`${Math.round(job.duration_seconds)} с`);
+        item.append(header, el('p', details.join(' · ') || '—'));
+        if (job.error) item.append(el('p', String(job.error), 'muted'));
+        if (['queued', 'running'].includes(job.status)) {
+          const button = el('button', job.cancel_requested ? 'Отмена запрошена…' : 'Отменить', 'secondary small-button');
+          button.type = 'button';
+          button.disabled = Boolean(job.cancel_requested);
+          button.addEventListener('click', () => cancelTrainingJob(job.run_id, button));
+          item.append(button);
+        }
+        list.append(item);
+      }
+    } catch (err) {
+      list.append(el('p', `Прогоны недоступны: ${err.message}`, 'muted'));
+    }
+  }
+
+  setInterval(() => {
+    const panel = $('inspector-evolution');
+    if (!panel || panel.hidden || document.hidden) return;
+    loadTrainingJobs();
+  }, 5000);
+
+  async function activateAdapter(name, button) {
+    if (button) button.disabled = true;
+    try {
+      const data = await api(`/training/adapters/${encodeURIComponent(name)}/activate`, {method: 'POST'});
+      notify(`Адаптер закреплён: ${data.pinned || name}. Он применится при следующем ответе.`);
+      await Promise.all([loadAdapters(), loadGrowth()]);
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function loadAdapters() {
+    const list = $('adapter-history');
+    if (!list) return;
+    clear(list);
+    try {
+      const data = await api('/training/adapters');
+      const rows = data.adapters || [];
+      if (!rows.length) {
+        list.append(el('p', 'Адаптеров пока нет: обучение ещё не дало promoted-результата.', 'muted'));
+        return;
+      }
+      for (const row of rows) {
+        const item = el('div', undefined, 'memory-item');
+        const header = el('div', undefined, 'memory-header');
+        header.append(el('strong', row.name));
+        if (row.selected) header.append(el('span', 'используется', 'severity-pill LOW'));
+        if (row.pinned) header.append(el('span', 'закреплён', 'severity-pill LOW'));
+        if (row.promotion_status !== 'promoted') {
+          header.append(el('span', row.promotion_status || 'unknown', 'severity-pill CRITICAL'));
+        }
+        const before = row.holdout_loss_before != null ? Number(row.holdout_loss_before).toFixed(4) : '—';
+        const after = row.holdout_loss_after != null ? Number(row.holdout_loss_after).toFixed(4) : '—';
+        const details = [`holdout ${before} → ${after}`, `шагов ${row.steps ?? '—'}`];
+        if (row.records != null) details.push(`пар ${row.records}`);
+        if (row.topic) details.push(row.topic);
+        if (row.teacher) details.push(`учитель ${row.teacher}`);
+        item.append(header, el('p', details.join(' · ')));
+        if (row.promotion_status === 'promoted' && !row.pinned) {
+          const button = el('button', 'Закрепить', 'secondary small-button');
+          button.type = 'button';
+          button.addEventListener('click', () => activateAdapter(row.name, button));
+          item.append(button);
+        }
+        list.append(item);
+      }
+    } catch (err) {
+      list.append(el('p', `История адаптеров недоступна: ${err.message}`, 'muted'));
+    }
+  }
+
+  $('adapter-auto-btn')?.addEventListener('click', async () => {
+    const button = $('adapter-auto-btn');
+    button.disabled = true;
+    try {
+      await api('/training/adapters/auto', {method: 'POST'});
+      notify('Выбор адаптера возвращён к «самый новый promoted».');
+      await Promise.all([loadAdapters(), loadGrowth()]);
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
 
   $('refresh-growth-btn')?.addEventListener('click', () => loadGrowth());
 
@@ -924,6 +1287,8 @@
       const cycle = result.cycle || {};
       const training = cycle.training || {};
       const parts = [];
+      if (cycle.skipped === 'autonomy_paused') parts.push('автономность на паузе');
+      else if (cycle.skipped === 'autonomy_owned_by_another_process') parts.push('циклом управляет другой процесс');
       if (cycle.consolidated) parts.push('сеть консолидирована');
       if (training.status) parts.push(`обучение: ${training.status}`);
       if (!parts.length) parts.push('изменений не требуется');
@@ -945,6 +1310,7 @@
       if (training.status === 'skipped') {
         const readiness = result.readiness || {};
         const blockerLabels = {
+          autonomy_paused: 'автономность на паузе',
           auto_train_disabled: 'автообучение выключено',
           not_enough_verified_experience: 'мало проверенного опыта',
           no_new_verified_experience: 'нет нового проверенного опыта',
@@ -977,6 +1343,23 @@
       notify(err.message, true);
     } finally {
       btn.disabled = false;
+    }
+  });
+
+  $('autonomy-pause-btn')?.addEventListener('click', async () => {
+    const button = $('autonomy-pause-btn');
+    const wasPaused = button.dataset.paused === '1';
+    button.disabled = true;
+    try {
+      await api(`/growth/autonomy/${wasPaused ? 'resume' : 'pause'}`, {method: 'POST'});
+      notify(wasPaused
+        ? 'Автономность возобновлена: консолидация и обучение снова разрешены.'
+        : 'Автономность на паузе: новые циклы и автообучение не запускаются.');
+      await loadGrowth();
+    } catch (err) {
+      notify(err.message, true);
+    } finally {
+      button.disabled = false;
     }
   });
 
@@ -1291,30 +1674,70 @@
     });
   });
 
+  const PROVIDER_LABELS = {
+    local_transformers: 'Локальные веса',
+    opencode: 'OpenCode',
+    anthropic: 'Anthropic',
+    openai: 'OpenAI',
+    ollama: 'Ollama',
+  };
+  const UNAVAILABLE_LABELS = {
+    provider_not_configured: 'провайдер не настроен',
+    provider_unreachable: 'провайдер недоступен',
+    provider_unavailable: 'провайдер недоступен',
+    model_not_installed: 'модель не установлена',
+    model_not_downloaded: 'модель не скачана',
+    quota_exhausted: 'лимит исчерпан',
+  };
+
   async function loadModelOptions() {
     const select = $('model-select');
     if (!select) return;
     const selected = select.value;
-    select.querySelector('#dynamic-model-options')?.remove();
+    // The catalog is the single source of truth: previously the template also
+    // hard-coded cloud models that failed only at execution time.
+    select.querySelectorAll('optgroup.dynamic-model-options').forEach(node => node.remove());
     try {
       const data = await api('/router/catalog?refresh=true');
-      const models = (data.catalog || []).filter(m => m.provider === 'opencode' || m.is_local);
+      const models = data.catalog || [];
       if (!models.length) return;
-      const group = document.createElement('optgroup');
-      group.id = 'dynamic-model-options';
-      group.label = 'OpenCode и локальные веса';
+      const groups = new Map();
       for (const model of models) {
-        const option = document.createElement('option');
-        option.value = model.id;
-        const prefix = model.provider === 'opencode' ? 'OpenCode' : 'Локально';
-        option.textContent = `${prefix} · ${model.display_name || model.id}`;
-        group.append(option);
+        if (!groups.has(model.provider)) groups.set(model.provider, []);
+        groups.get(model.provider).push(model);
+      }
+      const order = ['local_transformers', 'opencode', 'anthropic', 'openai', 'ollama'];
+      const keys = [...groups.keys()].sort((a, b) => {
+        const left = order.includes(a) ? order.indexOf(a) : order.length;
+        const right = order.includes(b) ? order.indexOf(b) : order.length;
+        return left - right || a.localeCompare(b);
+      });
+      const fragment = document.createDocumentFragment();
+      for (const key of keys) {
+        const group = document.createElement('optgroup');
+        group.className = 'dynamic-model-options';
+        group.label = PROVIDER_LABELS[key] || key;
+        const items = groups.get(key).slice().sort((a, b) =>
+          Number(Boolean(b.available)) - Number(Boolean(a.available))
+          || String(a.display_name || a.id).localeCompare(String(b.display_name || b.id)));
+        for (const model of items) {
+          const option = document.createElement('option');
+          option.value = model.id;
+          const reason = UNAVAILABLE_LABELS[model.unavailable_reason] || model.unavailable_reason || 'нет данных';
+          option.textContent = model.available
+            ? (model.display_name || model.id)
+            : `${model.display_name || model.id} · недоступно: ${reason}`;
+          option.disabled = !model.available;
+          group.append(option);
+        }
+        fragment.append(group);
       }
       const agents = select.querySelector('#agent-options-group');
-      select.insertBefore(group, agents || null);
-      if ([...select.options].some(option => option.value === selected)) select.value = selected;
+      select.insertBefore(fragment, agents || null);
+      const stillValid = [...select.options].some(option => option.value === selected && !option.disabled);
+      select.value = stillValid ? selected : 'auto';
     } catch (error) {
-      // The catalog panel shows the detailed error; chat still works with auto.
+      // Keep OmniRouter selected; the catalog panel shows the detailed error.
     }
   }
 

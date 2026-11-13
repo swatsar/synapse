@@ -867,11 +867,34 @@ async def dashboard():
     return HTMLResponse((TEMPLATES / "dashboard.html").read_text(encoding="utf-8"))
 
 
+_PAGE_FILES = {"providers", "agents", "settings"}
+
+
+def _render_page(page_name: str) -> HTMLResponse:
+    return HTMLResponse((TEMPLATES / f"{page_name}.html").read_text(encoding="utf-8"))
+
+
+@app.get("/providers", response_class=HTMLResponse)
+async def providers_page():
+    return _render_page("providers")
+
+
+@app.get("/agents", response_class=HTMLResponse)
+async def agents_page():
+    return _render_page("agents")
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page():
+    return _render_page("settings")
+
+
 @app.get("/{page_name}.html", response_class=HTMLResponse)
 async def html_page(page_name: str):
-    if page_name not in {"providers", "agents", "settings"}:
+    # Legacy URLs stay readable, but navigation now uses the clean paths above.
+    if page_name not in _PAGE_FILES:
         raise HTTPException(status_code=404, detail="Page not found")
-    return HTMLResponse((TEMPLATES / f"{page_name}.html").read_text(encoding="utf-8"))
+    return _render_page(page_name)
 
 
 def create_app(orchestrator=None, checkpoint_manager=None, rollback_manager=None):
