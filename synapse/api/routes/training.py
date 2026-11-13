@@ -334,7 +334,7 @@ async def cancel_training_job(run_id: str) -> dict[str, Any]:
     return {
         "cancelled": cancelled,
         "job": jobs.get(run_id),
-        "reason": None if cancelled else "job_not_running_in_this_process",
+        "reason": None if cancelled else "job_unknown_or_terminal",
         "protocol_version": PROTOCOL_VERSION,
     }
 
