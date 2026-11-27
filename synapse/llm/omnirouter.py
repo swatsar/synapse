@@ -498,6 +498,10 @@ class OmniRouter:
             opencode_models = detect_models()
             quota_blocked = is_opencode_quota_exhausted()
             self._opencode_models = [model.model_id for model in opencode_models]
+            if opencode_models:
+                for model_id in list(self.catalog):
+                    if self.catalog[model_id].provider == "opencode" and model_id not in self._opencode_models:
+                        del self.catalog[model_id]
             self._quota_blocked = quota_blocked
             self._availability["opencode"] = bool(opencode_models) and not quota_blocked
             for model in opencode_models:
@@ -1030,22 +1034,17 @@ class OmniRouter:
                         (str(item.get("error")) for item in reversed(attempts) if item.get("error")),
                         "",
                     )
-                    if not reason:
+                    if requested.lower().startswith("opencode/"):
                         try:
                             from synapse.integrations.opencode_bridge import quota_status
-                            quota = quota_status()
-                            if quota.get("exhausted"):
+                            quota = quota_status(requested)
+                            payload["quota_exhausted"] = quota["exhausted"]
+                            if quota["exhausted"] and not reason:
                                 reason = quota.get("message") or "OpenCode free usage limit is exhausted"
                         except Exception:
                             pass
                     if reason:
                         payload["fallback_reason"] = reason[:500]
-                    if requested.lower().startswith("opencode/"):
-                        try:
-                            from synapse.integrations.opencode_bridge import is_opencode_quota_exhausted
-                            payload["quota_exhausted"] = is_opencode_quota_exhausted()
-                        except Exception:
-                            pass
                 return payload
             except Exception as exc:
                 cb.record_failure(exc)
@@ -1179,15 +1178,8 @@ class OmniRouter:
         ):
             return False
         if check_availability and provider == "opencode":
-            # Quota exhaustion is account-wide: do not present the provider as
-            # ready, so the router moves straight to the local fallback.
-            try:
-                from synapse.integrations.opencode_bridge import is_opencode_quota_exhausted
-                if is_opencode_quota_exhausted():
-                    return False
-            except Exception:
-                pass
-            return self.is_provider_available("opencode")
+            available, _ = self._model_availability(descriptor)
+            return available
         return True
 
     async def _execution_config(self, provider: str, model: str) -> tuple[str, str | None, str | None]:
@@ -1246,6 +1238,10 @@ class OmniRouter:
                 return False, "model_not_installed"
             return True, None
         if provider == "opencode":
+            from synapse.integrations.opencode_bridge import quota_status
+
+            if quota_status(model.id)["exhausted"]:
+                return False, "quota_exhausted"
             if self.is_provider_available("opencode"):
                 return True, None
             return False, "quota_exhausted" if self._quota_blocked else "provider_unavailable"

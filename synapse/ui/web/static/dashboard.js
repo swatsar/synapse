@@ -10,6 +10,7 @@
   const statusNames = {
     queued: 'В очереди', running: 'Выполняется', completed: 'Завершено',
     failed: 'Ошибка', approval_required: 'Нужно подтверждение',
+    cancelling: 'Останавливается', cancelled: 'Остановлена',
   };
   const state = {
     sessionId: null, session: null, sessions: [], tasks: [], events: [],
@@ -20,7 +21,7 @@
   if (storedSession) state.sessionId = storedSession;
 
   function taskById(id) { return state.tasks.find(task => task.id === id); }
-  function isActive(task) { return task && ['queued', 'running'].includes(task.status); }
+  function isActive(task) { return task && ['queued', 'running', 'cancelling'].includes(task.status); }
   function scrollConversation() {
     requestAnimationFrame(() => { $('conversation-scroll').scrollTop = $('conversation-scroll').scrollHeight; });
   }
@@ -91,7 +92,9 @@
     }
     const fallbackFrom = describe(out.fallback_from || task?.result?.fallback_from);
     if (fallbackFrom) parts.push(`fallback: ${fallbackFrom}`);
-    if (out.quota_exhausted || task?.result?.quota_exhausted) parts.push('лимит учителя исчерпан');
+    if (out.quota_exhausted || task?.result?.quota_exhausted) {
+      parts.push(fallbackFrom?.startsWith('opencode/') ? 'лимит OpenCode исчерпан' : 'лимит модели исчерпан');
+    }
     const reason = describe(out.fallback_reason || task?.result?.fallback_reason);
     if (reason) parts.push(reason);
     return parts.join(' · ');
@@ -115,12 +118,19 @@
     const avatar = el('div', undefined, 'agent-avatar'); avatar.append(icon('shield'));
     const body = el('div');
     body.append(el('div', 'Synapse', 'agent-name'));
-    if (task?.status === 'running' || task?.status === 'queued') {
-      body.append(el('div', task.status === 'queued' ? 'Задача добавлена в очередь…' : 'Выполняю когнитивный цикл…', 'agent-content'), miniTimeline(task));
+    const managed = task?.payload?.managed_agent;
+    if (isActive(task)) {
+      const label = managed ? statusNames[task.status] : (task.status === 'queued' ? 'Задача добавлена в очередь…' : 'Выполняю когнитивный цикл…');
+      body.append(el('div', label, 'agent-content'), miniTimeline(task));
     } else {
       body.append(el('div', message.content || 'Нет ответа.', `agent-content${task?.status === 'failed' ? ' error' : ''}`));
       const meta = outputMetaText(task);
       if (meta) body.append(el('div', meta, 'step-note'));
+      const learning = task?.result?.learning;
+      if (managed && learning) {
+        const note = learning.recorded ? (learning.eligible ? 'Включено в обучающие примеры' : 'Можно подтвердить как обучающий пример') : 'Обучающий пример не сохранён';
+        body.append(el('div', note, 'step-note'));
+      }
       if (task) body.append(miniTimeline(task));
     }
     if (task) {
@@ -130,6 +140,23 @@
       const copy = el('button', 'Копировать', 'small-button'); copy.type = 'button';
       copy.addEventListener('click', () => copyText(message.content));
       actions.append(inspect, copy);
+      if (managed && isActive(task)) {
+        const stop = el('button', 'Остановить', 'small-button');
+        stop.type = 'button';
+        stop.disabled = task.status === 'cancelling';
+        stop.addEventListener('click', async () => {
+          stop.disabled = true;
+          try {
+            const record = await api(`/tasks/${encodeURIComponent(task.id)}/cancel`, {method: 'POST'});
+            mergeTasks([record]);
+            await loadSession();
+          } catch (error) {
+            notify(error.message, true);
+            stop.disabled = false;
+          }
+        });
+        actions.append(stop);
+      }
       if (!isActive(task)) {
         const retry = el('button', 'Повторить', 'small-button'); retry.type = 'button';
         retry.addEventListener('click', () => retryTask(task.id));
@@ -138,7 +165,7 @@
       if (task.status === 'completed' && message.task_id) {
         // Explicit human judgement is an independent verifier: approval can
         // turn this answer into training evidence for the next self-training run.
-        const good = el('button', 'Полезно', 'small-button'); good.type = 'button';
+        const good = el('button', managed ? 'Подтвердить для обучения' : 'Полезно', 'small-button'); good.type = 'button';
         good.title = 'Подтвердить ответ как обучающий пример';
         good.addEventListener('click', () => sendFeedback(task.id, true, actions, good));
         const bad = el('button', 'Неточно', 'small-button'); bad.type = 'button';
@@ -504,6 +531,7 @@
     }
 
     let payload = null;
+    let managedAgent = null;
     try {
       const raw = $('payload').value.trim();
       if (raw) {
@@ -514,11 +542,12 @@
       if (selectedModel && selectedModel !== 'auto') {
         payload = payload || {};
         if (selectedModel.startsWith('agent:')) {
-          payload.executor = selectedModel.slice('agent:'.length);
-          // OpenCode-configured model passthrough (e.g. openai/gpt-6-astra for codex).
-          if (!payload.model && state.agentDefaults?.[payload.executor]) {
-            payload.model = state.agentDefaults[payload.executor];
+          const [agent, model] = selectedModel.slice('agent:'.length).split(':', 2);
+          if (payload.path || payload.local_only || payload.privacy) {
+            throw new Error('Для внешнего агента введите текст задачи без файла и режима приватности.');
           }
+          managedAgent = {agent, model: model || payload.model, task: text,
+            acceptance_criteria: payload.acceptance_criteria, timeout_seconds: payload.timeout_seconds};
         } else {
           payload.model = selectedModel;
         }
@@ -530,8 +559,8 @@
     state.submitting = true; $('send-task').disabled = true;
     try {
       if (!state.sessionId) await createSession();
-      const task = await api(`/sessions/${encodeURIComponent(state.sessionId)}/tasks`, {
-        method: 'POST', body: JSON.stringify({task: text, payload, session_id: state.sessionId}),
+      const task = await api(`/sessions/${encodeURIComponent(state.sessionId)}/${managedAgent ? 'agent-tasks' : 'tasks'}`, {
+        method: 'POST', body: JSON.stringify(managedAgent || {task: text, payload, session_id: state.sessionId}),
       });
       if (state.session.title === 'Новая задача') {
         state.session = await api(`/sessions/${encodeURIComponent(state.sessionId)}`, {method: 'PATCH', body: JSON.stringify({title: text.slice(0, 80)})});
@@ -549,7 +578,14 @@
 
   async function retryTask(id) {
     try {
-      const task = await api(`/tasks/${encodeURIComponent(id)}/retry`, {method: 'POST'});
+      const previous = taskById(id);
+      const payload = previous?.payload;
+      const task = payload?.managed_agent
+        ? await api(`/sessions/${encodeURIComponent(previous.session_id)}/agent-tasks`, {
+          method: 'POST', body: JSON.stringify({agent: payload.managed_agent, task: previous.task,
+            model: payload.model, acceptance_criteria: payload.acceptance_criteria, timeout_seconds: payload.timeout_seconds}),
+        })
+        : await api(`/tasks/${encodeURIComponent(id)}/retry`, {method: 'POST'});
       mergeTasks([task]); state.selectedTaskId = task.id;
       await loadSession(); showTab('run'); startPolling(); notify('Задача добавлена в очередь.');
     } catch (error) { notify(error.message, true); }
@@ -564,23 +600,20 @@
     const group = $('agent-options-group');
     if (!group) return;
     try {
-      const data = await api('/integrations/agents');
-      state.agentDefaults = {};
-      for (const option of group.querySelectorAll('option')) {
-        const agentId = option.value.slice('agent:'.length);
-        const agent = (data.agents || []).find(item => item.id === agentId);
-        if (!agent) continue;
-        if (agent.default_model) {
-          state.agentDefaults[agentId] = agent.default_model;
-          const suffix = agent.enabled ? ` · модель ${agent.default_model}` : (agent.configured ? ' · отключён' : ' · не найден');
-          option.textContent = option.textContent.replace(/\s*· .*$/, '') + suffix;
-        } else {
-          option.disabled = !agent.enabled && !agent.configured;
-          if (!agent.enabled) option.textContent = option.textContent.replace(/\s*(отключён|включён)$/, '') + (agent.configured ? ' · отключён' : ' · не найден');
-          else option.textContent = option.textContent.replace(/\s*· (отключён|не найден)$/, '');
+      const data = await api('/agent-executors');
+      clear(group);
+      for (const agent of data.agents) {
+        const choices = agent.models.length ? agent.models : [null];
+        for (const model of choices) {
+          const option = document.createElement('option');
+          option.value = `agent:${agent.id}${model ? ':' + model.id : ''}`;
+          const name = model ? `${agent.name} (текст) · ${model.display_name}` : agent.name;
+          option.disabled = !agent.available || model?.available === false;
+          option.textContent = option.disabled ? `${name} · недоступен` : name;
+          group.append(option);
         }
       }
-    } catch (error) { /* inventory is optional; leave options as-is */ }
+    } catch (error) { clear(group); }
   }
 
   function exportSession() {
@@ -1017,6 +1050,7 @@
           autonomy_paused: 'автономность на паузе',
           auto_train_disabled: 'автообучение выключено',
           not_enough_verified_experience: 'мало проверенного опыта',
+          configured_training_model_unavailable: 'целевая модель не загружена',
           no_new_verified_experience: 'нет нового проверенного опыта',
           cooldown: 'пауза между запусками',
           training_already_running: 'обучение уже идёт',
@@ -1033,7 +1067,8 @@
         const studyTail = study
           ? ` · самообучение: ${study.created ?? 0} фактов`
           : '';
-        readinessLine.textContent = `Готовность к обучению: ${readiness.ready ? 'да' : 'нет'} · проверено: ${readiness.verified_records ?? 0}, нужно всего ≥${readiness.required_records ?? 0} · новых: ${readiness.new_verified_records ?? 0}, нужно ≥${readiness.required_new_records ?? 0} · ${tail}${cooldownText}${studyTail}`;
+        const trainingModel = readiness.training_target ? ` · модель ${readiness.training_target}` : '';
+        readinessLine.textContent = `Готовность к обучению: ${readiness.ready ? 'да' : 'нет'} · проверено: ${readiness.verified_records ?? 0}, нужно всего ≥${readiness.required_records ?? 0} · новых: ${readiness.new_verified_records ?? 0}, нужно ≥${readiness.required_new_records ?? 0} · ${tail}${trainingModel}${cooldownText}${studyTail}`;
       }
 
       const adapterLine = $('growth-adapter-line');

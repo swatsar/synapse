@@ -14,7 +14,7 @@ def test_integrations_inventory_is_truthful(monkeypatch):
     # is actually healthy (observed only in the full suite).
     monkeypatch.setattr(
         opencode_bridge, "quota_status",
-        lambda: {
+        lambda model_id=None: {
             "exhausted": False, "message": None,
             "retry_after_seconds": 0, "reset_at": None,
             "protocol_version": opencode_bridge.PROTOCOL_VERSION,

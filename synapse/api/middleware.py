@@ -9,17 +9,96 @@ with all Starlette/FastAPI versions (avoids BaseHTTPMiddleware issues).
 
 PROTOCOL_VERSION: str = "1.0"
 import logging
+from ipaddress import ip_address
 import time
 import uuid
 from collections import defaultdict
 from collections.abc import Callable
+from urllib.parse import urlsplit
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
 _CLEANUP_INTERVAL = 300
+
+
+def is_loopback_address(host: str) -> bool:
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+class LocalDesktopAccess:
+    """Allow unkeyed access only on the direct loopback listener."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in {"http", "websocket"}:
+            await self.app(scope, receive, send)
+            return
+        if not self._allowed(scope):
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008, "reason": "Local access only"})
+            else:
+                response = JSONResponse(status_code=403, content={
+                    "message": "Local Synapse requires a direct localhost connection.",
+                    "protocol_version": PROTOCOL_VERSION,
+                })
+                await response(scope, receive, send)
+            return
+        scope.setdefault("state", {})["synapse_local_access"] = True
+        await self.app(scope, receive, send)
+
+    @staticmethod
+    def _allowed(scope: Scope) -> bool:
+        peer = scope.get("client")
+        if not peer or not is_loopback_address(peer[0]):
+            return False
+
+        headers = Headers(scope=scope)
+        if any(name in headers for name in (
+            "forwarded", "x-forwarded-for", "x-forwarded-host", "x-forwarded-proto",
+            "x-forwarded-port", "x-real-ip",
+        )):
+            return False
+        hosts = headers.getlist("host")
+        if len(hosts) != 1:
+            return False
+        try:
+            authority = urlsplit("//" + hosts[0])
+            host = authority.hostname
+            port = authority.port
+        except ValueError:
+            return False
+        if (
+            authority.username is not None or authority.path or authority.query or authority.fragment
+            or not host or (host != "localhost" and not is_loopback_address(host))
+        ):
+            return False
+        scheme = "https" if scope["scheme"] in {"https", "wss"} else "http"
+        origin_port = port or (443 if scheme == "https" else 80)
+        origins = headers.getlist("origin")
+        if origins:
+            if len(origins) != 1:
+                return False
+            try:
+                origin = urlsplit(origins[0])
+                if (
+                    origin.username is not None or origin.path or origin.query or origin.fragment
+                    or origin.scheme != scheme or origin.hostname != host
+                    or (origin.port or (443 if scheme == "https" else 80)) != origin_port
+                ):
+                    return False
+            except ValueError:
+                return False
+        return headers.get("sec-fetch-site") not in {"cross-site", "same-site"}
 
 
 def make_request_logging_middleware() -> Callable:

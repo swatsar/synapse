@@ -554,6 +554,9 @@ class AutonomyLoop:
             blockers.append("autonomy_paused")
         if not self.auto_train_enabled:
             blockers.append("auto_train_disabled")
+        target = os.getenv("SYNAPSE_AUTONOMY_TRAIN_MODEL", "").strip()
+        if target and self._training_model(target) is None:
+            blockers.append("configured_training_model_unavailable")
         if verified < self.min_records:
             blockers.append("not_enough_verified_experience")
         if new_records < self.min_new_records:
@@ -575,6 +578,7 @@ class AutonomyLoop:
             "required_new_records": self.min_new_records,
             "cooldown_remaining_seconds": round(cooldown_remaining, 1),
             "last_train_status": last_status,
+            "training_target": target or None,
             "blockers": blockers,
             "protocol_version": PROTOCOL_VERSION,
         }
@@ -613,10 +617,19 @@ class AutonomyLoop:
             "protocol_version": PROTOCOL_VERSION,
         }
 
+    @staticmethod
+    def _training_model(target: str):
+        from synapse.models import get_model_registry
+
+        return next((
+            manifest for manifest in get_model_registry().list()
+            if manifest.status == "downloaded" and manifest.local_path
+            and (not target or manifest.model_id == target)
+        ), None)
+
     def _train_once(self) -> dict[str, Any]:
         """Train a real adapter over verified experience, if there is enough."""
         from synapse.experience import DatasetSnapshotStore, ExperienceStore
-        from synapse.models import get_model_registry
         from synapse.training import train_lora
 
         store = ExperienceStore(self.workspace_root / ".synapse" / "experience.sqlite3")
@@ -637,13 +650,14 @@ class AutonomyLoop:
                     "verified_records": verified,
                     "required_new": self.min_new_records,
                 }
-            manifests = [
-                manifest for manifest in get_model_registry().list()
-                if manifest.status == "downloaded" and manifest.local_path
-            ]
-            if not manifests:
-                return {"status": "skipped", "reason": "no_downloaded_local_model"}
-            manifest = manifests[0]
+            target = os.getenv("SYNAPSE_AUTONOMY_TRAIN_MODEL", "").strip()
+            manifest = self._training_model(target)
+            if manifest is None:
+                return {
+                    "status": "skipped",
+                    "reason": "configured_training_model_unavailable" if target else "no_downloaded_local_model",
+                    "model": target or None,
+                }
             snapshots = DatasetSnapshotStore(self.workspace_root / ".synapse" / "datasets")
             try:
                 snapshot = snapshots.create(store, seed=int(time.time()))

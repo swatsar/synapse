@@ -228,6 +228,8 @@ class ExternalCliHarness(HarnessAdapter):
                 return HarnessResult(False, error=f"executor executable not found: {self.executable}")
             prefix = [executable]
         if os.name == "nt" and prefix[0].lower().endswith((".cmd", ".bat")):
+            if request.metadata.get("managed_agent"):
+                return HarnessResult(False, error="Use a native executable for managed agent tasks")
             prefix = ["cmd.exe", "/c", *prefix]
         if not request.prompt.strip():
             return HarnessResult(False, error="executor prompt is empty")
@@ -301,6 +303,8 @@ class CodexHarness(ExternalCliHarness):
         model = request.metadata.get("model")
         if isinstance(model, str) and model.strip():
             argv += ["-c", f"model={model.strip()}"]
+        if request.metadata.get("managed_agent"):
+            argv.append("--")
         argv.append(request.prompt)
         return argv
 
@@ -312,8 +316,9 @@ class ClaudeCodeHarness(ExternalCliHarness):
     def build_argv(self, prefix: list[str], request: HarnessRequest, workspace: Path) -> list[str]:
         tools = "Read,Glob,Grep,Write,Edit" if self.write_enabled else "Read,Glob,Grep"
         permission_mode = "acceptEdits" if self.write_enabled else "dontAsk"
+        managed = request.metadata.get("managed_agent")
         argv = [
-            *prefix, "-p", request.prompt, "--output-format", "stream-json", "--verbose",
+            *prefix, "-p", *([] if managed else [request.prompt]), "--output-format", "stream-json", "--verbose",
             "--no-session-persistence", "--safe-mode", "--strict-mcp-config",
             "--permission-mode", permission_mode, "--tools", tools,
             "--add-dir", str(workspace),
@@ -321,6 +326,8 @@ class ClaudeCodeHarness(ExternalCliHarness):
         model = request.metadata.get("model")
         if isinstance(model, str) and model.strip():
             argv += ["--model", model.strip()]
+        if managed:
+            argv += ["--", request.prompt]
         return argv
 
 

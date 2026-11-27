@@ -125,9 +125,16 @@ async def lifespan(application: FastAPI):
         autonomy_loop.start()
     jobs: set[asyncio.Task] = set()
     application.state.background_jobs = jobs
+    from synapse.api.agent_runs import ManagedAgentRuns
+
+    agent_runs = ManagedAgentRuns(application.state.workspace_store, container.experience_store, workspace)
+    application.state.managed_agent_runs = agent_runs
+    agent_runs.recover_expired()
     try:
         yield
     finally:
+        await agent_runs.close()
+        application.state.managed_agent_runs = None
         if autonomy_loop is not None:
             # Stop the maintenance cadence before closing the orchestrator so it
             # never touches a closed memory/growth store.
@@ -172,6 +179,8 @@ app.add_middleware(
 @app.middleware("http")
 async def api_key_auth(request: Request, call_next):
     """Require an API key for API operations; local HTML and health stay readable."""
+    if getattr(request.state, "synapse_local_access", False):
+        return await call_next(request)
     path = request.url.path
     if path == "/health" or not path.startswith(("/api/", "/task", "/checkpoint", "/rollback")):
         return await call_next(request)
@@ -190,7 +199,9 @@ async def api_key_auth(request: Request, call_next):
 app.add_exception_handler(SynapseError, synapse_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 from synapse.api.routes import api_router
+from synapse.api.agent_runs import TASK_PREFIX, router as agent_runs_router
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(agent_runs_router, prefix="/api/v1")
 if (WEB_ROOT / "static").exists():
     app.mount("/static", StaticFiles(directory=WEB_ROOT / "static"), name="static")
 
@@ -520,9 +531,9 @@ async def favicon() -> Any:
 
 @app.get("/runtime-info")
 @app.get("/api/v1/runtime-info")
-async def runtime_info():
+async def runtime_info(request: Request):
     """Expose non-secret UI capability information for clear onboarding."""
-    configured = bool(os.getenv("SYNAPSE_API_KEY"))
+    configured = not getattr(request.state, "synapse_local_access", False) and bool(os.getenv("SYNAPSE_API_KEY"))
     return {
         "api_auth_required": configured,
         "api_auth_description": (
@@ -583,6 +594,9 @@ async def list_tasks(request: Request):
 
 @app.get("/api/v1/tasks/{task_id}")
 async def get_task(task_id: str, request: Request):
+    manager = getattr(request.app.state, "managed_agent_runs", None)
+    if manager is not None and task_id.startswith(TASK_PREFIX):
+        manager.recover_expired()
     task = _store(request.app).get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -652,6 +666,8 @@ async def retry_task(task_id: str, request: Request):
     original = _store(request.app).get_task(task_id)
     if original is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    if task_id.startswith(TASK_PREFIX):
+        raise HTTPException(status_code=409, detail="Submit the retry through the agent task route")
     if original.get("approval_id"):
         approval = _store(request.app).get_approval(original["approval_id"])
         if not approval or approval["status"] != "approved":
@@ -693,7 +709,7 @@ async def update_session(session_id: str, data: SessionUpdate, request: Request)
 
 @app.delete("/api/v1/sessions/{session_id}")
 async def archive_session(session_id: str, request: Request):
-    if any(t["status"] in {"queued", "running"}
+    if any(t["status"] in {"queued", "running", "cancelling"}
            for t in _store(request.app).list_tasks(session_id)):
         raise HTTPException(status_code=409, detail="Wait for active tasks to finish before archiving")
     if not _store(request.app).archive_session(session_id):
@@ -716,6 +732,9 @@ async def submit_session_task(session_id: str, data: TaskRequest, request: Reque
 @app.get("/api/v1/sessions/{session_id}/events")
 async def get_session_events(session_id: str, request: Request, after: int = 0):
     _session(request.app, session_id)
+    manager = getattr(request.app.state, "managed_agent_runs", None)
+    if manager is not None:
+        manager.recover_expired()
     return {"events": _store(request.app).list_events(session_id, max(after, 0)),
             "protocol_version": PROTOCOL_VERSION}
 
@@ -841,7 +860,9 @@ async def add_log(log: dict[str, Any], request: Request):
 async def websocket_endpoint(websocket: WebSocket):
     expected_token = os.getenv("SYNAPSE_API_KEY")
     token = websocket.query_params.get("token")
-    if not expected_token or not token or not secrets.compare_digest(token, expected_token):
+    if not getattr(websocket.state, "synapse_local_access", False) and (
+        not expected_token or not token or not secrets.compare_digest(token, expected_token)
+    ):
         await websocket.close(code=1008, reason="Unauthorized")
         return
     await websocket.accept()
